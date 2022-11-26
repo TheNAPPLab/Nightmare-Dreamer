@@ -68,7 +68,7 @@ class Trainer(object):
         std_targ = []
 
         for i in range(self.collect_intervals):
-            obs, actions, rewards,cost, terms = self.buffer.sample()
+            obs, actions, rewards, terms = self.buffer.sample()
             obs = torch.tensor(obs, dtype=torch.float32).to(self.device)                         #t, t+seq_len 
             actions = torch.tensor(actions, dtype=torch.float32).to(self.device)                 #t-1, t+seq_len-1
             rewards = torch.tensor(rewards, dtype=torch.float32).to(self.device).unsqueeze(-1)   #t-1 to t+seq_len-1

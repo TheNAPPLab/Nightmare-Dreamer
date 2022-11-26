@@ -85,8 +85,7 @@ class ObsDecoder(nn.Module):
         mean = torch.reshape(x, (*batch_shape, *self.output_shape))
         obs_dist = td.Independent(td.Normal(mean, 1), len(self.output_shape))
         return obs_dist
-    
-    
+  
 def conv_out(h_in, padding, kernel_size, stride):
     return int((h_in + 2. * padding - (kernel_size - 1.) - 1.) / stride + 1.)
 
