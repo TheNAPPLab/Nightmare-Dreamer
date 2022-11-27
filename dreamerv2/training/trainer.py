@@ -41,12 +41,13 @@ class Trainer(object):
         s, done  = env.reset(), False 
         for i in range(self.seed_steps):
             a = env.action_space.sample()
-            ns, r, done, _ = env.step(a)
+            ns, r, done, info = env.step(a)
+            c = info['cost']
             if done:
-                self.buffer.add(s,a,r,done)
+                self.buffer.add(s,a,r,c,done)
                 s, done  = env.reset(), False 
             else:
-                self.buffer.add(s,a,r,done)
+                self.buffer.add(s,a,r,c,done)
                 s = ns    
 
     def train_batch(self, train_metrics):
@@ -58,6 +59,7 @@ class Trainer(object):
         obs_l = []
         model_l = []
         reward_l = []
+        cost_l = []
         prior_ent_l = []
         post_ent_l = []
         kl_l = []
@@ -68,13 +70,16 @@ class Trainer(object):
         std_targ = []
 
         for i in range(self.collect_intervals):
-            obs, actions, rewards, terms = self.buffer.sample()
+            obs, actions, rewards, cost, terms = self.buffer.sample()
             obs = torch.tensor(obs, dtype=torch.float32).to(self.device)                         #t, t+seq_len 
             actions = torch.tensor(actions, dtype=torch.float32).to(self.device)                 #t-1, t+seq_len-1
             rewards = torch.tensor(rewards, dtype=torch.float32).to(self.device).unsqueeze(-1)   #t-1 to t+seq_len-1
+            costs = torch.tensor(cost, dtype=torch.float32).to(self.device).unsqueeze(-1)   #t-1 to t+seq_len-1
             nonterms = torch.tensor(1-terms, dtype=torch.float32).to(self.device).unsqueeze(-1)  #t-1 to t+seq_len-1
 
-            model_loss, kl_loss, obs_loss, reward_loss, pcont_loss, prior_dist, post_dist, posterior = self.representation_loss(obs, actions, rewards, nonterms)
+            model_loss, kl_loss, obs_loss, reward_loss, cost_loss,\
+                 pcont_loss, prior_dist, post_dist, \
+                    posterior = self.representation_loss(obs, actions, rewards, costs, nonterms)
             
             self.model_optimizer.zero_grad()
             model_loss.backward()
@@ -106,6 +111,7 @@ class Trainer(object):
             obs_l.append(obs_loss.item())
             model_l.append(model_loss.item())
             reward_l.append(reward_loss.item())
+            cost_l.append(cost_loss.item())
             kl_l.append(kl_loss.item())
             pcont_l.append(pcont_loss.item())
             mean_targ.append(target_info['mean_targ'])
@@ -145,7 +151,8 @@ class Trainer(object):
             discount_dist = self.DiscountModel(imag_modelstates)
             discount_arr = self.discount*torch.round(discount_dist.base_dist.probs)              #mean = prob(disc==1)
 
-        actor_loss, discount, lambda_returns = self._actor_loss(imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy)
+        actor_loss, discount, lambda_returns = self._actor_loss(imag_reward,\
+             imag_value, discount_arr, imag_log_prob, policy_entropy)
         value_loss = self._value_loss(imag_modelstates, discount, lambda_returns)     
 
         mean_target = torch.mean(lambda_returns, dim=1)
@@ -162,7 +169,7 @@ class Trainer(object):
 
         return actor_loss, value_loss, target_info
 
-    def representation_loss(self, obs, actions, rewards, nonterms):
+    def representation_loss(self, obs, actions, rewards,costs, nonterms):
 
         embed = self.ObsEncoder(obs)                                         #t to t+seq_len   
         prev_rssm_state = self.RSSM._init_rssm_state(self.batch_size)   
@@ -170,15 +177,18 @@ class Trainer(object):
         post_modelstate = self.RSSM.get_model_state(posterior)               #t to t+seq_len   
         obs_dist = self.ObsDecoder(post_modelstate[:-1])                     #t to t+seq_len-1  
         reward_dist = self.RewardDecoder(post_modelstate[:-1])               #t to t+seq_len-1  
+        cost_dist = self.CostDecoder(post_modelstate[:-1])
+        # this learns probability of an episode learning when learning behaviors from model predictions
         pcont_dist = self.DiscountModel(post_modelstate[:-1])                #t to t+seq_len-1   
         
-        obs_loss = self._obs_loss(obs_dist, obs[:-1])
-        reward_loss = self._reward_loss(reward_dist, rewards[1:])
+        obs_loss = self._obs_loss(obs_dist, obs[:-1]) # train decoder?
+        reward_loss = self._reward_loss(reward_dist, rewards[1:]) # train reward predictor
+        cost_loss = self._cost_loss(cost_dist, costs[1:]) # train reward predictor
         pcont_loss = self._pcont_loss(pcont_dist, nonterms[1:])
         prior_dist, post_dist, div = self._kl_loss(prior, posterior)
 
-        model_loss = self.loss_scale['kl'] * div + reward_loss + obs_loss + self.loss_scale['discount']*pcont_loss
-        return model_loss, div, obs_loss, reward_loss, pcont_loss, prior_dist, post_dist, posterior
+        model_loss = self.loss_scale['kl'] * div + reward_loss + cost_loss + obs_loss + self.loss_scale['discount']*pcont_loss
+        return model_loss, div, obs_loss, reward_loss, cost_loss, pcont_loss, prior_dist, post_dist, posterior
 
     def _actor_loss(self, imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy):
 
@@ -236,6 +246,10 @@ class Trainer(object):
     def _reward_loss(self, reward_dist, rewards):
         reward_loss = -torch.mean(reward_dist.log_prob(rewards))
         return reward_loss
+
+    def _cost_loss(self,  cost_dist, costs):
+        cost_loss = -torch.mean(cost_dist.log_prob(costs))
+        return cost_loss
     
     def _pcont_loss(self, pcont_dist, nonterms):
         pcont_target = nonterms.float()
@@ -292,9 +306,18 @@ class Trainer(object):
         self.RSSM = RSSM(action_size, rssm_node_size, embedding_size, self.device, config.rssm_type, config.rssm_info).to(self.device)
         self.ActionModel = DiscreteActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
         self.RewardDecoder = DenseModel((1,), modelstate_size, config.reward).to(self.device)
+        self.CostDecoder = DenseModel((1,), modelstate_size, config.cost).to(self.device)
         self.ValueModel = DenseModel((1,), modelstate_size, config.critic).to(self.device)
         self.TargetValueModel = DenseModel((1,), modelstate_size, config.critic).to(self.device)
         self.TargetValueModel.load_state_dict(self.ValueModel.state_dict())
+
+        # create lagrange pultiplier
+        lagrangian_multiplier_init = config.lagrangian_multiplier_init
+        self.lambda_range_projection = torch.nn.ReLU()
+        init_value = max(lagrangian_multiplier_init, 1e-5)
+        self.lagrangian_multiplier = torch.nn.Parameter(
+            torch.as_tensor(init_value),
+            requires_grad=True)
         
         if config.discount['use']:
             self.DiscountModel = DenseModel((1,), modelstate_size, config.discount).to(self.device)
@@ -309,18 +332,31 @@ class Trainer(object):
         model_lr = config.lr['model']
         actor_lr = config.lr['actor']
         value_lr = config.lr['critic']
-        self.world_list = [self.ObsEncoder, self.RSSM, self.RewardDecoder, self.ObsDecoder, self.DiscountModel]
+        lambda_lr  = config.lr['lambda_lr']
+        lambda_optimizer = config.lambda_optimizer
+        
+        # fetch optimizer from PyTorch optimizer package
+        assert hasattr(optim, lambda_optimizer), \
+            f'Optimizer={lambda_optimizer} not found in torch.'
+        torch_opt = getattr(optim, lambda_optimizer)
+        
+
+        self.world_list = [self.ObsEncoder, self.RSSM, self.RewardDecoder, self.CostDecoder,self.ObsDecoder, self.DiscountModel]
         self.actor_list = [self.ActionModel]
         self.value_list = [self.ValueModel]
         self.actorcritic_list = [self.ActionModel, self.ValueModel]
+        
         self.model_optimizer = optim.Adam(get_parameters(self.world_list), model_lr)
         self.actor_optimizer = optim.Adam(get_parameters(self.actor_list), actor_lr)
         self.value_optimizer = optim.Adam(get_parameters(self.value_list), value_lr)
 
+        self.lambda_optimizer = torch_opt([self.lagrangian_multiplier,],
+                                          lr=lambda_lr)
     def _print_summary(self):
         print('\n Obs encoder: \n', self.ObsEncoder)
         print('\n RSSM model: \n', self.RSSM)
         print('\n Reward decoder: \n', self.RewardDecoder)
+        print('\n Reward decoder: \n', self.CostDecoder)
         print('\n Obs decoder: \n', self.ObsDecoder)
         if self.config.discount['use']:
             print('\n Discount decoder: \n', self.DiscountModel)
