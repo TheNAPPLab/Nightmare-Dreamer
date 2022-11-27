@@ -60,6 +60,7 @@ class Trainer(object):
         model_l = []
         reward_l = []
         cost_l = []
+        langrange_l = []
         prior_ent_l = []
         post_ent_l = []
         kl_l = []
@@ -86,7 +87,7 @@ class Trainer(object):
             grad_norm_model = torch.nn.utils.clip_grad_norm_(get_parameters(self.world_list), self.grad_clip_norm)
             self.model_optimizer.step()
 
-            actor_loss, value_loss, target_info = self.actorcritc_loss(posterior)
+            actor_loss, value_loss, lagranian_loss, target_info = self.actorcritc_loss(posterior)
 
             self.actor_optimizer.zero_grad()
             self.value_optimizer.zero_grad()
@@ -100,6 +101,13 @@ class Trainer(object):
             self.actor_optimizer.step()
             self.value_optimizer.step()
 
+
+            self.lambda_optimizer.zero_grad()
+            # lambda_loss = self.compute_lambda_loss(costs)
+            lagranian_loss.backward()
+            self.lambda_optimizer.step()
+            self.lagrangian_multiplier.data.clamp_(0)  # enforce: lambda in [0, inf]
+
             with torch.no_grad():
                 prior_ent = torch.mean(prior_dist.entropy())
                 post_ent = torch.mean(post_dist.entropy())
@@ -108,6 +116,7 @@ class Trainer(object):
             post_ent_l.append(post_ent.item())
             actor_l.append(actor_loss.item())
             value_l.append(value_loss.item())
+            langrange_l.append(lagranian_loss.item())
             obs_l.append(obs_loss.item())
             model_l.append(model_loss.item())
             reward_l.append(reward_loss.item())
@@ -122,6 +131,8 @@ class Trainer(object):
         train_metrics['model_loss'] = np.mean(model_l)
         train_metrics['kl_loss']=np.mean(kl_l)
         train_metrics['reward_loss']=np.mean(reward_l)
+        train_metrics['cost_loss'] = np.mean(cost_l)
+        train_metrics['langrange_loss'] = np.mean(langrange_l)
         train_metrics['obs_loss']=np.mean(obs_l)
         train_metrics['value_loss']=np.mean(value_l)
         train_metrics['actor_loss']=np.mean(actor_l)
@@ -145,15 +156,19 @@ class Trainer(object):
         imag_modelstates = self.RSSM.get_model_state(imag_rssm_states)
         with FreezeParameters(self.world_list+self.value_list+[self.TargetValueModel]+[self.DiscountModel]):
             imag_reward_dist = self.RewardDecoder(imag_modelstates)
+            imag_cost_dist = self.CostDecoder(imag_modelstates)
             imag_reward = imag_reward_dist.mean
+            imag_cost =  imag_cost_dist.mean
             imag_value_dist = self.TargetValueModel(imag_modelstates)
             imag_value = imag_value_dist.mean
             discount_dist = self.DiscountModel(imag_modelstates)
             discount_arr = self.discount*torch.round(discount_dist.base_dist.probs)              #mean = prob(disc==1)
 
-        actor_loss, discount, lambda_returns = self._actor_loss(imag_reward,\
+        actor_loss, discount, lambda_returns = self._actor_loss(imag_reward, imag_cost,\
              imag_value, discount_arr, imag_log_prob, policy_entropy)
-        value_loss = self._value_loss(imag_modelstates, discount, lambda_returns)     
+
+        value_loss = self._value_loss(imag_modelstates, discount, lambda_returns)   
+        langrangian_loss =  self._compute_lambda_loss(imag_cost)
 
         mean_target = torch.mean(lambda_returns, dim=1)
         max_targ = torch.max(mean_target).item()
@@ -167,7 +182,7 @@ class Trainer(object):
             'mean_targ':mean_targ,
         }
 
-        return actor_loss, value_loss, target_info
+        return actor_loss, value_loss, langrangian_loss, target_info, 
 
     def representation_loss(self, obs, actions, rewards,costs, nonterms):
 
@@ -190,7 +205,7 @@ class Trainer(object):
         model_loss = self.loss_scale['kl'] * div + reward_loss + cost_loss + obs_loss + self.loss_scale['discount']*pcont_loss
         return model_loss, div, obs_loss, reward_loss, cost_loss, pcont_loss, prior_dist, post_dist, posterior
 
-    def _actor_loss(self, imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy):
+    def _actor_loss(self, imag_reward, imag_cost, imag_value, discount_arr, imag_log_prob, policy_entropy):
 
         lambda_returns = compute_return(imag_reward[:-1], imag_value[:-1], discount_arr[:-1], bootstrap=imag_value[-1], lambda_=self.lambda_)
         
@@ -207,6 +222,9 @@ class Trainer(object):
         discount = torch.cumprod(discount_arr[:-1], 0)
         policy_entropy = policy_entropy[1:].unsqueeze(-1)
         actor_loss = -torch.sum(torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
+        penalty = self.lambda_range_projection(self.lagrangian_multiplier).item()
+        actor_loss += penalty * ((imag_log_prob[1:].unsqueeze(-1)  * imag_cost[:-1]).mean())
+        actor_loss /= (1+penalty) 
         return actor_loss, discount, lambda_returns
 
     def _value_loss(self, imag_modelstates, discount, lambda_returns):
@@ -250,6 +268,11 @@ class Trainer(object):
     def _cost_loss(self,  cost_dist, costs):
         cost_loss = -torch.mean(cost_dist.log_prob(costs))
         return cost_loss
+
+    def _compute_lambda_loss(self, costs):
+        """Penalty loss for Lagrange multiplier."""
+        mean_ep_cost = torch.mean(costs)
+        return -self.lagrangian_multiplier * (mean_ep_cost - self.config.cost_limit)
     
     def _pcont_loss(self, pcont_dist, nonterms):
         pcont_target = nonterms.float()
@@ -273,6 +296,7 @@ class Trainer(object):
             "ObsEncoder": self.ObsEncoder.state_dict(),
             "ObsDecoder": self.ObsDecoder.state_dict(),
             "RewardDecoder": self.RewardDecoder.state_dict(),
+            "CostDecoder" : self.CostDecoder.state_dict(),
             "ActionModel": self.ActionModel.state_dict(),
             "ValueModel": self.ValueModel.state_dict(),
             "DiscountModel": self.DiscountModel.state_dict(),
@@ -283,6 +307,7 @@ class Trainer(object):
         self.ObsEncoder.load_state_dict(saved_dict["ObsEncoder"])
         self.ObsDecoder.load_state_dict(saved_dict["ObsDecoder"])
         self.RewardDecoder.load_state_dict(saved_dict["RewardDecoder"])
+        self.CostDecoder.load_state_dict(saved_dict["CostDecoder"])
         self.ActionModel.load_state_dict(saved_dict["ActionModel"])
         self.ValueModel.load_state_dict(saved_dict["ValueModel"])
         self.DiscountModel.load_state_dict(saved_dict['DiscountModel'])
@@ -340,7 +365,6 @@ class Trainer(object):
             f'Optimizer={lambda_optimizer} not found in torch.'
         torch_opt = getattr(optim, lambda_optimizer)
         
-
         self.world_list = [self.ObsEncoder, self.RSSM, self.RewardDecoder, self.CostDecoder,self.ObsDecoder, self.DiscountModel]
         self.actor_list = [self.ActionModel]
         self.value_list = [self.ValueModel]
@@ -356,7 +380,7 @@ class Trainer(object):
         print('\n Obs encoder: \n', self.ObsEncoder)
         print('\n RSSM model: \n', self.RSSM)
         print('\n Reward decoder: \n', self.RewardDecoder)
-        print('\n Reward decoder: \n', self.CostDecoder)
+        print('\n Cost decoder: \n', self.CostDecoder)
         print('\n Obs decoder: \n', self.ObsDecoder)
         if self.config.discount['use']:
             print('\n Discount decoder: \n', self.DiscountModel)

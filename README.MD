@@ -1,4 +1,5 @@
-# Constrained Model-Based RL using Dreamer mechanics
+# Constrained Model-Based RL Via Latent Nighmtares (Nightmare - Dreamer with constraints)
+
 
 ## Main ideas and modification
 Add Cost to buffers
