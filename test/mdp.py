@@ -94,12 +94,14 @@ def main(args):
                 episode_actor_ent.append(action_ent)
 
             next_obs, rew, done, info = env.step(action.squeeze(0).cpu().numpy())
-            cost = info.get('cost', 0.)
+            cost = info['cost']
+            if cost !=0 :
+                print("badd")
             score_cost += cost
             score += rew
 
             if done:
-                trainer.buffer.add(obs, action.squeeze(0).cpu().numpy(), rew, costs, done)
+                trainer.buffer.add(obs, action.squeeze(0).cpu().numpy(), rew, cost, done)
                 train_metrics['train_rewards'] = score
                 train_metrics['train_costs'] = score_cost
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
