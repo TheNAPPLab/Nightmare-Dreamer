@@ -1,22 +1,36 @@
 
 import gym
 import numpy as np
+
 class SafetyGymEnv(gym.Env):
     metadata = {'render.modes': ['human', 'rgb_array']}
 
-    def __init__(self, env_name, seed, display_time=50):
+    def __init__(self, env_name, display_time=50):
         self.display_time = display_time
         self.env_name = env_name
         self.env = gym.make(env_name)
-        h,w,c = self.env.state_shape()
-        self.action_space = gym.spaces.Discrete(len(self.minimal_actions))
-        self.observation_space = gym.spaces.MultiBinary((c,h,w))
-
+       
+       
     def reset(self):
         time_step = self._env.reset()
         obs = dict(time_step.observation)
         obs['image'] = self.render().transpose(2, 0, 1).copy()
         return obs
+
+    @property
+    def observation_space(self):
+        spaces = {}
+        for key, value in self._env.observation_spec().items():
+          spaces[key] = gym.spaces.Box(
+              -np.inf, np.inf, value.shape, dtype=np.float32)
+        spaces['image'] = gym.spaces.Box(
+            0, 255, (3,) + self._size , dtype=np.uint8)
+        return gym.spaces.Dict(spaces)
+
+    @property
+    def action_space(self):
+        spec = self._env.action_spec()
+        return gym.spaces.Box(spec.minimum, spec.maximum, dtype=np.float32)
     
     def step(self, action):
         time_step = self._env.step(action)
@@ -27,7 +41,6 @@ class SafetyGymEnv(gym.Env):
         info = time_step.info
         info['discount': np.array(time_step.discount, np.float32)]
         return obs, reward, done, info
-
     
     
     def render(self, mode='human'):
@@ -40,6 +53,8 @@ class SafetyGymEnv(gym.Env):
         if self.env.visualized:
             self.env.close_display()
         return 0
+
+
 class GymMinAtar(gym.Env):
     metadata = {'render.modes': ['human', 'rgb_array']}
 

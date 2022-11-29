@@ -5,11 +5,12 @@ import torch
 import numpy as np
 import gym
 import sys
-sys.path.append('/Users/emma/dev/CMBVIPP')
-from CMBDVIPP.utils.wrapper import GymMinAtar, OneHotAction,NormalizeActions, SafetyGymEnv
-from CMBDVIPP.training.config import BaseSafeConfig
-from CMBDVIPP.training.trainer import Trainer
-from CMBDVIPP.training.evaluator import Evaluator
+
+sys.path.append('/Users/emma/dev/CMBRVLN')
+from CMBRVLN.utils.wrapper import GymMinAtar, OneHotAction,NormalizeActions, SafetyGymEnv
+from CMBRVLN.training.config import BaseSafeConfig
+from CMBRVLN.training.trainer import Trainer
+from CMBRVLN.training.evaluator import Evaluator
 
 def main(args):
     wandb.login()
