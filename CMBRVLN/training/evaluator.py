@@ -1,6 +1,6 @@
 import numpy as np
 import torch 
-from CMBRVLN.models.actor import DiscreteActionModel
+from CMBRVLN.models.actor import DiscreteActionModel, ContinousActionModel
 from CMBRVLN.models.rssm import RSSM
 from CMBRVLN.models.dense import DenseModel
 from CMBRVLN.models.pixel import ObsDecoder, ObsEncoder
@@ -40,8 +40,10 @@ class Evaluator(object):
         else:
             self.ObsEncoder = DenseModel((embedding_size,), int(np.prod(obs_shape)), config.obs_encoder).to(self.device).eval()
             self.ObsDecoder = DenseModel(obs_shape, modelstate_size, config.obs_decoder).to(self.device).eval()
-
-        self.ActionModel = DiscreteActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device).eval()
+        if config.actor['dist'] == "onehot":   
+            self.ActionModel = DiscreteActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device).eval()
+        else: 
+              self.ActionModel = ContinousActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
         self.RSSM = RSSM(action_size, rssm_node_size, embedding_size, self.device, config.rssm_type, config.rssm_info).to(self.device).eval()
 
         self.RSSM.load_state_dict(saved_dict["RSSM"])
@@ -63,7 +65,7 @@ class Evaluator(object):
                     embed = self.ObsEncoder(torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(self.device))    
                     _, posterior_rssm_state = self.RSSM.rssm_observe(embed, prev_action, not done, prev_rssmstate)
                     model_state = self.RSSM.get_model_state(posterior_rssm_state)
-                    action, _ = self.ActionModel(model_state)
+                    action, _ = self.ActionModel(model_state, deter = True)
                     prev_rssmstate = posterior_rssm_state
                     prev_action = action
                 next_obs, rew, done, _ = env.step(action.squeeze(0).cpu().numpy())

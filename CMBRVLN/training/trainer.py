@@ -5,8 +5,7 @@ import os
 
 from CMBRVLN.utils.module import get_parameters, FreezeParameters
 from CMBRVLN.utils.algorithm import compute_return
-
-from CMBRVLN.models.actor import DiscreteActionModel
+from CMBRVLN.models.actor import DiscreteActionModel, ContinousActionModel
 from CMBRVLN.models.dense import DenseModel
 from CMBRVLN.models.rssm import RSSM
 from CMBRVLN.models.pixel import ObsDecoder, ObsEncoder
@@ -315,7 +314,7 @@ class Trainer(object):
         self.ValueModel.load_state_dict(saved_dict["ValueModel"])
         self.DiscountModel.load_state_dict(saved_dict['DiscountModel'])
             
-    def _model_initialize(self, config):
+    def _model_initialize(self, config ):
         obs_shape = config.obs_shape
         action_size = config.action_size
         deter_size = config.rssm_info['deter_size']
@@ -332,7 +331,10 @@ class Trainer(object):
     
         self.buffer = TransitionBuffer(config.capacity, obs_shape, action_size, config.seq_len, config.batch_size, config.obs_dtype, config.action_dtype)
         self.RSSM = RSSM(action_size, rssm_node_size, embedding_size, self.device, config.rssm_type, config.rssm_info).to(self.device)
-        self.ActionModel = DiscreteActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
+        if config.actor['dist'] == "onehot":    
+            self.ActionModel = DiscreteActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
+        else:
+            self.ActionModel = ContinousActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
         self.RewardDecoder = DenseModel((1,), modelstate_size, config.reward).to(self.device)
         self.CostDecoder = DenseModel((1,), modelstate_size, config.cost).to(self.device)
         self.ValueModel = DenseModel((1,), modelstate_size, config.critic).to(self.device)

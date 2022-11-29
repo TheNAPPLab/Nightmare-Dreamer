@@ -178,7 +178,7 @@ class BaseSafeConfig():
     slow_target_fraction: float = 1.00
 
     #actor critic
-    actor: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist':'one_hot', 'min_std':1e-4, 'init_std':5, 'mean_scale':5, 'activation':nn.ELU})
+    actor: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist':'normal', 'min_std':1e-4, 'init_std':5, 'mean_scale':5, 'activation':nn.ELU})
     critic: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist': 'normal', 'activation':nn.ELU})
     expl: Dict = field(default_factory=lambda:{'train_noise':0.4, 'eval_noise':0.0, 'expl_min':0.05, 'expl_decay':7000.0, 'expl_type':'epsilon_greedy'})
     actor_grad: str ='dynamic'

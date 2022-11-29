@@ -63,9 +63,9 @@ class TransitionBuffer():
     def sample(self):
         n = self.batch_size
         l = self.seq_len+1
-        obs,act,rew,term = self._retrieve_batch(np.asarray([self._sample_idx(l) for _ in range(n)]), n, l)
-        obs,act,rew,term = self._shift_sequences(obs,act,rew,term)
-        return obs,act,rew,term
+        obs,act,rew,cos,term = self._retrieve_batch(np.asarray([self._sample_idx(l) for _ in range(n)]), n, l)
+        obs,act,rew, cos,term = self._shift_sequences(obs,act,rew, cos,term)
+        return obs,act,rew,cos, term
     
     def _shift_sequences(self, obs, actions, rewards, terminals):
         obs = obs[1:]

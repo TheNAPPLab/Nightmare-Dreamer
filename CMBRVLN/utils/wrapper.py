@@ -1,4 +1,4 @@
-
+import safety_gym
 import gym
 import numpy as np
 
@@ -8,9 +8,8 @@ class SafetyGymEnv(gym.Env):
     def __init__(self, env_name, display_time=50):
         self.display_time = display_time
         self.env_name = env_name
-        self.env = gym.make(env_name)
-       
-       
+        self.env = gym.make('Safexp-PointGoal1-v0')
+    
     def reset(self):
         time_step = self._env.reset()
         obs = dict(time_step.observation)
@@ -20,7 +19,7 @@ class SafetyGymEnv(gym.Env):
     @property
     def observation_space(self):
         spaces = {}
-        for key, value in self._env.observation_spec().items():
+        for key, value in self.env.observation_spec().items():
           spaces[key] = gym.spaces.Box(
               -np.inf, np.inf, value.shape, dtype=np.float32)
         spaces['image'] = gym.spaces.Box(
@@ -29,11 +28,10 @@ class SafetyGymEnv(gym.Env):
 
     @property
     def action_space(self):
-        spec = self._env.action_spec()
-        return gym.spaces.Box(spec.minimum, spec.maximum, dtype=np.float32)
+        return gym.spaces.Box(self.env.action_space.low,self.env.action_spaceaction_space.high, dtype=np.float32)
     
     def step(self, action):
-        time_step = self._env.step(action)
+        time_step = self.env.step(action)
         obs = dict(time_step.observation)
         obs['image'] = self.render().transpose(2, 0, 1).copy()
         reward = time_step.reward or 0
@@ -53,7 +51,30 @@ class SafetyGymEnv(gym.Env):
         if self.env.visualized:
             self.env.close_display()
         return 0
+class NormalizeActions:
 
+    def __init__(self, env):
+        assert isinstance(env.action_space)
+        self._env = env
+        self._mask = np.logical_and(
+            np.isfinite(env.action_space.low),
+            np.isfinite(env.action_space.high))
+        self._low = np.where(self._mask, env.action_space.low, -1)
+        self._high = np.where(self._mask, env.action_space.high, 1)
+
+    def __getattr__(self, name):
+        return getattr(self._env, name)
+
+    @property
+    def action_space(self):
+        low = np.where(self._mask,x -np.ones_like(self._low), self._low)
+        high = np.where(self._mask, np.ones_like(self._low), self._high)
+        return gym.spaces.Box(low, high, dtype=np.float32)
+
+    def step(self, action):
+        original = (action + 1) / 2 * (self._high - self._low) + self._low
+        original = np.where(self._mask, original, action)
+        return self._env.step(original)
 
 class GymMinAtar(gym.Env):
     metadata = {'render.modes': ['human', 'rgb_array']}
@@ -212,26 +233,3 @@ class OneHotAction:
         reference[index] = 1.0
         return reference
 
-class NormalizeActions:
-
-    def __init__(self, env):
-        self._env = env
-        self._mask = np.logical_and(
-            np.isfinite(env.action_space.low),
-            np.isfinite(env.action_space.high))
-        self._low = np.where(self._mask, env.action_space.low, -1)
-        self._high = np.where(self._mask, env.action_space.high, 1)
-
-    def __getattr__(self, name):
-        return getattr(self._env, name)
-
-    @property
-    def action_space(self):
-        low = np.where(self._mask, -np.ones_like(self._low), self._low)
-        high = np.where(self._mask, np.ones_like(self._low), self._high)
-        return gym.spaces.Box(low, high, dtype=np.float32)
-
-    def step(self, action):
-        original = (action + 1) / 2 * (self._high - self._low) + self._low
-        original = np.where(self._mask, original, action)
-        return self._env.step(original)
