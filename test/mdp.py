@@ -88,9 +88,9 @@ def main(args):
                 embed = trainer.ObsEncoder(torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(trainer.device))  
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not done, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
-                action, ent= trainer.ActionModel(model_state, deter=False)
-                action = trainer.ActionModel.add_exploration(action, iter).detach()
-                action_ent = torch.mean(ent).item()
+                action, action_dist= trainer.ActionModel(model_state, deter=False)
+                # action = trainer.ActionModel.add_exploration(action, iter).detach()
+                action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
 
             next_obs, rew, done, info = env.step(action.squeeze(0).cpu().numpy())

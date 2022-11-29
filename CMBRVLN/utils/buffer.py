@@ -67,7 +67,7 @@ class TransitionBuffer():
         obs,act,rew, cos,term = self._shift_sequences(obs,act,rew, cos,term)
         return obs,act,rew,cos, term
     
-    def _shift_sequences(self, obs, actions, rewards, terminals):
+    def _shift_sequences(self, obs, actions, rewards, costs, terminals):
         obs = obs[1:]
         actions = actions[:-1]
         rewards = rewards[:-1]

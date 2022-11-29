@@ -137,15 +137,15 @@ class ContinousActionModel(nn.Module):
         action_std = F.softplus(std + raw_init_std) + self._min_std
 
         dist = distributions.Normal(action_mean, action_std)
-        ent = dist.entropy()
+       
         dist = TransformedDistribution(dist, TanhBijector())
         dist = distributions.independent.Independent(dist, 1)
         dist = SampleDist(dist)
 
         if deter:
-            return dist.mode(), ent
+            return dist.mode(), dist
         else:
-            return dist.rsample(), ent
+            return dist.rsample(), dist
 
     def add_exploration(self, action, action_noise=0.3):
 

@@ -82,17 +82,21 @@ class Trainer(object):
                     posterior = self.representation_loss(obs, actions, rewards, costs, nonterms)
             
             self.model_optimizer.zero_grad()
-            model_loss.backward()
+            
+            model_loss.backward(retain_graph=True)
             grad_norm_model = torch.nn.utils.clip_grad_norm_(get_parameters(self.world_list), self.grad_clip_norm)
             self.model_optimizer.step()
 
             actor_loss, value_loss, lagranian_loss, target_info = self.actorcritc_loss(posterior)
-
+            self.lambda_optimizer.zero_grad()
+            
             self.actor_optimizer.zero_grad()
             self.value_optimizer.zero_grad()
-
-            actor_loss.backward()
-            value_loss.backward()
+            
+        
+            actor_loss.backward(retain_graph=True)
+            value_loss.backward(retain_graph=True)
+            lagranian_loss.backward()
 
             grad_norm_actor = torch.nn.utils.clip_grad_norm_(get_parameters(self.actor_list), self.grad_clip_norm)
             grad_norm_value = torch.nn.utils.clip_grad_norm_(get_parameters(self.value_list), self.grad_clip_norm)
@@ -101,9 +105,9 @@ class Trainer(object):
             self.value_optimizer.step()
 
 
-            self.lambda_optimizer.zero_grad()
+          
             # lambda_loss = self.compute_lambda_loss(costs)
-            lagranian_loss.backward()
+            
             self.lambda_optimizer.step()
             self.lagrangian_multiplier.data.clamp_(0)  # enforce: lambda in [0, inf]
 
@@ -363,12 +367,12 @@ class Trainer(object):
         actor_lr = config.lr['actor']
         value_lr = config.lr['critic']
         lambda_lr  = config.lr['lambda_lr']
-        lambda_optimizer = config.lambda_optimizer
+        lambda_optimizer_ = config.lambda_optimizer
         
         # fetch optimizer from PyTorch optimizer package
-        assert hasattr(optim, lambda_optimizer), \
-            f'Optimizer={lambda_optimizer} not found in torch.'
-        torch_opt = getattr(optim, lambda_optimizer)
+        assert hasattr(optim, lambda_optimizer_), \
+            f'Optimizer={lambda_optimizer_} not found in torch.'
+        torch_opt = getattr(optim, lambda_optimizer_)
         
         self.world_list = [self.ObsEncoder, self.RSSM, self.RewardDecoder, self.CostDecoder,self.ObsDecoder, self.DiscountModel]
         self.actor_list = [self.ActionModel]
