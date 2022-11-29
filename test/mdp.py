@@ -4,10 +4,12 @@ import os
 import torch
 import numpy as np
 import gym
-from dreamerv2.utils.wrapper import GymMinAtar, OneHotAction
-from dreamerv2.training.config import MinAtarConfig
-from dreamerv2.training.trainer import Trainer
-from dreamerv2.training.evaluator import Evaluator
+import sys
+sys.path.append('/Users/emma/dev/CMBVIPP')
+from CMBDVIPP.utils.wrapper import GymMinAtar, OneHotAction,NormalizeActions, SafetyGymEnv
+from CMBDVIPP.training.config import BaseSafeConfig
+from CMBDVIPP.training.trainer import Trainer
+from CMBDVIPP.training.evaluator import Evaluator
 
 def main(args):
     wandb.login()
@@ -28,7 +30,7 @@ def main(args):
         device = torch.device('cpu')
     print('using :', device)  
     
-    env = OneHotAction(GymMinAtar(env_name))
+    env = NormalizeActions(SafetyGymEnv(env_name))
     obs_shape = env.observation_space.shape
     action_size = env.action_space.shape[0]
     obs_dtype = bool
@@ -36,7 +38,7 @@ def main(args):
     batch_size = args.batch_size
     seq_len = args.seq_len
 
-    config = MinAtarConfig(
+    config = BaseSafeConfig(
         env=env_name,
         obs_shape=obs_shape,
         action_size=action_size,
@@ -117,10 +119,10 @@ if __name__ == "__main__":
 
     """there are tonnes of HPs, if you want to do an ablation over any particular one, please add if here"""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env", type=str, help='mini atari env name')
+    parser.add_argument("--env", type=str,  default='Safexp-PointGoal1-v0', help='mini atari env name')
     parser.add_argument("--id", type=str, default='0', help='Experiment ID')
     parser.add_argument('--seed', type=int, default=123, help='Random seed')
-    parser.add_argument('--device', default='cuda', help='CUDA or CPU')
+    parser.add_argument('--device', default='cpu', help='CUDA or CPU')
     parser.add_argument('--batch_size', type=int, default=50, help='Batch size')
     parser.add_argument('--seq_len', type=int, default=50, help='Sequence Length (chunk length)')
     args = parser.parse_args()

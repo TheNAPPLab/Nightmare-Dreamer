@@ -1,7 +1,45 @@
-import minatar
+
 import gym
 import numpy as np
+class SafetyGymEnv(gym.Env):
+    metadata = {'render.modes': ['human', 'rgb_array']}
 
+    def __init__(self, env_name, seed, display_time=50):
+        self.display_time = display_time
+        self.env_name = env_name
+        self.env = gym.make(env_name)
+        h,w,c = self.env.state_shape()
+        self.action_space = gym.spaces.Discrete(len(self.minimal_actions))
+        self.observation_space = gym.spaces.MultiBinary((c,h,w))
+
+    def reset(self):
+        time_step = self._env.reset()
+        obs = dict(time_step.observation)
+        obs['image'] = self.render().transpose(2, 0, 1).copy()
+        return obs
+    
+    def step(self, action):
+        time_step = self._env.step(action)
+        obs = dict(time_step.observation)
+        obs['image'] = self.render().transpose(2, 0, 1).copy()
+        reward = time_step.reward or 0
+        done = time_step.last()
+        info = time_step.info
+        info['discount': np.array(time_step.discount, np.float32)]
+        return obs, reward, done, info
+
+    
+    
+    def render(self, mode='human'):
+        if mode == 'rgb_array':
+            return self.env.state()
+        elif mode == 'human':
+            self.env.display_state(self.display_time)
+
+    def close(self):
+        if self.env.visualized:
+            self.env.close_display()
+        return 0
 class GymMinAtar(gym.Env):
     metadata = {'render.modes': ['human', 'rgb_array']}
 
@@ -96,12 +134,15 @@ class ActionRepeat(gym.Wrapper):
     def step(self, action):
         done = False
         total_reward = 0
+        total_cost = 0
         current_step = 0
         while current_step < self.repeat and not done:
             obs, reward, done, info = self.env.step(action)
+            cost = info['cost']
+            total_cost += cost
             total_reward += reward
             current_step += 1
-        return obs, total_reward, done, info
+        return obs, total_reward, total_cost, done, info
 
 class TimeLimit(gym.Wrapper):
     def __init__(self, env, duration):
@@ -122,26 +163,60 @@ class TimeLimit(gym.Wrapper):
         self._step = 0
         return self.env.reset()
 
-class OneHotAction(gym.Wrapper):
+class OneHotAction:
+
     def __init__(self, env):
-        assert isinstance(env.action_space, gym.spaces.Discrete), "This wrapper only works with discrete action space"
-        shape = (env.action_space.n,)
-        env.action_space = gym.spaces.Box(low=0, high=1, shape=shape, dtype=np.float32)
-        env.action_space.sample = self._sample_action
-        super(OneHotAction, self).__init__(env)
-    
+        assert isinstance(env.action_space, gym.spaces.Discrete)
+        self._env = env
+
+    def __getattr__(self, name):
+        return getattr(self._env, name)
+
+    @property
+    def action_space(self):
+        shape = (self._env.action_space.n,)
+        space = gym.spaces.Box(low=0, high=1, shape=shape, dtype=np.float32)
+        space.sample = self._sample_action
+        return space
+
     def step(self, action):
         index = np.argmax(action).astype(int)
         reference = np.zeros_like(action)
         reference[index] = 1
-        return self.env.step(index)
+        if not np.allclose(reference, action):
+          raise ValueError(f'Invalid one-hot action:\n{action}')
+        return self._env.step(index)
 
     def reset(self):
-        return self.env.reset()
-    
+        return self._env.reset()
+
     def _sample_action(self):
-        actions = self.env.action_space.shape[0]
-        index = np.random.randint(0, actions)
+        actions = self._env.action_space.n
+        index = self._random.randint(0, actions)
         reference = np.zeros(actions, dtype=np.float32)
         reference[index] = 1.0
         return reference
+
+class NormalizeActions:
+
+    def __init__(self, env):
+        self._env = env
+        self._mask = np.logical_and(
+            np.isfinite(env.action_space.low),
+            np.isfinite(env.action_space.high))
+        self._low = np.where(self._mask, env.action_space.low, -1)
+        self._high = np.where(self._mask, env.action_space.high, 1)
+
+    def __getattr__(self, name):
+        return getattr(self._env, name)
+
+    @property
+    def action_space(self):
+        low = np.where(self._mask, -np.ones_like(self._low), self._low)
+        high = np.where(self._mask, np.ones_like(self._low), self._high)
+        return gym.spaces.Box(low, high, dtype=np.float32)
+
+    def step(self, action):
+        original = (action + 1) / 2 * (self._high - self._low) + self._low
+        original = np.where(self._mask, original, action)
+        return self._env.step(original)

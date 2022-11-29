@@ -4,10 +4,10 @@ import os
 import torch
 import numpy as np
 import gym
-from dreamerv2.utils.wrapper import GymMinAtar, OneHotAction, breakoutPOMDP, space_invadersPOMDP, seaquestPOMDP, asterixPOMDP, freewayPOMDP
-from dreamerv2.training.config import MinAtarConfig
-from dreamerv2.training.trainer import Trainer
-from dreamerv2.training.evaluator import Evaluator
+from CMBDVIPP.utils.wrapper import GymMinAtar, OneHotAction, breakoutPOMDP, space_invadersPOMDP, seaquestPOMDP, asterixPOMDP, freewayPOMDP
+from CMBDVIPP.training.config import MinAtarConfig
+from CMBDVIPP.training.trainer import Trainer
+from CMBDVIPP.training.evaluator import Evaluator
 
 pomdp_wrappers = {
     'breakout':breakoutPOMDP,

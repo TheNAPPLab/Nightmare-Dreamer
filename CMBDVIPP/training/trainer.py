@@ -3,14 +3,14 @@ import torch
 import torch.optim as optim
 import os 
 
-from dreamerv2.utils.module import get_parameters, FreezeParameters
-from dreamerv2.utils.algorithm import compute_return
+from CMBDVIPP.utils.module import get_parameters, FreezeParameters
+from CMBDVIPP.utils.algorithm import compute_return
 
-from dreamerv2.models.actor import DiscreteActionModel
-from dreamerv2.models.dense import DenseModel
-from dreamerv2.models.rssm import RSSM
-from dreamerv2.models.pixel import ObsDecoder, ObsEncoder
-from dreamerv2.utils.buffer import TransitionBuffer
+from CMBDVIPP.models.actor import DiscreteActionModel
+from CMBDVIPP.models.dense import DenseModel
+from CMBDVIPP.models.rssm import RSSM
+from CMBDVIPP.models.pixel import ObsDecoder, ObsEncoder
+from CMBDVIPP.utils.buffer import TransitionBuffer
 
 class Trainer(object):
     def __init__(
@@ -223,7 +223,10 @@ class Trainer(object):
         policy_entropy = policy_entropy[1:].unsqueeze(-1)
         actor_loss = -torch.sum(torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
         penalty = self.lambda_range_projection(self.lagrangian_multiplier).item()
-        actor_loss += penalty * ((imag_log_prob[1:].unsqueeze(-1)  * imag_cost[:-1]).mean())
+        if self.config.actor_grad == 'reinforce':
+            actor_loss += penalty * ((imag_log_prob[1:].unsqueeze(-1)  * imag_cost[:-1]).mean())
+        elif self.config.actor_grad == 'dynamics':
+            actor_loss += penalty * ((imag_cost[:-1]).mean())
         actor_loss /= (1+penalty) 
         return actor_loss, discount, lambda_returns
 

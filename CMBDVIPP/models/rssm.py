@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from dreamerv2.utils.rssm import RSSMUtils, RSSMContState, RSSMDiscState
+from CMBDVIPP.utils.rssm import RSSMUtils, RSSMContState, RSSMDiscState
 
 class RSSM(nn.Module, RSSMUtils):
     def __init__(
