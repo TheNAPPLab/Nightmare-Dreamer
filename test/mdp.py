@@ -12,6 +12,7 @@ from CMBRVLN.utils.wrapper import GymMinAtar, OneHotAction,NormalizeActions, Saf
 from CMBRVLN.training.config import BaseSafeConfig
 from CMBRVLN.training.trainer import Trainer
 from CMBRVLN.training.evaluator import Evaluator
+
 def render(self, mode='human'):
         if mode == 'rgb_array':
             return self.env.state()
@@ -43,6 +44,7 @@ def main(args):
         device = torch.device('cpu')
     print('using :', device)  
     env = gym.make(env_name)
+    env.reward_type="dense"
     obs_shape = env.observation_space.shape
 
     action_size = env.action_space.shape[0]
@@ -96,7 +98,7 @@ def main(args):
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not done, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist= trainer.ActionModel(model_state, deter=not True)
-                action = trainer.ActionModel.add_exploration(action, 0.3).detach()
+                action = trainer.ActionModel.add_exploration(action, 0.07).detach()
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
 

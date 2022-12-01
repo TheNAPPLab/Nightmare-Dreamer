@@ -54,7 +54,8 @@ class Evaluator(object):
     def eval_saved_agent(self, env, model_path):
         self.load_model(self.config, model_path)
         eval_episode = self.config.eval_episode
-        eval_scores = []    
+        eval_scores = []   
+        eval_cost_score = [] 
         for e in range(eval_episode):
             obs, score, cost_score = env.reset(), 0, 0
             done = False
@@ -69,7 +70,7 @@ class Evaluator(object):
                     prev_rssmstate = posterior_rssm_state
                     prev_action = action
                 next_obs, rew, done, info = env.step(action.squeeze(0).cpu().numpy())
-                cost = info['cost']
+                cost = info.get('cost',0)
                 if self.config.eval_render:
                     env.render()
                 cost_score += cost

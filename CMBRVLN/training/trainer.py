@@ -41,7 +41,7 @@ class Trainer(object):
         for i in range(self.seed_steps):
             a = env.action_space.sample()
             ns, r, done, info = env.step(a)
-            c = info['cost']
+            c = info.get('cost',0.0)
             if done:
                 self.buffer.add(s,a,r,c,done)
                 s, done  = env.reset(), False 
