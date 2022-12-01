@@ -109,7 +109,7 @@ class Trainer(object):
             # lambda_loss = self.compute_lambda_loss(costs)
             
             self.lambda_optimizer.step()
-            self.lagrangian_multiplier.data.clamp_(0)  # enforce: lambda in [0, inf]
+            # self.lagrangian_multiplier.data.clamp_(0)  # enforce: lambda in [0, inf]
 
             with torch.no_grad():
                 prior_ent = torch.mean(prior_dist.entropy())
@@ -187,7 +187,7 @@ class Trainer(object):
 
         return actor_loss, value_loss, langrangian_loss, target_info, 
 
-    def representation_loss(self, obs, actions, rewards,costs, nonterms):
+    def representation_loss(self, obs, actions, rewards, costs, nonterms):
 
         embed = self.ObsEncoder(obs)                                         #t to t+seq_len   
         prev_rssm_state = self.RSSM._init_rssm_state(self.batch_size)   

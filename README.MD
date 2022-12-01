@@ -24,3 +24,8 @@ or
 
 python test/mdp.py --env Safexp-PointGoal1-v0 --device cuda
 ```
+
+Training graph already projects to Weights and baises but to start tensorboard
+```bash
+ tensorboard --logdir runs 
+```

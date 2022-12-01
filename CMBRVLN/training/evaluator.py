@@ -56,7 +56,7 @@ class Evaluator(object):
         eval_episode = self.config.eval_episode
         eval_scores = []    
         for e in range(eval_episode):
-            obs, score = env.reset(), 0
+            obs, score, cost_score = env.reset(), 0, 0
             done = False
             prev_rssmstate = self.RSSM._init_rssm_state(1)
             prev_action = torch.zeros(1, self.action_size).to(self.device)
@@ -68,12 +68,15 @@ class Evaluator(object):
                     action, _ = self.ActionModel(model_state, deter = True)
                     prev_rssmstate = posterior_rssm_state
                     prev_action = action
-                next_obs, rew, done, _ = env.step(action.squeeze(0).cpu().numpy())
+                next_obs, rew, done, info = env.step(action.squeeze(0).cpu().numpy())
+                cost = info['cost']
                 if self.config.eval_render:
                     env.render()
+                cost_score += cost
                 score += rew
                 obs = next_obs
+            eval_cost_score.append(cost_score)
             eval_scores.append(score)
         print('average evaluation score for model at ' + model_path + ' = ' +str(np.mean(eval_scores)))
         env.close()
-        return np.mean(eval_scores)
+        return np.mean(eval_scores), np.mean()

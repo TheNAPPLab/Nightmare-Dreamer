@@ -155,7 +155,7 @@ class BaseSafeConfig():
     seed_steps: int = 4000
     model_dir: int = 'results'
     gif_dir: int = 'results'
-    cost_limit = 20
+    cost_limit = 12.0
     #latent space desc
     rssm_type: str = 'discrete'
     lambda_optimizer : str = 'Adam'

@@ -5,6 +5,7 @@ import torch
 import numpy as np
 import gym
 import sys
+from torch.utils.tensorboard import SummaryWriter
 
 sys.path.append('/Users/emma/dev/CMBRVLN')
 from CMBRVLN.utils.wrapper import GymMinAtar, OneHotAction,NormalizeActions, SafetyGymEnv
@@ -19,7 +20,12 @@ def render(self, mode='human'):
 
 
 def main(args):
+    tb = SummaryWriter()
+    def logTensorboard(data_dict,iter):
+        for key, value in data_dict.items():
+            tb.add_scalar(key, value, iter)
     wandb.login()
+   
     env_name = args.env
     exp_id = args.id
 
@@ -37,17 +43,18 @@ def main(args):
         device = torch.device('cpu')
     print('using :', device)  
     env = gym.make(env_name)
-
-  
     obs_shape = env.observation_space.shape
+
     action_size = env.action_space.shape[0]
     obs_dtype = bool
     action_dtype = np.float32
     batch_size = args.batch_size
     seq_len = args.seq_len
 
+
     config = BaseSafeConfig(
         env=env_name,
+        pixel=False,
         obs_shape=obs_shape,
         action_size=action_size,
         obs_dtype = obs_dtype,
@@ -88,15 +95,13 @@ def main(args):
                 embed = trainer.ObsEncoder(torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(trainer.device))  
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not done, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
-                action, action_dist= trainer.ActionModel(model_state, deter=False)
-                # action = trainer.ActionModel.add_exploration(action, iter).detach()
+                action, action_dist= trainer.ActionModel(model_state, deter=not True)
+                action = trainer.ActionModel.add_exploration(action, 0.3).detach()
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
 
             next_obs, rew, done, info = env.step(action.squeeze(0).cpu().numpy())
             cost = info['cost']
-            if cost !=0 :
-                print("badd")
             score_cost += cost
             score += rew
 
@@ -106,6 +111,7 @@ def main(args):
                 train_metrics['train_costs'] = score_cost
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
                 wandb.log(train_metrics, step=iter)
+                logTensorboard(train_metrics,iter)
                 scores.append(score)
                 costs.append(cost)
                 if len(scores)>100:
@@ -128,6 +134,9 @@ def main(args):
                 obs = next_obs
                 prev_rssmstate = posterior_rssm_state
                 prev_action = action
+            # if iter%200==0:
+            #     wandb.log(train_metrics, step=iter)
+            #     logTensorboard(train_metrics,iter)
 
     '''evaluating probably best model'''
     evaluator.eval_saved_agent(env, best_save_path)

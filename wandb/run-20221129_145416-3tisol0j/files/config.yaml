@@ -1,0 +1,222 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.13.5
+    framework: torch
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    python_version: 3.8.15
+    start_time: 1669730056.900608
+    t:
+      1:
+      - 1
+      - 55
+      2:
+      - 1
+      - 55
+      3:
+      - 2
+      - 16
+      - 23
+      4: 3.8.15
+      5: 0.13.5
+      8:
+      - 5
+action_dtype:
+  desc: null
+  value: numpy.float32
+action_repeat:
+  desc: null
+  value: 1
+action_size:
+  desc: null
+  value: 2
+actor:
+  desc: null
+  value:
+    activation: torch.nn.modules.activation.ELU
+    dist: normal
+    init_std: 5
+    layers: 3
+    mean_scale: 5
+    min_std: 0.0001
+    node_size: 100
+actor_entropy_scale:
+  desc: null
+  value: 0.001
+actor_grad:
+  desc: null
+  value: dynamics
+actor_grad_mix:
+  desc: null
+  value: 0.0
+batch_size:
+  desc: null
+  value: 50
+capacity:
+  desc: null
+  value: 1000000
+collect_intervals:
+  desc: null
+  value: 5
+cost:
+  desc: null
+  value:
+    activation: torch.nn.modules.activation.ELU
+    dist: normal
+    layers: 3
+    node_size: 100
+critic:
+  desc: null
+  value:
+    activation: torch.nn.modules.activation.ELU
+    dist: normal
+    layers: 3
+    node_size: 100
+discount:
+  desc: null
+  value:
+    activation: torch.nn.modules.activation.ELU
+    dist: binary
+    layers: 3
+    node_size: 100
+    use: true
+discount_:
+  desc: null
+  value: 0.99
+embedding_size:
+  desc: null
+  value: 200
+env:
+  desc: null
+  value: Safexp-PointGoal1-v0
+eval_episode:
+  desc: null
+  value: 4
+eval_render:
+  desc: null
+  value: true
+expl:
+  desc: null
+  value:
+    eval_noise: 0.0
+    expl_decay: 7000.0
+    expl_min: 0.05
+    expl_type: epsilon_greedy
+    train_noise: 0.4
+gif_dir:
+  desc: null
+  value: results
+grad_clip:
+  desc: null
+  value: 100.0
+horizon:
+  desc: null
+  value: 10
+kl:
+  desc: null
+  value:
+    free_nats: 0.0
+    kl_balance_scale: 0.8
+    use_free_nats: false
+    use_kl_balance: true
+lagrangian_multiplier_init:
+  desc: null
+  value: 0.001
+lambda_:
+  desc: null
+  value: 0.95
+lambda_optimizer:
+  desc: null
+  value: Adam
+loss_scale:
+  desc: null
+  value:
+    discount: 5.0
+    kl: 0.1
+    reward: 1.0
+lr:
+  desc: null
+  value:
+    actor: 4.0e-05
+    critic: 0.0001
+    lambda_lr: 0.035
+    model: 0.0002
+model_dir:
+  desc: null
+  value: results/Safexp-PointGoal1-v0_0/models
+obs_decoder:
+  desc: null
+  value:
+    activation: torch.nn.modules.activation.ELU
+    depth: 16
+    dist: normal
+    kernel: 3
+    layers: 3
+    node_size: 100
+obs_dtype:
+  desc: null
+  value: builtins.bool
+obs_encoder:
+  desc: null
+  value:
+    activation: torch.nn.modules.activation.ELU
+    depth: 16
+    dist: null
+    kernel: 3
+    layers: 3
+    node_size: 100
+obs_shape:
+  desc: null
+  value:
+  - 60
+pixel:
+  desc: null
+  value: false
+reward:
+  desc: null
+  value:
+    activation: torch.nn.modules.activation.ELU
+    dist: normal
+    layers: 3
+    node_size: 100
+rssm_info:
+  desc: null
+  value:
+    category_size: 20
+    class_size: 20
+    deter_size: 200
+    min_std: 0.1
+    stoch_size: 20
+rssm_node_size:
+  desc: null
+  value: 200
+rssm_type:
+  desc: null
+  value: discrete
+save_every:
+  desc: null
+  value: 100000
+seed_steps:
+  desc: null
+  value: 4000
+seq_len:
+  desc: null
+  value: 50
+slow_target_fraction:
+  desc: null
+  value: 1.0
+slow_target_update:
+  desc: null
+  value: 100
+train_every:
+  desc: null
+  value: 50
+train_steps:
+  desc: null
+  value: 5000000
+use_slow_target:
+  desc: null
+  value: true
