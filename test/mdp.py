@@ -5,11 +5,14 @@ import torch
 import numpy as np
 import gym
 import sys
+
 from torch.utils.tensorboard import SummaryWriter
 
 sys.path.append('/Users/emma/dev/CMBRVLN')
+sys.path.append('/Users/emma/dev/CMBRVLN/Safe-panda-gym')
+import panda_gym
 from CMBRVLN.utils.wrapper import GymMinAtar, OneHotAction,NormalizeActions, SafetyGymEnv
-from CMBRVLN.training.config import BaseSafeConfig
+from CMBRVLN.training.config import BaseSafeConfig,PandaSafeConfig
 from CMBRVLN.training.trainer import Trainer
 from CMBRVLN.training.evaluator import Evaluator
 
@@ -22,6 +25,7 @@ def render(self, mode='human'):
 
 def main(args):
     tb = SummaryWriter()
+    number_games = 0
     def logTensorboard(data_dict,iter):
         for key, value in data_dict.items():
             tb.add_scalar(key, value, iter)
@@ -29,6 +33,7 @@ def main(args):
    
     env_name = args.env
     exp_id = args.id
+    is_panda_gym = args.is_panda
 
     '''make dir for saving results'''
     result_dir = os.path.join('results', '{}_{}'.format(env_name, exp_id))
@@ -44,8 +49,8 @@ def main(args):
         device = torch.device('cpu')
     print('using :', device)  
     env = gym.make(env_name)
-    env.reward_type="dense"
-    obs_shape = env.observation_space.shape
+    
+   
 
     action_size = env.action_space.shape[0]
     obs_dtype = bool
@@ -53,19 +58,38 @@ def main(args):
     batch_size = args.batch_size
     seq_len = args.seq_len
 
+    if not is_panda_gym:
+        obs_shape = env.observation_space.shape
+        config = BaseSafeConfig(
+            env=env_name,
+            pixel=False,
+            obs_shape=obs_shape,
+            action_size=action_size,
+            obs_dtype = obs_dtype,
+            action_dtype = action_dtype,
+            seq_len = seq_len,
+            batch_size = batch_size,
+            model_dir=model_dir, 
+        )
+    else: 
+        obs = env.reset()
+        done = False
+       
+        image_shape = env.render("rgb_array").transpose(2, 0, 1).shape
+        obs = env.reset()
+        config = PandaSafeConfig(
+            env=env_name,
+            pixel=True,
+            obs_shape=image_shape,
+            action_size=action_size,
+            obs_dtype = obs_dtype,
+            action_dtype = action_dtype,
+            seq_len = seq_len,
+            batch_size = batch_size,
+            model_dir=model_dir, 
+        )
 
-    config = BaseSafeConfig(
-        env=env_name,
-        pixel=False,
-        obs_shape=obs_shape,
-        action_size=action_size,
-        obs_dtype = obs_dtype,
-        action_dtype = action_dtype,
-        seq_len = seq_len,
-        batch_size = batch_size,
-        model_dir=model_dir, 
-    )
-
+    exploration_rate = 0.1
     config_dict = config.__dict__
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)
@@ -76,6 +100,8 @@ def main(args):
         train_metrics = {}
         trainer.collect_seed_episodes(env)
         obs, score, score_cost = env.reset(), 0, 0
+        if config.pixel:
+            obs = env.render("rgb_array").transpose(2, 0, 1)
         done = False
         prev_rssmstate = trainer.RSSM._init_rssm_state(1)
         prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
@@ -98,18 +124,26 @@ def main(args):
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not done, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist= trainer.ActionModel(model_state, deter=not True)
-                action = trainer.ActionModel.add_exploration(action, 0.07).detach()
+                
+                action = trainer.ActionModel.add_exploration(action, exploration_rate).detach()
+                if iter%400 == 0:
+                    exploration_rate *= 0.99
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
 
             next_obs, rew, done, info = env.step(action.squeeze(0).cpu().numpy())
+            if config.pixel:
+                next_obs = env.render("rgb_array").transpose(2, 0, 1)
             cost = info['cost']
             score_cost += cost
             score += rew
 
             if done:
+                number_games+=1
+                print(number_games)
                 trainer.buffer.add(obs, action.squeeze(0).cpu().numpy(), rew, cost, done)
                 train_metrics['train_rewards'] = score
+                train_metrics['number_games']  = number_games
                 train_metrics['train_costs'] = score_cost
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
                 wandb.log(train_metrics, step=iter)
@@ -118,8 +152,11 @@ def main(args):
                 costs.append(cost)
                 if len(scores)>100:
                     scores.pop(0)
+                    costs.pop(0)
                     current_average = np.mean(scores)
                     curr_avg_cost = np.mean(costs)
+                    train_metrics['current_avg_score'] =  current_average
+                    train_metrics['current_avg_cost'] =  curr_avg_cost
                     if current_average>best_mean_score:
                         best_mean_score = current_average 
                         print('saving best model with mean score : ', best_mean_score)
@@ -127,6 +164,8 @@ def main(args):
                         torch.save(save_dict, best_save_path)
                 
                 obs, score, score_cost = env.reset(), 0, 0
+                if config.pixel:
+                    next_obs = env.render("rgb_array")
                 done = False
                 prev_rssmstate = trainer.RSSM._init_rssm_state(1)
                 prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
@@ -148,6 +187,8 @@ if __name__ == "__main__":
     """there are tonnes of HPs, if you want to do an ablation over any particular one, please add if here"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", type=str,  default='Safexp-PointGoal1-v0', help='mini atari env name')
+#  parser.add_argument("--env", type=str,  default='PandaReachSafe-v2', help='mini atari env name')
+    parser.add_argument("--is_panda", type=bool,  default=False, help='is it safe Panda gym')
     parser.add_argument("--id", type=str, default='0', help='Experiment ID')
     parser.add_argument('--seed', type=int, default=123, help='Random seed')
     parser.add_argument('--device', default='cpu', help='CUDA or CPU')

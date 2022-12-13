@@ -1,0 +1,42 @@
+{
+    "os": "macOS-10.16-x86_64-i386-64bit",
+    "python": "3.8.15",
+    "heartbeatAt": "2022-12-03T20:22:42.623506",
+    "startedAt": "2022-12-03T20:22:37.295534",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "/Users/emma/dev/CMBRVLN/test/mdp.py",
+    "codePath": "test/mdp.py",
+    "git": {
+        "remote": "https://github.com/tohsin/CMBRVLN.git",
+        "commit": "bbcaefbf8101e432343096e3e3ae78382bc0140c"
+    },
+    "email": "oluwatosinoseni@gmail.com",
+    "root": "/Users/emma/dev/CMBRVLN",
+    "host": "Tosins-Air",
+    "username": "emma",
+    "executable": "/Users/emma/dev/CMBRVLN/venv/bin/python",
+    "cpu_count": 2,
+    "cpu_count_logical": 2,
+    "cpu_freq": {
+        "current": 1600,
+        "min": 1600,
+        "max": 1600
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 1600,
+            "min": 1600,
+            "max": 1600
+        }
+    ],
+    "disk": {
+        "total": 233.46913528442383,
+        "used": 14.19342041015625
+    },
+    "memory": {
+        "total": 8.0
+    }
+}
