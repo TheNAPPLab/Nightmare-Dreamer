@@ -15,7 +15,7 @@ The prior distribution aims to do what the posterior distribution providing the 
 
 - Reward function $r_t \sim p(r_t | s_t )$
 
-- Policy $a_t \sim p(a_t | o_{<=t}, a_{<t})$
+- Policy function $a_t \sim p(a_t | o_{<t}, a_{<t})$
 
 
 Planet tries to learn the transition model via a GRU, observation model and reward model. and also a encoder $q(s_t | o_{<=t}, a_{<t})$
