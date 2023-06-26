@@ -16,9 +16,9 @@ The prior distribution aims to do what the posterior distribution providing the 
 - Reward function $r_t \sim p(r_t | s_t )$
 
 <!-- - Policy function $a_t \sim p(a_t | o_{<=t}, a_{<t})$ -->
-- Policy function $a_t \sim p(a_t | o_{&lt;t}, a_{&lt;t})$
+- Policy function $a_t \sim p(a_t | o_{i<t+1}, a_{i<t+1})$
 
-Planet tries to learn the transition model via a GRU, observation model and reward model. and also a encoder $q(s_t | o_{<=t}, a_{<t})$
+Planet tries to learn the transition model via a GRU, observation model and reward model. and also a encoder $q(s_t | o_{1<t+1}, a_{i<t+1})$
 
 ---
 ## Computing Deterministic State
