@@ -79,7 +79,7 @@ class Trainer(object):
 
             model_loss, kl_loss, obs_loss, reward_loss, cost_loss,\
                  pcont_loss, prior_dist, post_dist, \
-                    posterior = self.representation_loss(obs, actions, rewards, costs, nonterms)
+                    posterior = self.repres=entation_loss(obs, actions, rewards, costs, nonterms)
             
             self.model_optimizer.zero_grad()
             
@@ -205,7 +205,7 @@ class Trainer(object):
         pcont_loss = self._pcont_loss(pcont_dist, nonterms[1:])
         prior_dist, post_dist, div = self._kl_loss(prior, posterior)
 
-        model_loss = self.loss_scale['kl'] * div + reward_loss + cost_loss + obs_loss + self.loss_scale['discount']*pcont_loss
+        model_loss = self.loss_scale['kl'] * div + reward_loss + cost_loss + obs_loss + self.loss_scale['discount'] * pcont_loss
         return model_loss, div, obs_loss, reward_loss, cost_loss, pcont_loss, prior_dist, post_dist, posterior
 
     def _actor_loss(self, imag_reward, imag_cost, imag_value, discount_arr, imag_log_prob, policy_entropy):
@@ -385,6 +385,7 @@ class Trainer(object):
 
         self.lambda_optimizer = torch_opt([self.lagrangian_multiplier,],
                                           lr=lambda_lr)
+    
     def _print_summary(self):
         print('\n Obs encoder: \n', self.ObsEncoder)
         print('\n RSSM model: \n', self.RSSM)
