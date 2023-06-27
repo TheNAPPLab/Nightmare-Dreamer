@@ -35,7 +35,6 @@ def main(args):
    
     env_name = args.env
     exp_id = args.id
-    is_panda_gym = args.is_panda
 
     '''make dir for saving results'''
     result_dir = os.path.join('results', '{}_{}'.format(env_name, exp_id))
@@ -54,7 +53,7 @@ def main(args):
 
     print('using :', device)  
     # env = gym.make(env_name)
-    env = safety_gymnasium.make(env_name, render_mode='rgb_array') 
+    env = safety_gymnasium.make(env_name) 
 
     action_size = env.action_space.shape[0]
     obs_dtype = bool
@@ -65,12 +64,11 @@ def main(args):
  
         # obs_shape = env.observation_space.shape
     obs, info = env.reset()
-
-    image_shape = obs['vision'].shape
+    image_shape = obs.shape
         # image_shape = obs['vision'].shape
     config = BaseSafeConfig(
             env = env_name,
-            pixel = True,
+            pixel = False,
             obs_shape = image_shape,
             action_size = action_size,
             obs_dtype = obs_dtype,
@@ -90,17 +88,17 @@ def main(args):
         print('...training...')
         train_metrics = {}
         trainer.collect_seed_episodes(env)
-        obs, info, score, score_cost = env.reset(), 0, 0
-        if config.pixel:
-            obs = obs['vision']
+        obs, info  = env.reset()
+        score, score_cost = 0, 0
         terminated, truncated = False, False
-        prev_rssmstate = trainer.RSSM._init_rssm_state(1)
-        prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
-        episode_actor_ent = []
+        prev_rssmstate = trainer.RSSM._init_rssm_state(1) # discrete hidden state
+        prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)  
+        episode_actor_ent = []   
         scores = []
         costs = []
         best_mean_score = 0
         best_mean_score_cost = 0
+        best_combination_score = 0
         best_save_path = os.path.join(model_dir, 'models_best.pth')
         
         for iter in range(1, trainer.config.train_steps):  
@@ -114,27 +112,24 @@ def main(args):
             if iter % trainer.config.save_every == 0:
                 trainer.save_model(iter)
                 
+            # action selection and roll out to obtain prosterior and prior
             with torch.no_grad():
                 embed = trainer.ObsEncoder(torch.tensor(obs, dtype = torch.float32).unsqueeze(0).to(trainer.device))  
-                _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not done, prev_rssmstate)
+                _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not (terminated or truncated), prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
-                action, action_dist= trainer.ActionModel(model_state, deter=not True)
-                
+                action, action_dist = trainer.ActionModel(model_state, deter = not True)
                 action = trainer.ActionModel.add_exploration(action, exploration_rate).detach()
-                if iter%400 == 0:
-                    exploration_rate *= 0.99
+                if iter % 400 == 0:
+                    exploration_rate *= 0.99  # slowly decaying the noise
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
 
-            obs, reward, cost, terminated, truncated, info = env.step(action.squeeze(0).cpu().numpy())
-            if config.pixel:
-                next_obs = env.render().transpose(2, 0, 1).copy()
+            next_obs, reward, cost, terminated, truncated, _ = env.step(action.squeeze(0).cpu().numpy())
             score_cost += cost
             score += reward
             done_ = terminated or truncated
             if done_ :
                 number_games += 1
-                print(number_games)
                 trainer.buffer.add(obs, action.squeeze(0).cpu().numpy(), reward, cost, done_)
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
@@ -151,15 +146,15 @@ def main(args):
                     curr_avg_cost = np.mean(costs)
                     train_metrics['current_avg_score'] =  current_average
                     train_metrics['current_avg_cost'] =  curr_avg_cost
-                    if current_average>best_mean_score:
+
+                    if current_average > best_mean_score:
                         best_mean_score = current_average 
                         print('saving best model with mean score : ', best_mean_score)
                         save_dict = trainer.get_save_dict()
                         torch.save(save_dict, best_save_path)
                 
-                _, info, score, score_cost = env.reset(), 0, 0
-                if config.pixel:
-                    obs =  env.render().transpose(2, 0, 1).copy()
+                obs, _ =  env.reset()
+                score, score_cost = 0, 0
                 terminated, truncated = False, False
                 prev_rssmstate = trainer.RSSM._init_rssm_state(1)
                 prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)

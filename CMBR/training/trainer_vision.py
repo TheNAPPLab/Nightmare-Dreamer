@@ -36,23 +36,36 @@ class Trainer(object):
         self._model_initialize(config)
         self._optim_initialize(config)
 
-    def collect_seed_episodes(self, env):
-        state, info  = env.reset()
-        del info
-        done_ = False
+    def collect_seed_episodes(self, env, is_use_vision):
+        if is_use_vision:
+            s, info  = env.reset() 
+            s = s['vision'].transpose(2, 0, 1)
+            done_ = False
+        else:
+            s, done_  = env.reset(), False 
         for i in range(self.seed_steps):
-                action = env.action_space.sample()
-                new_state, reward, cost, terminated, truncated, info  =  env.step(action)
+            if is_use_vision:
+                a = env.action_space.sample()
+                ns, reward, cost, terminated, truncated, info  =  env.step(a)
+                ns = ns['vision'].transpose(2, 0, 1)
                 done_= truncated or terminated
                 if done_:
-                    self.buffer.add(state ,action, reward, cost, done_)
-                    state, info = env.reset()
-                    del info
-                    done_ = False 
+                    self.buffer.add(s,a,reward,cost,done_)
+                    s, done_  = env.reset(), False 
+                    s = s['vision'].transpose(2, 0, 1)
                 else:
-                    self.buffer.add(state, action, reward, cost, done_)
-                    state = new_state    
-        del state, done_, cost, reward, new_state, terminated, truncated
+                    self.buffer.add(s,a,reward,cost,done_)
+                    s = ns    
+            else:
+                a = env.action_space.sample()
+                ns, r, done, info = env.step(a)
+                c = info.get('cost',0.0)
+                if done:
+                    self.buffer.add(s,a,r,c,done)
+                    s, done  = env.reset(), False 
+                else:
+                    self.buffer.add(s,a,r,c,done)
+                    s = ns    
 
     def train_batch(self, train_metrics):
         """ 
@@ -388,7 +401,7 @@ class Trainer(object):
             f'Optimizer={lambda_optimizer_} not found in torch.'
         torch_opt = getattr(optim, lambda_optimizer_)
         
-        self.world_list = [self.ObsEncoder, self.RSSM, self.RewardDecoder, self.CostDecoder, self.ObsDecoder, self.DiscountModel]
+        self.world_list = [self.ObsEncoder, self.RSSM, self.RewardDecoder, self.CostDecoder,self.ObsDecoder, self.DiscountModel]
         self.actor_list = [self.ActionModel]
         self.value_list = [self.ValueModel, self.CostValueModel]
         self.actorcritic_list = [self.ActionModel, self.ValueModel] # not used lol
