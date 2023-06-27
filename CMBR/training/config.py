@@ -139,7 +139,7 @@ class BaseSafeConfig():
     action_repeat: int = 1
     
     #buffer desc
-    capacity: int = int(1e6)
+    capacity: int = int(1e3)
     obs_dtype: np.dtype = np.uint8
     action_dtype: np.dtype = np.float32
 

@@ -9,7 +9,7 @@ import safety_gymnasium
 
 # from torch.utils.tensorboard import SummaryWriter
 
-sys.path.append('/Users/emma/dev/CMBRVLN')
+# sys.path.append('/Users/emma/dev/CMBRVLN')
 # sys.path.append('/Users/emma/dev/CMBRVLN/Safe-panda-gym')
 # import panda_gym
 from CMBR.utils.wrapper import GymMinAtar, OneHotAction, NormalizeActions, SafetyGymEnv
@@ -53,7 +53,7 @@ def main(args):
 
     print('using :', device)  
     # env = gym.make(env_name)
-    env = safety_gymnasium.make(env_name, render_mode='rgb_array') 
+    env = safety_gymnasium.make(env_name) 
 
     action_size = env.action_space.shape[0]
     obs_dtype = bool
@@ -61,7 +61,6 @@ def main(args):
     batch_size = args.batch_size
     seq_len = args.seq_len
 
- 
         # obs_shape = env.observation_space.shape
     obs, info = env.reset()
 
@@ -88,7 +87,7 @@ def main(args):
         """training loop"""
         print('...training...')
         train_metrics = {}
-        trainer.collect_seed_episodes(env)
+        trainer.collect_seed_episodes(env, args.is_use_vision)
         obs, info, score, score_cost = env.reset(), 0, 0
         if config.pixel:
             obs = obs['vision'].transpose(2, 0, 1)

@@ -36,18 +36,36 @@ class Trainer(object):
         self._model_initialize(config)
         self._optim_initialize(config)
 
-    def collect_seed_episodes(self, env):
-        s, done  = env.reset(), False 
+    def collect_seed_episodes(self, env, is_use_vision):
+        if is_use_vision:
+            s, info  = env.reset() 
+            s = s['vision'].transpose(2, 0, 1)
+            done_ = False
+        else:
+            s, done_  = env.reset(), False 
         for i in range(self.seed_steps):
-            a = env.action_space.sample()
-            ns, r, done, info = env.step(a)
-            c = info.get('cost',0.0)
-            if done:
-                self.buffer.add(s,a,r,c,done)
-                s, done  = env.reset(), False 
+            if is_use_vision:
+                a = env.action_space.sample()
+                ns, reward, cost, terminated, truncated, info  =  env.step(a)
+                ns = ['vision'].transpose(2, 0, 1)
+                done_= truncated or terminated
+                if done_:
+                    self.buffer.add(s,a,reward,cost,done_)
+                    s, done_  = env.reset(), False 
+                    s = s['vision'].transpose(2, 0, 1)
+                else:
+                    self.buffer.add(s,a,reward,cost,done_)
+                    s = ns    
             else:
-                self.buffer.add(s,a,r,c,done)
-                s = ns    
+                a = env.action_space.sample()
+                ns, r, done, info = env.step(a)
+                c = info.get('cost',0.0)
+                if done:
+                    self.buffer.add(s,a,r,c,done)
+                    s, done  = env.reset(), False 
+                else:
+                    self.buffer.add(s,a,r,c,done)
+                    s = ns    
 
     def train_batch(self, train_metrics):
         """ 
