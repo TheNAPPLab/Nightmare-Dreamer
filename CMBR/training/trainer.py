@@ -40,6 +40,7 @@ class Trainer(object):
         s, done  = env.reset(), False 
         for i in range(self.seed_steps):
             a = env.action_space.sample()
+            import pdb;pdb.set_trace()
             ns, r, done, info = env.step(a)
             c = info.get('cost',0.0)
             if done:

@@ -1,6 +1,7 @@
 # import safety_gym
 import gym
 import numpy as np
+import minatar
 
 class SafetyGymEnv(gym.Env):
     metadata = {'render.modes': ['human', 'rgb_array']}

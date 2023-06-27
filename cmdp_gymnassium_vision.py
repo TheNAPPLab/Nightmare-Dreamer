@@ -9,7 +9,7 @@ import safety_gymnasium
 
 # from torch.utils.tensorboard import SummaryWriter
 
-# sys.path.append('/Users/emma/dev/CMBRVLN')
+# sys.path.append('/media/zhujun/0DFD06D20DFD06D2/SLAM/CMBRVLN')
 # sys.path.append('/Users/emma/dev/CMBRVLN/Safe-panda-gym')
 # import panda_gym
 from CMBR.utils.wrapper import GymMinAtar, OneHotAction, NormalizeActions, SafetyGymEnv
@@ -32,10 +32,9 @@ def main(args):
     #         tb.add_scalar(key, value, iter)
 
     wandb.login()
-
+   
     env_name = args.env
     exp_id = args.id
-    is_panda_gym = args.is_panda
 
     '''make dir for saving results'''
     result_dir = os.path.join('results', '{}_{}'.format(env_name, exp_id))
@@ -62,11 +61,11 @@ def main(args):
     batch_size = args.batch_size
     seq_len = args.seq_len
 
-
+ 
         # obs_shape = env.observation_space.shape
     obs, info = env.reset()
 
-    image_shape = obs['vision'].shape
+    image_shape = obs['vision'].transpose(2, 0, 1).shape
         # image_shape = obs['vision'].shape
     config = BaseSafeConfig(
             env = env_name,
@@ -92,7 +91,7 @@ def main(args):
         trainer.collect_seed_episodes(env)
         obs, info, score, score_cost = env.reset(), 0, 0
         if config.pixel:
-            obs = obs['vision']
+            obs = obs['vision'].transpose(2, 0, 1)
         terminated, truncated = False, False
         prev_rssmstate = trainer.RSSM._init_rssm_state(1)
         prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
@@ -128,7 +127,7 @@ def main(args):
 
             obs, reward, cost, terminated, truncated, info = env.step(action.squeeze(0).cpu().numpy())
             if config.pixel:
-                next_obs = env.render().transpose(2, 0, 1).copy()
+                next_obs = obs['vision'].transpose(2, 0, 1)
             score_cost += cost
             score += reward
             done_ = terminated or truncated
@@ -157,9 +156,9 @@ def main(args):
                         save_dict = trainer.get_save_dict()
                         torch.save(save_dict, best_save_path)
                 
-                _, info, score, score_cost = env.reset(), 0, 0
+                obs, info, score, score_cost = env.reset(), 0, 0
                 if config.pixel:
-                    obs =  env.render().transpose(2, 0, 1).copy()
+                    obs =  obs['vision'].transpose(2, 0, 1)
                 terminated, truncated = False, False
                 prev_rssmstate = trainer.RSSM._init_rssm_state(1)
                 prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
@@ -179,8 +178,8 @@ if __name__ == "__main__":
 
     """there are tonnes of HPs, if you want to do an ablation over any particular one, please add if here"""
     parser = argparse.ArgumentParser()
-    # parser.add_argument("--env", type=str,  default='SafetyRacecarGoal1Vision-v0', help='mini atari env name')
-    parser.add_argument("--env", type=str,  default='SafetyPointGoal1-v0', help='mini atari env name')
+    parser.add_argument("--env", type=str,  default='SafetyRacecarGoal1Vision-v0', help='gym env name')
+    # parser.add_argument("--env", type=str,  default='SafetyPointGoal1-v0', help='mini atari env name')
 #  parser.add_argument("--env", type=str,  default='PandaReachSafe-v2', help='mini atari env name')
     parser.add_argument("--is_use_vision", type = bool,  default = True, help='is it safe Panda gym')
     parser.add_argument("--id", type = str, default='0', help = 'Experiment ID')

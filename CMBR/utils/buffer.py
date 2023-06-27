@@ -24,6 +24,7 @@ class TransitionBuffer():
         self.batch_size = batch_size
         self.idx = 0
         self.full = False
+        # import pdb;pdb.set_trace()
         self.observation = np.empty((capacity, *obs_shape), dtype=obs_type) 
         self.action = np.empty((capacity, action_size), dtype=np.float32)
         self.reward = np.empty((capacity,), dtype=np.float32) 
