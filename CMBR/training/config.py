@@ -130,7 +130,7 @@ class MiniGridConfig():
     
 @dataclass
 class BaseSafeConfig():
-    '''default HPs that are known to work for MinAtar envs '''
+    '''HP for safety gymnasium '''
     #env desc
     env : str                                           
     obs_shape: Tuple                                            

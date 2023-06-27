@@ -1,4 +1,4 @@
-import safety_gym
+# import safety_gym
 import gym
 import numpy as np
 

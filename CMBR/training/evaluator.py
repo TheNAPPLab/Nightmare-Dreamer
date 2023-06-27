@@ -1,9 +1,9 @@
 import numpy as np
 import torch 
-from CMBRVLN.models.actor import DiscreteActionModel, ContinousActionModel
-from CMBRVLN.models.rssm import RSSM
-from CMBRVLN.models.dense import DenseModel
-from CMBRVLN.models.pixel import ObsDecoder, ObsEncoder
+from CMBR.models.actor import DiscreteActionModel, ContinousActionModel
+from CMBR.models.rssm import RSSM
+from CMBR.models.dense import DenseModel
+from CMBR.models.pixel import ObsDecoder, ObsEncoder
 
 class Evaluator(object):
     '''

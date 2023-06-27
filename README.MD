@@ -17,7 +17,7 @@ install  safety gym following instructions
 
 ## To run 
 ```bash
-python test/mdp.py --env Safexp-PointGoal1-v0 --device cuda
+python test/cmdp_gymnassium_vision.py 
 
 or 
 

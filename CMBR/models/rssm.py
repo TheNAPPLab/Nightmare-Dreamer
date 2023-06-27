@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from CMBRVLN.utils.rssm import RSSMUtils, RSSMContState, RSSMDiscState
+from CMBR.utils.rssm import RSSMUtils, RSSMContState, RSSMDiscState
 
 class RSSM(nn.Module, RSSMUtils):
     def __init__(
@@ -61,8 +61,9 @@ class RSSM(nn.Module, RSSMUtils):
         return nn.Sequential(*temporal_posterior)
     
     def rssm_imagine(self, prev_action, prev_rssm_state, nonterms=True):
-        state_action_embed = self.fc_embed_state_action(torch.cat([prev_rssm_state.stoch*nonterms, prev_action],dim=-1))
-        deter_state = self.rnn(state_action_embed, prev_rssm_state.deter*nonterms)
+        state_action_embed = self.fc_embed_state_action(torch.cat([prev_rssm_state.stoch * nonterms, prev_action],dim=-1))
+        deter_state = self.rnn(state_action_embed, prev_rssm_state.deter * nonterms)
+
         if self.rssm_type == 'discrete':
             prior_logit = self.fc_prior(deter_state)
             stats = {'logit':prior_logit}
@@ -76,7 +77,7 @@ class RSSM(nn.Module, RSSMUtils):
             prior_rssm_state = RSSMContState(prior_mean, std, prior_stoch_state, deter_state)
         return prior_rssm_state
 
-    def rollout_imagination(self, horizon:int, actor:nn.Module, prev_rssm_state):
+    def rollout_imagination(self, horizon : int, actor : nn.Module, prev_rssm_state):
         rssm_state = prev_rssm_state
         next_rssm_states = []
         action_entropy = []
@@ -114,7 +115,7 @@ class RSSM(nn.Module, RSSMUtils):
         priors = []
         posteriors = []
         for t in range(seq_len):
-            prev_action = action[t]*nonterms[t]
+            prev_action = action[t] * nonterms[t]
             prior_rssm_state, posterior_rssm_state = self.rssm_observe(obs_embed[t], prev_action, nonterms[t], prev_rssm_state)
             priors.append(prior_rssm_state)
             posteriors.append(posterior_rssm_state)

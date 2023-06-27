@@ -3,9 +3,9 @@ import os
 import torch
 import numpy as np
 import gym
-from CMBRVLN.utils.wrapper import GymMinAtar, OneHotAction, breakoutPOMDP, space_invadersPOMDP, seaquestPOMDP, asterixPOMDP, freewayPOMDP
-from CMBRVLN.training.config import MinAtarConfig
-from CMBRVLN.training.evaluator import Evaluator
+from CMBR.utils.wrapper import GymMinAtar, OneHotAction, breakoutPOMDP, space_invadersPOMDP, seaquestPOMDP, asterixPOMDP, freewayPOMDP
+from CMBR.training.config import MinAtarConfig
+from CMBR.training.evaluator import Evaluator
 
 pomdp_wrappers = {
     'breakout':breakoutPOMDP,

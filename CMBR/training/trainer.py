@@ -3,13 +3,13 @@ import torch
 import torch.optim as optim
 import os 
 
-from CMBRVLN.utils.module import get_parameters, FreezeParameters
-from CMBRVLN.utils.algorithm import compute_return
-from CMBRVLN.models.actor import DiscreteActionModel, ContinousActionModel
-from CMBRVLN.models.dense import DenseModel
-from CMBRVLN.models.rssm import RSSM
-from CMBRVLN.models.pixel import ObsDecoder, ObsEncoder
-from CMBRVLN.utils.buffer import TransitionBuffer
+from CMBR.utils.module import get_parameters, FreezeParameters
+from CMBR.utils.algorithm import compute_return
+from CMBR.models.actor import DiscreteActionModel, ContinousActionModel
+from CMBR.models.dense import DenseModel
+from CMBR.models.rssm import RSSM
+from CMBR.models.pixel import ObsDecoder, ObsEncoder
+from CMBR.utils.buffer import TransitionBuffer
 
 class Trainer(object):
     def __init__(

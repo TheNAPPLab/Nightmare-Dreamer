@@ -79,7 +79,7 @@ class RSSMUtils(object):
             mean = stats['mean']
             std = stats['std']
             std = F.softplus(std) + self.min_std
-            return mean + std*torch.randn_like(mean), std
+            return mean + std * torch.randn_like(mean), std
 
     def rssm_stack_states(self, rssm_states, dim):
         if self.rssm_type == 'discrete':
