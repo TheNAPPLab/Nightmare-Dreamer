@@ -11,6 +11,12 @@ from CMBR.models.rssm import RSSM
 from CMBR.models.pixel import ObsDecoder, ObsEncoder
 from CMBR.utils.buffer import TransitionBuffer
 
+from skimage.transform import resize
+
+def  get_image_obs(obs):
+    image = obs['vision'].transpose(2, 0, 1)
+    return resize(image, (3, 64, 64)) / 255.0 
+
 class Trainer(object):
     def __init__(
         self, 
@@ -37,34 +43,19 @@ class Trainer(object):
         self._optim_initialize(config)
 
     def collect_seed_episodes(self, env, is_use_vision):
-        if is_use_vision:
-            s, info  = env.reset() 
-            s = s['vision'].transpose(2, 0, 1)
-            done_ = False
-        else:
-            s, done_  = env.reset(), False 
+        
+        s, info  = env.reset() 
+        done_ = False
         for i in range(self.seed_steps):
-            if is_use_vision:
                 a = env.action_space.sample()
                 ns, reward, cost, terminated, truncated, info  =  env.step(a)
-                ns = ns['vision'].transpose(2, 0, 1)
                 done_= truncated or terminated
                 if done_:
-                    self.buffer.add(s,a,reward,cost,done_)
-                    s, done_  = env.reset(), False 
-                    s = s['vision'].transpose(2, 0, 1)
+                    self.buffer.add(get_image_obs(s), a, reward, cost, terminated)
+                    s, info  = env.reset()
+                    done_ = False
                 else:
-                    self.buffer.add(s,a,reward,cost,done_)
-                    s = ns    
-            else:
-                a = env.action_space.sample()
-                ns, r, done, info = env.step(a)
-                c = info.get('cost',0.0)
-                if done:
-                    self.buffer.add(s,a,r,c,done)
-                    s, done  = env.reset(), False 
-                else:
-                    self.buffer.add(s,a,r,c,done)
+                    self.buffer.add(get_image_obs(s), a, reward, cost, terminated)
                     s = ns    
 
     def train_batch(self, train_metrics):

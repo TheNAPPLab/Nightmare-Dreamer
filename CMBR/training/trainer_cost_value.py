@@ -45,11 +45,12 @@ class Trainer(object):
                 new_state, reward, cost, terminated, truncated, info  =  env.step(action)
                 done_= truncated or terminated
                 if done_:
-                    self.buffer.add(state ,action, reward, cost, terminated)
+                    self.buffer.add(state ,action, reward, cost, done_)
                     state, info = env.reset()
+                    del info
                     done_ = False 
                 else:
-                    self.buffer.add(state, action, reward, cost, terminated)
+                    self.buffer.add(state, action, reward, cost, done_)
                     state = new_state    
         del state, done_, cost, reward, new_state, terminated, truncated
 
@@ -320,8 +321,10 @@ class Trainer(object):
         self.RewardDecoder.load_state_dict(saved_dict["RewardDecoder"])
         self.CostDecoder.load_state_dict(saved_dict["CostDecoder"])
         self.ActionModel.load_state_dict(saved_dict["ActionModel"])
+        self.CostValueModel.load_state_dict(saved_dict["CostValueModel"])
         self.ValueModel.load_state_dict(saved_dict["ValueModel"])
         self.DiscountModel.load_state_dict(saved_dict['DiscountModel'])
+        
             
     def _model_initialize(self, config ):
         obs_shape = config.obs_shape

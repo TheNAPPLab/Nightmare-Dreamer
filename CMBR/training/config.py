@@ -145,7 +145,7 @@ class BaseSafeConfig():
 
     #training desc
     train_steps: int = int(5e6)
-    train_every: int = 200   #50   #reduce this to potentially improve sample requirements
+    train_every: int = 50   #50   #reduce this to potentially improve sample requirements
     collect_intervals: int = 5 
     batch_size: int = 50 
     seq_len: int = 50
