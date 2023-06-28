@@ -9,7 +9,7 @@ import safety_gymnasium
 
 # from torch.utils.tensorboard import SummaryWriter
 
-sys.path.append('/media/zhujun/0DFD06D20DFD06D2/SLAM/CMBRVLN')
+# sys.path.append('/media/zhujun/0DFD06D20DFD06D2/SLAM/CMBRVLN')
 # sys.path.append('/Users/emma/dev/CMBRVLN/Safe-panda-gym')
 # import panda_gym
 from CMBR.utils.wrapper import GymMinAtar, OneHotAction, NormalizeActions, SafetyGymEnv

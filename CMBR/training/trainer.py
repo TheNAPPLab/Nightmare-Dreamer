@@ -36,19 +36,38 @@ class Trainer(object):
         self._model_initialize(config)
         self._optim_initialize(config)
 
-    def collect_seed_episodes(self, env):
-        s, done  = env.reset(), False 
+    def collect_seed_episodes(self, env, is_use_vision):
+        if is_use_vision:
+            s, info  = env.reset() 
+            s = s['vision'].transpose(2, 0, 1)
+            done_ = False
+        else:
+            s, done_  = env.reset(), False 
         for i in range(self.seed_steps):
-            a = env.action_space.sample()
-            import pdb;pdb.set_trace()
-            ns, r, done, info = env.step(a)
-            c = info.get('cost',0.0)
-            if done:
-                self.buffer.add(s,a,r,c,done)
-                s, done  = env.reset(), False 
+            if is_use_vision:
+                a = env.action_space.sample()
+                ns, reward, cost, terminated, truncated, info  =  env.step(a)
+                ns = ns['vision'].transpose(2, 0, 1)
+                done_= truncated or terminated
+                if done_:
+                    self.buffer.add(s,a,reward,cost,done_)
+                    s, info = env.reset() 
+                    done_ = False
+                    # import pdb;pdb.set_trace()
+                    s = s['vision'].transpose(2, 0, 1)
+                else:
+                    self.buffer.add(s,a,reward,cost,done_)
+                    s = ns    
             else:
-                self.buffer.add(s,a,r,c,done)
-                s = ns    
+                a = env.action_space.sample()
+                ns, r, done, info = env.step(a)
+                c = info.get('cost',0.0)
+                if done:
+                    self.buffer.add(s,a,r,c,done)
+                    s, done  = env.reset(), False 
+                else:
+                    self.buffer.add(s,a,r,c,done)
+                    s = ns    
 
     def train_batch(self, train_metrics):
         """ 
@@ -78,9 +97,7 @@ class Trainer(object):
             costs = torch.tensor(cost, dtype=torch.float32).to(self.device).unsqueeze(-1)   #t-1 to t+seq_len-1
             nonterms = torch.tensor(1-terms, dtype=torch.float32).to(self.device).unsqueeze(-1)  #t-1 to t+seq_len-1
 
-            model_loss, kl_loss, obs_loss, reward_loss, cost_loss,\
-                 pcont_loss, prior_dist, post_dist, \
-                    posterior = self.repres=entation_loss(obs, actions, rewards, costs, nonterms)
+            model_loss, kl_loss, obs_loss, reward_loss, cost_loss, pcont_loss, prior_dist, post_dist, posterior = self.representation_loss(obs, actions, rewards, costs, nonterms)
             
             self.model_optimizer.zero_grad()
             
@@ -190,6 +207,7 @@ class Trainer(object):
 
     def representation_loss(self, obs, actions, rewards, costs, nonterms):
 
+        # import pdb;pdb.set_trace()
         embed = self.ObsEncoder(obs)                                         #t to t+seq_len   
         prev_rssm_state = self.RSSM._init_rssm_state(self.batch_size)   
         prior, posterior = self.RSSM.rollout_observation(self.seq_len, embed, actions, nonterms, prev_rssm_state)

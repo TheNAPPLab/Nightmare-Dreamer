@@ -53,7 +53,7 @@ def main(args):
 
     print('using :', device)  
     # env = gym.make(env_name)
-    env = safety_gymnasium.make(env_name, render_mode='rgb_array') 
+    env = safety_gymnasium.make(env_name) 
 
     action_size = env.action_space.shape[0]
     obs_dtype = bool
@@ -61,7 +61,6 @@ def main(args):
     batch_size = args.batch_size
     seq_len = args.seq_len
 
- 
         # obs_shape = env.observation_space.shape
     obs, info = env.reset()
 
@@ -88,8 +87,9 @@ def main(args):
         """training loop"""
         print('...training...')
         train_metrics = {}
-        trainer.collect_seed_episodes(env)
-        obs, info, score, score_cost = env.reset(), 0, 0
+        trainer.collect_seed_episodes(env, args.is_use_vision)
+        obs, info = env.reset()
+        score, score_cost = 0, 0
         if config.pixel:
             obs = obs['vision'].transpose(2, 0, 1)
         terminated, truncated = False, False
@@ -114,8 +114,10 @@ def main(args):
                 trainer.save_model(iter)
                 
             with torch.no_grad():
-                embed = trainer.ObsEncoder(torch.tensor(obs, dtype = torch.float32).unsqueeze(0).to(trainer.device))  
-                _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not done, prev_rssmstate)
+                # import pdb;pdb.set_trace()
+                embed = trainer.ObsEncoder(torch.tensor(obs.copy()/255.0, dtype = torch.float32).unsqueeze(0).to(trainer.device))  
+                # _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not done, prev_rssmstate)
+                _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not (terminated or truncated), prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist= trainer.ActionModel(model_state, deter=not True)
                 
@@ -184,8 +186,9 @@ if __name__ == "__main__":
     parser.add_argument("--is_use_vision", type = bool,  default = True, help='is it safe Panda gym')
     parser.add_argument("--id", type = str, default='0', help = 'Experiment ID')
     parser.add_argument('--seed', type=int, default=123, help = 'Random seed')
-    parser.add_argument('--device', default = 'cpu', help = 'CUDA or CPU')
+    parser.add_argument('--device', default = 'CUDA', help = 'CUDA or CPU')
     parser.add_argument('--batch_size', type = int, default = 50, help='Batch size')
     parser.add_argument('--seq_len', type = int, default = 50, help='Sequence Length (chunk length)')
     args = parser.parse_args()
+    print(args)
     main(args)

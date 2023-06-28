@@ -58,8 +58,7 @@ class TransitionBuffer():
     def _retrieve_batch(self, idxs, n, l):
         vec_idxs = idxs.transpose().reshape(-1)
         observation = self.observation[vec_idxs]
-        return observation.reshape(l, n, *self.obs_shape), self.action[vec_idxs].reshape(l, n, -1), \
-            self.reward[vec_idxs].reshape(l, n), self.cost[vec_idxs].reshape(l, n), self.terminal[vec_idxs].reshape(l, n)
+        return observation.reshape(l, n, *self.obs_shape), self.action[vec_idxs].reshape(l, n, -1), self.reward[vec_idxs].reshape(l, n), self.cost[vec_idxs].reshape(l, n), self.terminal[vec_idxs].reshape(l, n)
 
     def sample(self):
         n = self.batch_size
