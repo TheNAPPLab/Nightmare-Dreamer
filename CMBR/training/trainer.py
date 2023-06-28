@@ -60,6 +60,7 @@ class Trainer(object):
         """
         actor_l = []
         value_l = []
+        cost_value_l = []
         obs_l = []
         model_l = []
         reward_l = []
@@ -215,10 +216,10 @@ class Trainer(object):
 
     def _actor_loss(self, imag_reward, imag_cost, imag_value, discount_arr, imag_log_prob, policy_entropy):
 
-        lambda_returns = compute_return(imag_reward[:-1], imag_value[:-1], discount_arr[:-1], bootstrap=imag_value[-1], lambda_=self.lambda_)
+        lambda_returns = compute_return(imag_reward[:-1], imag_value[:-1], discount_arr[:-1], bootstrap = imag_value[-1], lambda_=self.lambda_)
         
         if self.config.actor_grad == 'reinforce':
-            advantage = (lambda_returns-imag_value[:-1]).detach()
+            advantage = (lambda_returns - imag_value[:-1]).detach()
             objective = imag_log_prob[1:].unsqueeze(-1) * advantage
 
         elif self.config.actor_grad == 'dynamics':
@@ -235,7 +236,7 @@ class Trainer(object):
             actor_loss += penalty * ((imag_log_prob[1:].unsqueeze(-1)  * imag_cost[:-1]).mean())
         elif self.config.actor_grad == 'dynamics':
             actor_loss += penalty * ((imag_cost[:-1]).mean())
-        actor_loss /= (1+penalty) 
+        actor_loss /= (1 + penalty) 
         return actor_loss, discount, lambda_returns
 
     def _value_loss(self, imag_modelstates, discount, lambda_returns):

@@ -80,6 +80,7 @@ def main(args):
 
     exploration_rate = 0.1
     config_dict = config.__dict__
+    config_dict['experment'] ='Using primal dual method without a value function'
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)
 
@@ -136,7 +137,6 @@ def main(args):
                 train_metrics['train_costs'] = score_cost
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
                 wandb.log(train_metrics, step=iter)
-                # logTensorboard(train_metrics,iter)
                 scores.append(score)
                 costs.append(cost)
                 if len(scores)>100:
