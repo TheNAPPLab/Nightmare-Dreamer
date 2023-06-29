@@ -72,7 +72,7 @@ def main(args):
             pixel = False,
             obs_shape = image_shape,
             action_size = action_size,
-            obs_dtype = obs_dtype,
+            obs_dtype = np.float32,
             action_dtype = action_dtype,
             seq_len = seq_len,
             batch_size = batch_size,
@@ -132,11 +132,11 @@ def main(args):
             done_ = terminated or truncated
             if done_ :
                 number_games += 1
-                trainer.buffer.add(obs, action.squeeze(0).cpu().numpy(), reward, cost, done_)
-                train_metrics['train_rewards'] = score
+                trainer.buffer.add(obs, action.squeeze(0).cpu().numpy(), reward, cost, terminated)
+                train_metrics['score_training'] = score
                 train_metrics['number_games']  = number_games
-                train_metrics['train_costs'] = score_cost
-                train_metrics['action_ent'] =  np.mean(episode_actor_ent)
+                train_metrics['costs_score_training'] = score_cost
+                train_metrics['action_ent_training'] =  np.mean(episode_actor_ent)
                 wandb.log(train_metrics, step=iter)
                 scores.append(score)
                 costs.append(cost)
@@ -161,7 +161,7 @@ def main(args):
                 prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
                 episode_actor_ent = []
             else:
-                trainer.buffer.add(obs, action.squeeze(0).detach().cpu().numpy(), reward, cost, done_)
+                trainer.buffer.add(obs, action.squeeze(0).detach().cpu().numpy(), reward, cost, terminated)
                 obs = next_obs
                 del next_obs
                 prev_rssmstate = posterior_rssm_state

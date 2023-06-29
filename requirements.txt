@@ -98,3 +98,4 @@ xz=5.2.5=h7b6447c_0
 yaml=0.2.5=h516909a_0
 zlib=1.2.11=h7b6447c_3
 safety-gymnasium
+scikit-image
