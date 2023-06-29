@@ -22,8 +22,6 @@ from CMBR.training.evaluator import Evaluator
 def main(args):
     # tb = SummaryWriter()
     number_games = 0
-
-
     wandb.login()
    
     env_name = args.env
@@ -81,7 +79,7 @@ def main(args):
         print('...training...')
         train_metrics = {}
         trainer.collect_seed_episodes(env, args.is_use_vision)
-        obs, info = env.reset()
+        obs, _ = env.reset()
         score, score_cost = 0, 0
         terminated, truncated = False, False
         prev_rssmstate = trainer.RSSM._init_rssm_state(1)
@@ -115,13 +113,12 @@ def main(args):
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
 
-            obs, reward, cost, terminated, truncated, info = env.step(action.squeeze(0).cpu().numpy())
+            next_obs, reward, cost, terminated, truncated, _ = env.step(action.squeeze(0).cpu().numpy())
             score_cost += cost
             score += reward
             done_ = terminated or truncated
             if done_ :
                 number_games += 1
-                print(number_games)
                 trainer.buffer.add(get_image_obs(obs), action.squeeze(0).cpu().numpy(), reward, cost, done_)
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
@@ -143,7 +140,8 @@ def main(args):
                         save_dict = trainer.get_save_dict()
                         torch.save(save_dict, best_save_path)
                 
-                obs, info, score, score_cost = env.reset(), 0, 0
+                obs, _ =  env.reset()
+                score, score_cost = 0, 0
                 terminated, truncated = False, False
                 prev_rssmstate = trainer.RSSM._init_rssm_state(1)
                 prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)

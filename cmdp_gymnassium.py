@@ -80,7 +80,7 @@ def main(args):
         print('...training...')
         train_metrics = {}
         trainer.collect_seed_episodes(env)
-        obs, info  = env.reset()
+        obs, _  = env.reset()
         score, score_cost = 0, 0
         terminated, truncated = False, False
         prev_rssmstate = trainer.RSSM._init_rssm_state(1) # discrete hidden state
