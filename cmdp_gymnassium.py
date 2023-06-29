@@ -1,4 +1,3 @@
-import wandb
 import argparse
 import os
 import torch
@@ -6,10 +5,12 @@ import numpy as np
 import gym
 import sys
 import safety_gymnasium
+import wandb
+
 
 # from torch.utils.tensorboard import SummaryWriter
 
-
+# sys.path.append('/Users/emma/dev/CMBRVLN')
 # sys.path.append('/Users/emma/dev/CMBRVLN/Safe-panda-gym')
 # import panda_gym
 from CMBR.utils.wrapper import GymMinAtar, OneHotAction, NormalizeActions, SafetyGymEnv
@@ -32,7 +33,7 @@ def main(args):
     #         tb.add_scalar(key, value, iter)
 
     wandb.login()
-   
+
     env_name = args.env
     exp_id = args.id
 
@@ -64,7 +65,7 @@ def main(args):
     batch_size = args.batch_size
     seq_len = args.seq_len
 
- 
+
         # obs_shape = env.observation_space.shape
     obs, info = env.reset()
     image_shape = obs.shape

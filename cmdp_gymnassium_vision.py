@@ -12,7 +12,7 @@ from skimage.transform import resize
 
 # from torch.utils.tensorboard import SummaryWriter
 
-# sys.path.append('/Users/emma/dev/CMBRVLN')
+# sys.path.append('/media/zhujun/0DFD06D20DFD06D2/SLAM/CMBRVLN')
 # sys.path.append('/Users/emma/dev/CMBRVLN/Safe-panda-gym')
 # import panda_gym
 from CMBR.utils.wrapper import GymMinAtar, OneHotAction, NormalizeActions, SafetyGymEnv
@@ -91,7 +91,12 @@ def main(args):
         print('...training...')
         train_metrics = {}
         trainer.collect_seed_episodes(env, args.is_use_vision)
-        obs, info, score, score_cost = env.reset(), 0, 0
+        obs, info = env.reset()
+        score, score_cost = 0, 0
+        if config.pixel:
+            image = obs['vision'].transpose(2, 0, 1)
+            obs = resize(image, (3, 64, 64))
+            # obs = obs['vision'].transpose(2, 0, 1)
         terminated, truncated = False, False
         prev_rssmstate = trainer.RSSM._init_rssm_state(1)
         prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
@@ -180,8 +185,9 @@ if __name__ == "__main__":
     parser.add_argument("--is_use_vision", type = bool,  default = True, help='is it safe Panda gym')
     parser.add_argument("--id", type = str, default='0', help = 'Experiment ID')
     parser.add_argument('--seed', type=int, default=123, help = 'Random seed')
-    parser.add_argument('--device', default = 'cpu', help = 'CUDA or CPU')
+    parser.add_argument('--device', default = 'CUDA', help = 'CUDA or CPU')
     parser.add_argument('--batch_size', type = int, default = 50, help='Batch size')
     parser.add_argument('--seq_len', type = int, default = 50, help='Sequence Length (chunk length)')
     args = parser.parse_args()
+    print(args)
     main(args)

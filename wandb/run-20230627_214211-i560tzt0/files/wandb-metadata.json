@@ -1,0 +1,165 @@
+{
+    "os": "Linux-5.17.12-custom-x86_64-with-glibc2.27",
+    "python": "3.9.7",
+    "heartbeatAt": "2023-06-27T13:42:12.936308",
+    "startedAt": "2023-06-27T13:42:11.268072",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "/media/zhujun/0DFD06D20DFD06D2/SLAM/CMBRVLN/cmdp_gymnassium_vision.py",
+    "codePath": "cmdp_gymnassium_vision.py",
+    "git": {
+        "remote": "https://github.com/tohsin/CMBRVLN.git",
+        "commit": "73712ab2027a40c28ac319eb4d52b39819f05e1f"
+    },
+    "email": "qq_41093957@gitcode.net",
+    "root": "/media/zhujun/0DFD06D20DFD06D2/SLAM/CMBRVLN",
+    "host": "zhujun-Z790-AERO-G",
+    "username": "zhujun",
+    "executable": "/home/zhujun/anaconda3/envs/py39/bin/python",
+    "cpu_count": 16,
+    "cpu_count_logical": 24,
+    "cpu_freq": {
+        "current": 1273.069416666667,
+        "min": 800.0,
+        "max": 4133.333333333333
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 1252.862,
+            "min": 800.0,
+            "max": 4100.0
+        },
+        {
+            "current": 1077.141,
+            "min": 800.0,
+            "max": 4100.0
+        },
+        {
+            "current": 1452.607,
+            "min": 800.0,
+            "max": 4100.0
+        },
+        {
+            "current": 1064.563,
+            "min": 800.0,
+            "max": 4100.0
+        },
+        {
+            "current": 1074.56,
+            "min": 800.0,
+            "max": 4100.0
+        },
+        {
+            "current": 1100.656,
+            "min": 800.0,
+            "max": 4100.0
+        },
+        {
+            "current": 1092.241,
+            "min": 800.0,
+            "max": 4100.0
+        },
+        {
+            "current": 1071.074,
+            "min": 800.0,
+            "max": 4100.0
+        },
+        {
+            "current": 1081.056,
+            "min": 800.0,
+            "max": 4100.0
+        },
+        {
+            "current": 1043.456,
+            "min": 800.0,
+            "max": 4100.0
+        },
+        {
+            "current": 1075.235,
+            "min": 800.0,
+            "max": 4100.0
+        },
+        {
+            "current": 1072.327,
+            "min": 800.0,
+            "max": 4100.0
+        },
+        {
+            "current": 1082.584,
+            "min": 800.0,
+            "max": 4100.0
+        },
+        {
+            "current": 1100.0,
+            "min": 800.0,
+            "max": 4100.0
+        },
+        {
+            "current": 1086.46,
+            "min": 800.0,
+            "max": 4100.0
+        },
+        {
+            "current": 988.438,
+            "min": 800.0,
+            "max": 4100.0
+        },
+        {
+            "current": 1098.871,
+            "min": 800.0,
+            "max": 4200.0
+        },
+        {
+            "current": 1034.854,
+            "min": 800.0,
+            "max": 4200.0
+        },
+        {
+            "current": 1030.647,
+            "min": 800.0,
+            "max": 4200.0
+        },
+        {
+            "current": 1086.804,
+            "min": 800.0,
+            "max": 4200.0
+        },
+        {
+            "current": 1098.913,
+            "min": 800.0,
+            "max": 4200.0
+        },
+        {
+            "current": 1100.113,
+            "min": 800.0,
+            "max": 4200.0
+        },
+        {
+            "current": 1100.113,
+            "min": 800.0,
+            "max": 4200.0
+        },
+        {
+            "current": 1098.005,
+            "min": 800.0,
+            "max": 4200.0
+        }
+    ],
+    "disk": {
+        "total": 1876.217758178711,
+        "used": 849.7286071777344
+    },
+    "gpu": "NVIDIA GeForce RTX 4090",
+    "gpu_count": 1,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA GeForce RTX 4090",
+            "memory_total": 25757220864
+        }
+    ],
+    "memory": {
+        "total": 62.57499313354492
+    }
+}
