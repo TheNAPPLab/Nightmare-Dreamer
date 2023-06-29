@@ -174,7 +174,7 @@ class Trainer(object):
             imag_value_dist = self.TargetValueModel(imag_modelstates)
             imag_value = imag_value_dist.mean
             discount_dist = self.DiscountModel(imag_modelstates)
-            discount_arr = self.discount*torch.round(discount_dist.base_dist.probs)              #mean = prob(disc==1)
+            discount_arr = self.discount * torch.round(discount_dist.base_dist.probs)              #mean = prob(disc==1)
 
         actor_loss, discount, lambda_returns = self._actor_loss(imag_reward, imag_cost,\
              imag_value, discount_arr, imag_log_prob, policy_entropy)
@@ -222,7 +222,7 @@ class Trainer(object):
         lambda_returns = compute_return(imag_reward[:-1], imag_value[:-1], discount_arr[:-1], bootstrap=imag_value[-1], lambda_=self.lambda_)
         
         if self.config.actor_grad == 'reinforce':
-            advantage = (lambda_returns-imag_value[:-1]).detach()
+            advantage = (lambda_returns - imag_value[:-1]).detach() 
             objective = imag_log_prob[1:].unsqueeze(-1) * advantage
 
         elif self.config.actor_grad == 'dynamics':
@@ -235,11 +235,15 @@ class Trainer(object):
         policy_entropy = policy_entropy[1:].unsqueeze(-1)
         actor_loss = -torch.sum(torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
         penalty = self.lambda_range_projection(self.lagrangian_multiplier).item()
+
         if self.config.actor_grad == 'reinforce':
             actor_loss += penalty * ((imag_log_prob[1:].unsqueeze(-1)  * imag_cost[:-1]).mean())
+
         elif self.config.actor_grad == 'dynamics':
+
             actor_loss += penalty * ((imag_cost[:-1]).mean())
-        actor_loss /= (1+penalty) 
+            
+        actor_loss /= (1 + penalty) 
         return actor_loss, discount, lambda_returns
 
     def _value_loss(self, imag_modelstates, discount, lambda_returns):
@@ -249,7 +253,7 @@ class Trainer(object):
             value_target = lambda_returns.detach()
 
         value_dist = self.ValueModel(value_modelstates) 
-        value_loss = -torch.mean(value_discount*value_dist.log_prob(value_target).unsqueeze(-1))
+        value_loss = -torch.mean(value_discount * value_dist.log_prob(value_target).unsqueeze(-1))
         return value_loss
             
     def _obs_loss(self, obs_dist, obs):
@@ -265,9 +269,9 @@ class Trainer(object):
             kl_rhs = torch.mean(torch.distributions.kl.kl_divergence(post_dist, self.RSSM.get_dist(self.RSSM.rssm_detach(prior))))
             if self.kl_info['use_free_nats']:
                 free_nats = self.kl_info['free_nats']
-                kl_lhs = torch.max(kl_lhs,kl_lhs.new_full(kl_lhs.size(), free_nats))
+                kl_lhs = torch.max(kl_lhs, kl_lhs.new_full(kl_lhs.size(), free_nats))
                 kl_rhs = torch.max(kl_rhs,kl_rhs.new_full(kl_rhs.size(), free_nats))
-            kl_loss = alpha*kl_lhs + (1-alpha)*kl_rhs
+            kl_loss = alpha * kl_lhs + (1-alpha) * kl_rhs
 
         else: 
             kl_loss = torch.mean(torch.distributions.kl.kl_divergence(post_dist, prior_dist))

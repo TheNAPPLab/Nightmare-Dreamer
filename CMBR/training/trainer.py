@@ -37,15 +37,14 @@ class Trainer(object):
         self._optim_initialize(config)
 
     def collect_seed_episodes(self, env):
-        state, info  = env.reset()
-        del info
+        state, _  = env.reset()
         done_ = False
         for i in range(self.seed_steps):
                 action = env.action_space.sample()
-                new_state, reward, cost, terminated, truncated, info  =  env.step(action)
+                new_state, reward, cost, terminated, truncated, _  =  env.step(action)
                 done_= truncated or terminated
                 if done_:
-                    self.buffer.add(state ,action, reward, cost, terminated)
+                    self.buffer.add(state, action, reward, cost, terminated)
                     state, info = env.reset()
                     done_ = False 
                 else:
@@ -265,7 +264,7 @@ class Trainer(object):
                 free_nats = self.kl_info['free_nats']
                 kl_lhs = torch.max(kl_lhs,kl_lhs.new_full(kl_lhs.size(), free_nats))
                 kl_rhs = torch.max(kl_rhs,kl_rhs.new_full(kl_rhs.size(), free_nats))
-            kl_loss = alpha*kl_lhs + (1-alpha)*kl_rhs
+            kl_loss = alpha * kl_lhs + (1-alpha) * kl_rhs
 
         else: 
             kl_loss = torch.mean(torch.distributions.kl.kl_divergence(post_dist, prior_dist))

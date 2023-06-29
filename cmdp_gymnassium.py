@@ -8,7 +8,7 @@ import safety_gymnasium
 import wandb
 
 
-from CMBR.utils.wrapper import GymMinAtar, OneHotAction, NormalizeActions, SafetyGymEnv
+# from CMBR.utils.wrapper import GymMinAtar, OneHotAction, NormalizeActions, SafetyGymEnv
 from CMBR.training.config import BaseSafeConfig
 from CMBR.training.trainer import Trainer
 from CMBR.training.evaluator import Evaluator
@@ -40,9 +40,7 @@ def main(args):
         torch.cuda.manual_seed(args.seed)
     else:
         device = torch.device('cpu')
-
     print('using :', device)  
-    # env = gym.make(env_name)
     env = safety_gymnasium.make(env_name) 
     action_space = env.action_space
 
@@ -52,8 +50,6 @@ def main(args):
     batch_size = args.batch_size
     seq_len = args.seq_len
 
-
-        # obs_shape = env.observation_space.shape
     obs, info = env.reset()
     image_shape = obs.shape
 

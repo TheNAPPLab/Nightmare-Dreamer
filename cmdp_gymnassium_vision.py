@@ -12,15 +12,8 @@ from CMBR.training.config import BaseSafeConfig
 from CMBR.training.trainer_vision import Trainer, get_image_obs
 from CMBR.training.evaluator import Evaluator
 
-# def render(self, mode='human'):
-#         if mode == 'rgb_array':
-#             return self.env.state()
-#         elif mode == 'human':
-#             self.env.display_state(self.display_time)
-
 
 def main(args):
-    # tb = SummaryWriter()
     number_games = 0
     wandb.login()
    
@@ -119,7 +112,7 @@ def main(args):
             done_ = terminated or truncated
             if done_ :
                 number_games += 1
-                trainer.buffer.add(get_image_obs(obs), action.squeeze(0).cpu().numpy(), reward, cost, done_)
+                trainer.buffer.add(get_image_obs(obs), action.squeeze(0).cpu().numpy(), reward, cost, terminated)
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
                 train_metrics['train_costs'] = score_cost
@@ -147,7 +140,7 @@ def main(args):
                 prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
                 episode_actor_ent = []
             else:
-                trainer.buffer.add(get_image_obs(obs), action.squeeze(0).detach().cpu().numpy(), reward, cost, done_)
+                trainer.buffer.add(get_image_obs(obs), action.squeeze(0).detach().cpu().numpy(), reward, cost, terminated)
                 obs = next_obs
                 del next_obs
                 prev_rssmstate = posterior_rssm_state
