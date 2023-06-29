@@ -36,38 +36,23 @@ class Trainer(object):
         self._model_initialize(config)
         self._optim_initialize(config)
 
-    def collect_seed_episodes(self, env, is_use_vision):
-        if is_use_vision:
-            s, info  = env.reset() 
-            s = s['vision'].transpose(2, 0, 1)
-            done_ = False
-        else:
-            s, done_  = env.reset(), False 
+    def collect_seed_episodes(self, env):
+        state, info  = env.reset()
+        del info
+        done_ = False
         for i in range(self.seed_steps):
-            if is_use_vision:
-                a = env.action_space.sample()
-                ns, reward, cost, terminated, truncated, info  =  env.step(a)
-                ns = ns['vision'].transpose(2, 0, 1)
+                action = env.action_space.sample()
+                new_state, reward, cost, terminated, truncated, info  =  env.step(action)
                 done_= truncated or terminated
                 if done_:
-                    self.buffer.add(s,a,reward,cost,done_)
-                    s, info = env.reset() 
-                    done_ = False
-                    # import pdb;pdb.set_trace()
-                    s = s['vision'].transpose(2, 0, 1)
+                    self.buffer.add(state ,action, reward, cost, done_)
+                    state, info = env.reset()
+                    del info
+                    done_ = False 
                 else:
-                    self.buffer.add(s,a,reward,cost,done_)
-                    s = ns    
-            else:
-                a = env.action_space.sample()
-                ns, r, done, info = env.step(a)
-                c = info.get('cost',0.0)
-                if done:
-                    self.buffer.add(s,a,r,c,done)
-                    s, done  = env.reset(), False 
-                else:
-                    self.buffer.add(s,a,r,c,done)
-                    s = ns    
+                    self.buffer.add(state, action, reward, cost, done_)
+                    state = new_state    
+        del state, done_, cost, reward, new_state, terminated, truncated
 
     def train_batch(self, train_metrics):
         """ 
@@ -75,6 +60,7 @@ class Trainer(object):
         """
         actor_l = []
         value_l = []
+        cost_value_l = []
         obs_l = []
         model_l = []
         reward_l = []
@@ -97,7 +83,9 @@ class Trainer(object):
             costs = torch.tensor(cost, dtype=torch.float32).to(self.device).unsqueeze(-1)   #t-1 to t+seq_len-1
             nonterms = torch.tensor(1-terms, dtype=torch.float32).to(self.device).unsqueeze(-1)  #t-1 to t+seq_len-1
 
-            model_loss, kl_loss, obs_loss, reward_loss, cost_loss, pcont_loss, prior_dist, post_dist, posterior = self.representation_loss(obs, actions, rewards, costs, nonterms)
+            model_loss, kl_loss, obs_loss, reward_loss, cost_loss,\
+                 pcont_loss, prior_dist, post_dist, \
+                    posterior = self.representation_loss(obs, actions, rewards, costs, nonterms)
             
             self.model_optimizer.zero_grad()
             
@@ -229,10 +217,10 @@ class Trainer(object):
 
     def _actor_loss(self, imag_reward, imag_cost, imag_value, discount_arr, imag_log_prob, policy_entropy):
 
-        lambda_returns = compute_return(imag_reward[:-1], imag_value[:-1], discount_arr[:-1], bootstrap=imag_value[-1], lambda_=self.lambda_)
+        lambda_returns = compute_return(imag_reward[:-1], imag_value[:-1], discount_arr[:-1], bootstrap = imag_value[-1], lambda_=self.lambda_)
         
         if self.config.actor_grad == 'reinforce':
-            advantage = (lambda_returns-imag_value[:-1]).detach()
+            advantage = (lambda_returns - imag_value[:-1]).detach()
             objective = imag_log_prob[1:].unsqueeze(-1) * advantage
 
         elif self.config.actor_grad == 'dynamics':
@@ -249,7 +237,7 @@ class Trainer(object):
             actor_loss += penalty * ((imag_log_prob[1:].unsqueeze(-1)  * imag_cost[:-1]).mean())
         elif self.config.actor_grad == 'dynamics':
             actor_loss += penalty * ((imag_cost[:-1]).mean())
-        actor_loss /= (1+penalty) 
+        actor_loss /= (1 + penalty) 
         return actor_loss, discount, lambda_returns
 
     def _value_loss(self, imag_modelstates, discount, lambda_returns):
@@ -343,10 +331,11 @@ class Trainer(object):
         deter_size = config.rssm_info['deter_size']
         if config.rssm_type == 'continuous':
             stoch_size = config.rssm_info['stoch_size']
+
         elif config.rssm_type == 'discrete':
             category_size = config.rssm_info['category_size']
             class_size = config.rssm_info['class_size']
-            stoch_size = category_size*class_size
+            stoch_size = category_size * class_size
 
         embedding_size = config.embedding_size
         rssm_node_size = config.rssm_node_size
@@ -358,11 +347,18 @@ class Trainer(object):
             self.ActionModel = DiscreteActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
         else:
             self.ActionModel = ContinousActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
+        # Take in current state(prosterior/prior and deterministic state)  to predict reward , cost, value, targetvalue
         self.RewardDecoder = DenseModel((1,), modelstate_size, config.reward).to(self.device)
         self.CostDecoder = DenseModel((1,), modelstate_size, config.cost).to(self.device)
+
+        # rewardvalue and cost value intialiszation
         self.ValueModel = DenseModel((1,), modelstate_size, config.critic).to(self.device)
         self.TargetValueModel = DenseModel((1,), modelstate_size, config.critic).to(self.device)
         self.TargetValueModel.load_state_dict(self.ValueModel.state_dict())
+
+        self.CostValueModel = DenseModel((1,), modelstate_size, config.critic).to(self.device)
+        self.CostTargetValueModel = DenseModel((1,), modelstate_size, config.critic).to(self.device)
+        self.CostTargetValueModel.load_state_dict(self.CostValueModel.state_dict())
 
         # create lagrange pultiplier
         lagrangian_multiplier_init = config.lagrangian_multiplier_init
@@ -374,12 +370,13 @@ class Trainer(object):
         
         if config.discount['use']:
             self.DiscountModel = DenseModel((1,), modelstate_size, config.discount).to(self.device)
+            
         if config.pixel:
             self.ObsEncoder = ObsEncoder(obs_shape, embedding_size, config.obs_encoder).to(self.device)
             self.ObsDecoder = ObsDecoder(obs_shape, modelstate_size, config.obs_decoder).to(self.device)
         else:
-            self.ObsEncoder = DenseModel((embedding_size,), int(np.prod(obs_shape)), config.obs_encoder).to(self.device)
-            self.ObsDecoder = DenseModel(obs_shape, modelstate_size, config.obs_decoder).to(self.device)
+            self.ObsEncoder = DenseModel(output_shape = (embedding_size,), input_size = int(np.prod(obs_shape)), info = config.obs_encoder).to(self.device)
+            self.ObsDecoder = DenseModel(output_shape = obs_shape, input_size = modelstate_size, info = config.obs_decoder).to(self.device)
 
     def _optim_initialize(self, config):
         model_lr = config.lr['model']
@@ -393,17 +390,17 @@ class Trainer(object):
             f'Optimizer={lambda_optimizer_} not found in torch.'
         torch_opt = getattr(optim, lambda_optimizer_)
         
-        self.world_list = [self.ObsEncoder, self.RSSM, self.RewardDecoder, self.CostDecoder,self.ObsDecoder, self.DiscountModel]
+        self.world_list = [self.ObsEncoder, self.RSSM, self.RewardDecoder, self.CostDecoder, self.ObsDecoder, self.DiscountModel]
         self.actor_list = [self.ActionModel]
-        self.value_list = [self.ValueModel]
-        self.actorcritic_list = [self.ActionModel, self.ValueModel]
+        self.value_list = [self.ValueModel, self.CostValueModel]
+        self.actorcritic_list = [self.ActionModel, self.ValueModel] # not used lol
         
         self.model_optimizer = optim.Adam(get_parameters(self.world_list), model_lr)
         self.actor_optimizer = optim.Adam(get_parameters(self.actor_list), actor_lr)
         self.value_optimizer = optim.Adam(get_parameters(self.value_list), value_lr)
 
         self.lambda_optimizer = torch_opt([self.lagrangian_multiplier,],
-                                          lr=lambda_lr)
+                                          lr = lambda_lr)
     
     def _print_summary(self):
         print('\n Obs encoder: \n', self.ObsEncoder)

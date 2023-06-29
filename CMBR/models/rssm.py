@@ -6,13 +6,17 @@ class RSSM(nn.Module, RSSMUtils):
     def __init__(
         self,
         action_size,
-        rssm_node_size,
+        rssm_node_size, # size of the 
         embedding_size,
         device,
         rssm_type,
         info,
         act_fn=nn.ELU,  
     ):
+        '''
+        args:
+            rssm_node_size : Number of nodes in linear layouts
+        '''
         nn.Module.__init__(self)
         RSSMUtils.__init__(self, rssm_type=rssm_type, info=info)
         self.device = device
@@ -95,6 +99,9 @@ class RSSM(nn.Module, RSSMUtils):
         return next_rssm_states, imag_log_probs, action_entropy
 
     def rssm_observe(self, obs_embed, prev_action, prev_nonterm, prev_rssm_state):
+        '''
+        peform one step roll out with action, previous state prosterior and hidden state to get both prosterior and prior
+        '''
         prior_rssm_state = self.rssm_imagine(prev_action, prev_rssm_state, prev_nonterm)
         deter_state = prior_rssm_state.deter
         x = torch.cat([deter_state, obs_embed], dim=-1)

@@ -139,13 +139,13 @@ class BaseSafeConfig():
     action_repeat: int = 1
     
     #buffer desc
-    capacity: int = int(1e3) #* 1e6  TODO
+    capacity: int = int(1e6)
     obs_dtype: np.dtype = np.uint8
     action_dtype: np.dtype = np.float32
 
     #training desc
     train_steps: int = int(5e6)
-    train_every: int = 50                                  #reduce this to potentially improve sample requirements
+    train_every: int = 50   #50   #reduce this to potentially improve sample requirements
     collect_intervals: int = 5 
     batch_size: int = 50
     seq_len: int = 50
@@ -156,6 +156,7 @@ class BaseSafeConfig():
     model_dir: int = 'results'
     gif_dir: int = 'results'
     cost_limit = 12.0
+
     #latent space desc
     rssm_type: str = 'discrete'
     lambda_optimizer : str = 'Adam'
