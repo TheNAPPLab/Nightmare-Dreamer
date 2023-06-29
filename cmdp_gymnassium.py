@@ -54,6 +54,9 @@ def main(args):
     print('using :', device)  
     # env = gym.make(env_name)
     env = safety_gymnasium.make(env_name) 
+    action_space = env.action_space
+
+
 
     action_size = env.action_space.shape[0]
     obs_dtype = bool

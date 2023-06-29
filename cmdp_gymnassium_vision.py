@@ -86,16 +86,12 @@ def main(args):
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)
 
-    with wandb.init(project='Safe RL via Latent world models', config = config_dict):
+    with wandb.init(project = 'Safe RL via Latent world models', config = config_dict):
         """training loop"""
         print('...training...')
         train_metrics = {}
         trainer.collect_seed_episodes(env, args.is_use_vision)
         obs, info, score, score_cost = env.reset(), 0, 0
-        if config.pixel:
-            image = obs['vision'].transpose(2, 0, 1)
-            obs = resize(image, (3, 64, 64))
-            # obs = obs['vision'].transpose(2, 0, 1)
         terminated, truncated = False, False
         prev_rssmstate = trainer.RSSM._init_rssm_state(1)
         prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
@@ -118,8 +114,8 @@ def main(args):
                 trainer.save_model(iter)
                 
             with torch.no_grad():
-                embed = trainer.ObsEncoder(torch.tensor(obs, dtype = torch.float32).unsqueeze(0).to(trainer.device))  
-                _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not done, prev_rssmstate)
+                embed = trainer.ObsEncoder(torch.tensor(get_image_obs(obs), dtype = torch.float32).unsqueeze(0).to(trainer.device))  
+                _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not terminated, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist= trainer.ActionModel(model_state, deter=not True)
                 
@@ -130,15 +126,13 @@ def main(args):
                 episode_actor_ent.append(action_ent)
 
             obs, reward, cost, terminated, truncated, info = env.step(action.squeeze(0).cpu().numpy())
-            if config.pixel:
-                next_obs = obs['vision'].transpose(2, 0, 1)
             score_cost += cost
             score += reward
             done_ = terminated or truncated
             if done_ :
                 number_games += 1
                 print(number_games)
-                trainer.buffer.add(obs, action.squeeze(0).cpu().numpy(), reward, cost, done_)
+                trainer.buffer.add(get_image_obs(obs), action.squeeze(0).cpu().numpy(), reward, cost, done_)
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
                 train_metrics['train_costs'] = score_cost
@@ -161,14 +155,12 @@ def main(args):
                         torch.save(save_dict, best_save_path)
                 
                 obs, info, score, score_cost = env.reset(), 0, 0
-                if config.pixel:
-                    obs =  obs['vision'].transpose(2, 0, 1)
                 terminated, truncated = False, False
                 prev_rssmstate = trainer.RSSM._init_rssm_state(1)
                 prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
                 episode_actor_ent = []
             else:
-                trainer.buffer.add(obs, action.squeeze(0).detach().cpu().numpy(), reward, cost, done_)
+                trainer.buffer.add(get_image_obs(obs), action.squeeze(0).detach().cpu().numpy(), reward, cost, done_)
                 obs = next_obs
                 del next_obs
                 prev_rssmstate = posterior_rssm_state
