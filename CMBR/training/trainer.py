@@ -46,7 +46,6 @@ class Trainer(object):
                 done_= truncated or terminated
                 if done_:
                     self.buffer.add(state ,action, reward, cost, terminated)
-                    print(self.buffer.)
                     state, info = env.reset()
                     done_ = False 
                 else:
