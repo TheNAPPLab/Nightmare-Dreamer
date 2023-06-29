@@ -46,6 +46,7 @@ class Trainer(object):
                 done_= truncated or terminated
                 if done_:
                     self.buffer.add(state ,action, reward, cost, terminated)
+                    print(self.buffer.)
                     state, info = env.reset()
                     done_ = False 
                 else:
@@ -171,7 +172,7 @@ class Trainer(object):
             imag_value_dist = self.TargetValueModel(imag_modelstates)
             imag_value = imag_value_dist.mean
             discount_dist = self.DiscountModel(imag_modelstates)
-            discount_arr = self.discount*torch.round(discount_dist.base_dist.probs)              #mean = prob(disc==1)
+            discount_arr = self.discount * torch.round(discount_dist. base_dist.probs)    #mean = prob(disc==1)
 
         actor_loss, discount, lambda_returns = self._actor_loss(imag_reward, imag_cost,\
              imag_value, discount_arr, imag_log_prob, policy_entropy)
