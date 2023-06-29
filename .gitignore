@@ -154,3 +154,4 @@ cython_debug/
 #.idea/
 Safe-panda-gym/
 safety-gym/
+results/
