@@ -8,29 +8,18 @@ import safety_gymnasium
 import wandb
 
 
-# from torch.utils.tensorboard import SummaryWriter
-
-# sys.path.append('/Users/emma/dev/CMBRVLN')
-# sys.path.append('/Users/emma/dev/CMBRVLN/Safe-panda-gym')
-# import panda_gym
 from CMBR.utils.wrapper import GymMinAtar, OneHotAction, NormalizeActions, SafetyGymEnv
 from CMBR.training.config import BaseSafeConfig
 from CMBR.training.trainer import Trainer
 from CMBR.training.evaluator import Evaluator
 
-# def render(self, mode='human'):
-#         if mode == 'rgb_array':
-#             return self.env.state()
-#         elif mode == 'human':
-#             self.env.display_state(self.display_time)
+
 
 
 def main(args):
     # tb = SummaryWriter()
     number_games = 0
-    # def logTensorboard(data_dict,iter):
-    #     for key, value in data_dict.items():
-    #         tb.add_scalar(key, value, iter)
+
 
     wandb.login()
 
@@ -57,8 +46,6 @@ def main(args):
     env = safety_gymnasium.make(env_name) 
     action_space = env.action_space
 
-
-
     action_size = env.action_space.shape[0]
     obs_dtype = bool
     action_dtype = np.float32
@@ -69,7 +56,7 @@ def main(args):
         # obs_shape = env.observation_space.shape
     obs, info = env.reset()
     image_shape = obs.shape
-        # image_shape = obs['vision'].shape
+
     config = BaseSafeConfig(
             env = env_name,
             pixel = False,

@@ -6,15 +6,7 @@ import numpy as np
 import gym
 import sys
 import safety_gymnasium
-from skimage.transform import resize
 
-
-
-# from torch.utils.tensorboard import SummaryWriter
-
-# sys.path.append('/media/zhujun/0DFD06D20DFD06D2/SLAM/CMBRVLN')
-# sys.path.append('/Users/emma/dev/CMBRVLN/Safe-panda-gym')
-# import panda_gym
 from CMBR.utils.wrapper import GymMinAtar, OneHotAction, NormalizeActions, SafetyGymEnv
 from CMBR.training.config import BaseSafeConfig
 from CMBR.training.trainer_vision import Trainer, get_image_obs
@@ -30,9 +22,7 @@ from CMBR.training.evaluator import Evaluator
 def main(args):
     # tb = SummaryWriter()
     number_games = 0
-    # def logTensorboard(data_dict,iter):
-    #     for key, value in data_dict.items():
-    #         tb.add_scalar(key, value, iter)
+
 
     wandb.login()
    
@@ -93,10 +83,6 @@ def main(args):
         trainer.collect_seed_episodes(env, args.is_use_vision)
         obs, info = env.reset()
         score, score_cost = 0, 0
-        if config.pixel:
-            image = obs['vision'].transpose(2, 0, 1)
-            obs = resize(image, (3, 64, 64))
-            # obs = obs['vision'].transpose(2, 0, 1)
         terminated, truncated = False, False
         prev_rssmstate = trainer.RSSM._init_rssm_state(1)
         prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
@@ -123,7 +109,6 @@ def main(args):
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not terminated, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist= trainer.ActionModel(model_state, deter=not True)
-                
                 action = trainer.ActionModel.add_exploration(action, exploration_rate).detach()
                 if iter%400 == 0:
                     exploration_rate *= 0.99
@@ -142,8 +127,7 @@ def main(args):
                 train_metrics['number_games']  = number_games
                 train_metrics['train_costs'] = score_cost
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
-                wandb.log(train_metrics, step=iter)
-                # logTensorboard(train_metrics,iter)
+                wandb.log(train_metrics, step = iter)
                 scores.append(score)
                 costs.append(cost)
                 if len(scores)>100:

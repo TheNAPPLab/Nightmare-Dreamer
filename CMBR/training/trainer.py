@@ -51,6 +51,7 @@ class Trainer(object):
                 else:
                     self.buffer.add(state, action, reward, cost, terminated)
                     state = new_state    
+                    import pdb;pdb.set_trace()
         del state, done_, cost, reward, new_state, terminated, truncated
 
     def train_batch(self, train_metrics):
