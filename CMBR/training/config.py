@@ -140,12 +140,12 @@ class BaseSafeConfig():
     
     #buffer desc
     capacity: int = int(1e6)
-    obs_dtype: np.dtype = np.uint8
+    obs_dtype: np.dtype =  np.float32
     action_dtype: np.dtype = np.float32
 
     #training desc
     train_steps: int = int(5e6)
-    train_every: int = 50   #50   #reduce this to potentially improve sample requirements
+    train_every: int = 20  #50   #reduce this to potentially improve sample requirements
     collect_intervals: int = 5 
     batch_size: int = 50
     seq_len: int = 50
@@ -155,7 +155,7 @@ class BaseSafeConfig():
     seed_steps: int = 4000
     model_dir: int = 'results'
     gif_dir: int = 'results'
-    cost_limit = 12.0
+    cost_limit = 10.0
 
     #latent space desc
     rssm_type: str = 'discrete'
@@ -179,12 +179,12 @@ class BaseSafeConfig():
     slow_target_fraction: float = 1.00
 
     #actor critic
-    actor: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist':'normal', 'min_std':1e-4, 'init_std':5, 'mean_scale':5, 'activation':nn.ELU})
+    actor: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist':'trunc_normal', 'min_std':1e-4, 'init_std':5, 'mean_scale':5, 'activation':nn.ELU})
     critic: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist': 'normal', 'activation':nn.ELU})
     expl: Dict = field(default_factory=lambda:{'train_noise':0.4, 'eval_noise':0.0, 'expl_min':0.05, 'expl_decay':7000.0, 'expl_type':'epsilon_greedy'})
     actor_grad: str ='dynamics'
     actor_grad_mix: int = 0.0
-    actor_entropy_scale: float = 1e-3
+    actor_entropy_scale: float = 1e-4
 
     #learnt world-models desc
     obs_encoder: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist': None, 'activation':nn.ELU, 'kernel':3, 'depth':16})
@@ -244,7 +244,7 @@ class PandaSafeConfig():
     slow_target_fraction: float = 1.00
 
     #actor critic
-    actor: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist':'normal', 'min_std':1e-4, 'init_std':5, 'mean_scale':5, 'activation':nn.ELU})
+    actor: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist':'trunc_normal', 'min_std':1e-4, 'init_std':5, 'mean_scale':5, 'activation':nn.ELU})
     critic: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist': 'normal', 'activation':nn.ELU})
     expl: Dict = field(default_factory=lambda:{'train_noise':0.4, 'eval_noise':0.0, 'expl_min':0.05, 'expl_decay':7000.0, 'expl_type':'epsilon_greedy'})
     actor_grad: str ='dynamics'
@@ -257,4 +257,4 @@ class PandaSafeConfig():
     obs_decoder: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist':'normal', 'activation':nn.ELU, 'kernel':3, 'depth':16})
     reward: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist':'normal', 'activation':nn.ELU})
     cost: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist':'normal', 'activation':nn.ELU})
-    discount: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist':'bernoulli', 'activation':nn.ELU, 'use':True})
+    discount: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist':'binary', 'activation':nn.ELU, 'use':True})

@@ -36,7 +36,7 @@ class DenseModel(nn.Module):
         dist_inputs = self.model(input)
         if self.dist == 'normal':
             return td.independent.Independent(td.Normal(dist_inputs, 1), len(self._output_shape))
-        if self.dist == 'bernoulli':
+        if self.dist == 'binary':
             return td.independent.Independent(td.Bernoulli(logits=dist_inputs), len(self._output_shape))
         if self.dist == None:
             return dist_inputs
