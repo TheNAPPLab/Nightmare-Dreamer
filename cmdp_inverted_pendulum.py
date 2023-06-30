@@ -133,7 +133,7 @@ def main(args):
             done_ = terminated or truncated
             if done_ :
                 number_games += 1
-                trainer.buffer.add(obs, action.squeeze(0).cpu().numpy(), reward, None,terminated)
+                trainer.buffer.add(obs, action.squeeze(0).cpu().numpy(), reward, None, terminated)
                 train_metrics['eval_rewards'] = evaluate_deter()
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
