@@ -135,6 +135,7 @@ class BaseSafeConfig():
     env : str                                           
     obs_shape: Tuple                                            
     action_size: int
+    max_control : int = 1.00
     pixel: bool = False
     action_repeat: int = 1
     
@@ -177,6 +178,7 @@ class BaseSafeConfig():
     use_slow_target: float = True
     slow_target_update: int = 100
     slow_target_fraction: float = 1.00
+ 
 
     #actor critic
     actor: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist':'trunc_normal', 'min_std':1e-4, 'init_std':5, 'mean_scale':5, 'activation':nn.ELU})

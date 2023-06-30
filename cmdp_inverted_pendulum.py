@@ -50,6 +50,7 @@ def main(args):
     config = BaseSafeConfig(
             env = env_name,
             pixel = False,
+            max_control =  env.action_space.high[0],
             obs_shape = obs_shape,
             action_size = action_size,
             obs_dtype = np.float32,
@@ -95,7 +96,6 @@ def main(args):
                         trainer.RSSM.rssm_observe(eval_embed, eval_prev_action, not eval_terminated, eval_prev_rssmstate)
                     eval_model_state = trainer.RSSM.get_model_state(eval_posterior_rssm_state)
                     eval_action, _= trainer.ActionModel(eval_model_state, deter = True)
-                    eval_action = 3 * eval_action
                     eval_next_obs, eval_reward, eval_terminated, eval_truncated, _ = \
                         env.step(eval_action.squeeze(0).cpu().numpy())
                     eval_score += eval_reward
@@ -124,7 +124,6 @@ def main(args):
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not terminated, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist = trainer.ActionModel(model_state, deter =  False)
-                action = 3.0 * action
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
 

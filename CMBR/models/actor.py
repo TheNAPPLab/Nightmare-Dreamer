@@ -199,6 +199,7 @@ class ContinousActionModel(nn.Module):
     def __init__(
         self,
         action_size,
+        max_control,
         deter_size,
         stoch_size,
         embedding_size,
@@ -211,6 +212,7 @@ class ContinousActionModel(nn.Module):
         super().__init__()
         self.action_size = action_size
         self.deter_size = deter_size
+        self.max_control  = max_control
         self.stoch_size = stoch_size
         self.embedding_size = embedding_size
         self.layers = actor_info['layers']
@@ -223,7 +225,6 @@ class ContinousActionModel(nn.Module):
         self.expl_min = expl_info['expl_min']
         self.expl_decay = expl_info['expl_decay']
         self.expl_type = expl_info['expl_type']
-       
         self._min_std = min_std
         self._init_std = init_std
         self._mean_scale = mean_scale
@@ -252,9 +253,9 @@ class ContinousActionModel(nn.Module):
             dist = SafeTruncatedNormal(mean, std, -1, 1)
             dist = ContDist(distributions.independent.Independent(dist, 1))
             if deter: #not training
-                return dist.mode(), dist
+                return self.max_control *  dist.mode(), dist
             else:
-                return  dist.sample(), dist
+                return  self.max_control * dist.sample(), dist
 
         else:
 
@@ -269,9 +270,9 @@ class ContinousActionModel(nn.Module):
             dist = SampleDist(dist)
 
         if deter: #not training
-                return dist.mode(), dist
+                return  self.max_control * dist.mode(), dist
         else:
-                return dist.sample(), dist
+                return  self.max_control * dist.sample(), dist
 
     def add_exploration(self, action, action_noise=0.3):
 

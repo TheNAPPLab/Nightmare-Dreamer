@@ -82,7 +82,6 @@ class Trainer(object):
             actions = torch.tensor(actions, dtype=torch.float32).to(self.device)                 #t-1, t+seq_len-1
             rewards = torch.tensor(rewards, dtype=torch.float32).to(self.device).unsqueeze(-1)   #t-1 to t+seq_len-1
             nonterms = torch.tensor(1-terms, dtype=torch.float32).to(self.device).unsqueeze(-1)  #t-1 to t+seq_len-1
-
             model_loss, kl_loss, obs_loss, reward_loss,\
                  pcont_loss, prior_dist, post_dist, \
                     posterior = self.representation_loss(obs, actions, rewards, nonterms)
@@ -293,6 +292,7 @@ class Trainer(object):
     def _model_initialize(self, config ):
         obs_shape = config.obs_shape
         action_size = config.action_size
+        max_control = config.max_control
         deter_size = config.rssm_info['deter_size']
         if config.rssm_type == 'continuous':
             stoch_size = config.rssm_info['stoch_size']
@@ -311,7 +311,7 @@ class Trainer(object):
         if config.actor['dist'] == "onehot":    
             self.ActionModel = DiscreteActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
         else:
-            self.ActionModel = ContinousActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
+            self.ActionModel = ContinousActionModel(action_size,max_control, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
         # Take in current state(prosterior/prior and deterministic state)  to predict reward , cost, value, targetvalue
         self.RewardDecoder = DenseModel((1,), modelstate_size, config.reward).to(self.device)
 
@@ -336,13 +336,8 @@ class Trainer(object):
         model_lr = config.lr['model']
         actor_lr = config.lr['actor']
         value_lr = config.lr['critic']
-        lambda_lr  = config.lr['lambda_lr']
-        lambda_optimizer_ = config.lambda_optimizer
         
-        # fetch optimizer from PyTorch optimizer package
-        assert hasattr(optim, lambda_optimizer_), \
-            f'Optimizer={lambda_optimizer_} not found in torch.'
-        torch_opt = getattr(optim, lambda_optimizer_)
+
         
         self.world_list = [self.ObsEncoder, self.RSSM, self.RewardDecoder,self.ObsDecoder, self.DiscountModel]
         self.actor_list = [self.ActionModel]
@@ -352,6 +347,7 @@ class Trainer(object):
         self.model_optimizer = optim.Adam(get_parameters(self.world_list), model_lr)
         self.actor_optimizer = optim.Adam(get_parameters(self.actor_list), actor_lr)
         self.value_optimizer = optim.Adam(get_parameters(self.value_list), value_lr)
+
     def _print_summary(self):
         print('\n Obs encoder: \n', self.ObsEncoder)
         print('\n RSSM model: \n', self.RSSM)
