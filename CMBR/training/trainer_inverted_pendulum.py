@@ -76,7 +76,7 @@ class Trainer(object):
         max_targ = []
         std_targ = []
 
-        for i in range(self.collect_intervals):
+        for _ in range(self.collect_intervals):
             obs, actions, rewards, _, terms = self.buffer.sample()
             obs = torch.tensor(obs, dtype=torch.float32).to(self.device)                         #t, t+seq_len 
             actions = torch.tensor(actions, dtype=torch.float32).to(self.device)                 #t-1, t+seq_len-1
@@ -147,7 +147,7 @@ class Trainer(object):
         
         with FreezeParameters(self.world_list):
             imag_rssm_states, imag_log_prob, policy_entropy = self.RSSM.rollout_imagination(self.horizon, self.ActionModel, batched_posterior)
-            
+
         imag_modelstates = self.RSSM.get_model_state(imag_rssm_states)
         with FreezeParameters(self.world_list+ self.value_list + [self.TargetValueModel]+[self.DiscountModel]):
             imag_reward_dist = self.RewardDecoder(imag_modelstates)
@@ -294,6 +294,7 @@ class Trainer(object):
         action_size = config.action_size
         max_control = config.max_control
         deter_size = config.rssm_info['deter_size']
+
         if config.rssm_type == 'continuous':
             stoch_size = config.rssm_info['stoch_size']
 
