@@ -3,8 +3,6 @@ import argparse
 import os
 import torch
 import numpy as np
-import gym
-import sys
 import safety_gymnasium
 
 from CMBR.utils.wrapper import GymMinAtar, OneHotAction, NormalizeActions, SafetyGymEnv

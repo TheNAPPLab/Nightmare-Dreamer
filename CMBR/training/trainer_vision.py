@@ -48,11 +48,11 @@ class Trainer(object):
         done_ = False
         for i in range(self.seed_steps):
                 a = env.action_space.sample()
-                ns, reward, cost, terminated, truncated, info  =  env.step(a)
-                done_= truncated or terminated
+                ns, reward, cost, terminated, truncated, _  =  env.step(a)
+                done_ = truncated or terminated
                 if done_:
                     self.buffer.add(get_image_obs(s), a, reward, cost, terminated)
-                    s, info  = env.reset()
+                    s, _  = env.reset()
                     done_ = False
                 else:
                     self.buffer.add(get_image_obs(s), a, reward, cost, terminated)
@@ -78,7 +78,7 @@ class Trainer(object):
         max_targ = []
         std_targ = []
 
-        for i in range(self.collect_intervals):
+        for _ in range(self.collect_intervals):
             obs, actions, rewards, cost, terms = self.buffer.sample()
             obs = torch.tensor(obs, dtype=torch.float32).to(self.device)                         #t, t+seq_len 
             actions = torch.tensor(actions, dtype=torch.float32).to(self.device)                 #t-1, t+seq_len-1
@@ -93,7 +93,7 @@ class Trainer(object):
             self.model_optimizer.zero_grad()
             
             model_loss.backward(retain_graph=True)
-            grad_norm_model = torch.nn.utils.clip_grad_norm_(get_parameters(self.world_list), self.grad_clip_norm)
+            torch.nn.utils.clip_grad_norm_(get_parameters(self.world_list), self.grad_clip_norm)
             self.model_optimizer.step()
 
             actor_loss, value_loss, lagranian_loss, target_info = self.actorcritc_loss(posterior)
@@ -107,18 +107,18 @@ class Trainer(object):
             value_loss.backward(retain_graph=True)
             lagranian_loss.backward()
 
-            grad_norm_actor = torch.nn.utils.clip_grad_norm_(get_parameters(self.actor_list), self.grad_clip_norm)
-            grad_norm_value = torch.nn.utils.clip_grad_norm_(get_parameters(self.value_list), self.grad_clip_norm)
+            torch.nn.utils.clip_grad_norm_(get_parameters(self.actor_list), self.grad_clip_norm)
+            torch.nn.utils.clip_grad_norm_(get_parameters(self.value_list), self.grad_clip_norm)
 
             self.actor_optimizer.step()
             self.value_optimizer.step()
 
 
           
-            # lambda_loss = self.compute_lambda_loss(costs)
+            lambda_loss = self.compute_lambda_loss(costs)
             
             self.lambda_optimizer.step()
-            # self.lagrangian_multiplier.data.clamp_(0)  # enforce: lambda in [0, inf]
+            self.lagrangian_multiplier.data.clamp_(0)  # enforce: lambda in [0, inf]
 
             with torch.no_grad():
                 prior_ent = torch.mean(prior_dist.entropy())
@@ -180,6 +180,7 @@ class Trainer(object):
              imag_value, discount_arr, imag_log_prob, policy_entropy)
 
         value_loss = self._value_loss(imag_modelstates, discount, lambda_returns)   
+        
         langrangian_loss =  self._compute_lambda_loss(imag_cost)
 
         mean_target = torch.mean(lambda_returns, dim=1)

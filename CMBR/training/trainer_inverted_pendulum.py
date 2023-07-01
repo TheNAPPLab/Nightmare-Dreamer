@@ -55,7 +55,7 @@ class Trainer(object):
                     s, _  = env.reset()
                     done_ = False
                 else:
-                    self.buffer.add(s, a, reward,None, terminated)
+                    self.buffer.add(s, a, reward, None, terminated)
                     s = ns    
 
     def train_batch(self, train_metrics):
@@ -340,10 +340,10 @@ class Trainer(object):
         
 
         
-        self.world_list = [self.ObsEncoder, self.RSSM, self.RewardDecoder,self.ObsDecoder, self.DiscountModel]
+        self.world_list = [self.ObsEncoder, self.RSSM, self.RewardDecoder, self.ObsDecoder, self.DiscountModel]
         self.actor_list = [self.ActionModel]
         self.value_list = [self.ValueModel]
-        self.actorcritic_list = [self.ActionModel, self.ValueModel] # not used lol
+        # self.actorcritic_list = [self.ActionModel, self.ValueModel] # not used lol
         
         self.model_optimizer = optim.Adam(get_parameters(self.world_list), model_lr)
         self.actor_optimizer = optim.Adam(get_parameters(self.actor_list), actor_lr)
