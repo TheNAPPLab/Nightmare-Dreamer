@@ -162,7 +162,7 @@ class SafeTruncatedNormal(distributions.normal.Normal):
     self._mult = mult
 
   def sample(self, sample_shape):
-    event = super().sample(sample_shape)
+    event = super().rsample(sample_shape)
     if self._clip:
       clipped = torch.clip(event, self._low + self._clip, self._high - self._clip)
       event = event - event.detach() + clipped.detach()
@@ -255,7 +255,7 @@ class ContinousActionModel(nn.Module):
             if deter: #not training
                 return self.max_control *  dist.mode(), dist
             else:
-                return  self.max_control * dist.sample(), dist
+                return self.max_control * dist.sample() , dist
 
         else:
 
