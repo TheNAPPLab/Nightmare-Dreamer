@@ -146,7 +146,7 @@ class BaseSafeConfig():
 
     #training desc
     train_steps: int = int(5e6)
-    train_every: int = 20  #50   #reduce this to potentially improve sample requirements
+    train_every: int = 25  #50   #reduce this to potentially improve sample requirements
     collect_intervals: int = 5 
     batch_size: int = 50
     seq_len: int = 50
@@ -184,7 +184,7 @@ class BaseSafeConfig():
     actor: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist':'trunc_normal', 'min_std':1e-4, 'init_std':5, 'mean_scale':5, 'activation':nn.ELU})
     critic: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist': 'normal', 'activation':nn.ELU})
     expl: Dict = field(default_factory=lambda:{'train_noise':0.4, 'eval_noise':0.0, 'expl_min':0.05, 'expl_decay':7000.0, 'expl_type':'epsilon_greedy'})
-    actor_grad: str ='dynamics'
+    actor_grad: str ='reinforce'
     actor_grad_mix: int = 0.0
     actor_entropy_scale: float = 1e-4
 
