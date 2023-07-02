@@ -4,10 +4,10 @@ import os
 import torch
 import numpy as np
 import gym
-from CMBR.utils.wrapper import GymMinAtar, OneHotAction, breakoutPOMDP, space_invadersPOMDP, seaquestPOMDP, asterixPOMDP, freewayPOMDP
-from CMBR.training.config import MinAtarConfig
-from CMBR.training.trainer import Trainer
-from CMBR.training.evaluator import Evaluator
+from dreamerv2.utils.wrapper import GymMinAtar, OneHotAction, breakoutPOMDP, space_invadersPOMDP, seaquestPOMDP, asterixPOMDP, freewayPOMDP
+from dreamerv2.training.config import MinAtarConfig
+from dreamerv2.training.trainer import Trainer
+from dreamerv2.training.evaluator import Evaluator
 
 pomdp_wrappers = {
     'breakout':breakoutPOMDP,
@@ -40,6 +40,7 @@ def main(args):
     env = PomdpWrapper(OneHotAction(GymMinAtar(env_name)))
     obs_shape = env.observation_space.shape
     action_size = env.action_space.shape[0]
+    print(action_size)
     obs_dtype = bool
     action_dtype = np.float32
     batch_size = args.batch_size
