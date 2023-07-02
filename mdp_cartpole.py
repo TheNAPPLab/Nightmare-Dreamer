@@ -87,6 +87,7 @@ def main(args):
             score += rew
 
             if terminated or truncated:
+                number_games += 1
                 trainer.buffer.add(obs, action.squeeze(0).cpu().numpy(), rew, terminated)
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
