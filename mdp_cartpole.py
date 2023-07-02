@@ -89,6 +89,7 @@ def main(args):
             if terminated or truncated:
                 trainer.buffer.add(obs, action.squeeze(0).cpu().numpy(), rew, terminated)
                 train_metrics['train_rewards'] = score
+                train_metrics['number_games']  = number_games
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
                 wandb.log(train_metrics, step=iter)
                 scores.append(score)
@@ -97,6 +98,7 @@ def main(args):
                     current_average = np.mean(scores)
                     if current_average>best_mean_score:
                         best_mean_score = current_average 
+                        train_metrics['current_avg_score'] =  current_average
                         print('saving best model with mean score : ', best_mean_score)
                         save_dict = trainer.get_save_dict()
                         torch.save(save_dict, best_save_path)
