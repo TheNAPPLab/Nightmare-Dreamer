@@ -207,11 +207,21 @@ class Trainer(object):
             objective = lambda_returns
         else:
             raise NotImplementedError
+        
+        
+
+        # discount_arr = torch.cat([torch.ones_like(discount_arr[:1]), discount_arr[1:]])
+        # discount = torch.cumprod(discount_arr[:-1], 0)
+        # policy_entropy = policy_entropy[1:].unsqueeze(-1)
+        # actor_loss = -torch.sum(torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
+        # return actor_loss, discount, lambda_returns
+    
+
 
         discount_arr = torch.cat([torch.ones_like(discount_arr[:1]), discount_arr[1:]])
         discount = torch.cumprod(discount_arr[:-1], 0)
         policy_entropy = policy_entropy[1:].unsqueeze(-1)
-        actor_loss = -torch.sum(torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
+        actor_loss = -torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy), dim=1) 
         return actor_loss, discount, lambda_returns
 
     def _value_loss(self, imag_modelstates, discount, lambda_returns):
@@ -312,7 +322,7 @@ class Trainer(object):
         if config.actor['dist'] == "onehot":    
             self.ActionModel = DiscreteActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
         else:
-            self.ActionModel = ContinousActionModel(action_size,max_control, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
+            self.ActionModel = ContinousActionModel(action_size, max_control, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
         # Take in current state(prosterior/prior and deterministic state)  to predict reward , cost, value, targetvalue
         self.RewardDecoder = DenseModel((1,), modelstate_size, config.reward).to(self.device)
 

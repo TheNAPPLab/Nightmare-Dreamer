@@ -13,9 +13,13 @@ from CMBR.utils.buffer import TransitionBuffer
 
 from skimage.transform import resize
 
-def  get_image_obs(obs):
-    image = obs['vision'].transpose(2, 0, 1)
-    return resize(image, (3, 64, 64)) / 255.0 
+def  get_image_obs(env):
+    image = env.render().copy()
+    image_=  resize(image, (3, 64, 64)) / 255.0 
+    return image
+
+    # image = obs['vision'].transpose(2, 0, 1)
+    # return resize(image, (3, 64, 64)) / 255.0 
 
 class Trainer(object):
     def __init__(
@@ -51,11 +55,11 @@ class Trainer(object):
                 ns, reward, cost, terminated, truncated, _  =  env.step(a)
                 done_ = truncated or terminated
                 if done_:
-                    self.buffer.add(get_image_obs(s), a, reward, cost, terminated)
+                    self.buffer.add(get_image_obs(env), a, reward, cost, terminated)
                     s, _  = env.reset()
                     done_ = False
                 else:
-                    self.buffer.add(get_image_obs(s), a, reward, cost, terminated)
+                    self.buffer.add(get_image_obs(env), a, reward, cost, terminated)
                     s = ns    
 
     def train_batch(self, train_metrics):
@@ -180,7 +184,7 @@ class Trainer(object):
              imag_value, discount_arr, imag_log_prob, policy_entropy)
 
         value_loss = self._value_loss(imag_modelstates, discount, lambda_returns)   
-        
+
         langrangian_loss =  self._compute_lambda_loss(imag_cost)
 
         mean_target = torch.mean(lambda_returns, dim=1)
@@ -336,6 +340,7 @@ class Trainer(object):
         obs_shape = config.obs_shape
         action_size = config.action_size
         deter_size = config.rssm_info['deter_size']
+        max_control = config.max_control
         if config.rssm_type == 'continuous':
             stoch_size = config.rssm_info['stoch_size']
 
@@ -353,7 +358,7 @@ class Trainer(object):
         if config.actor['dist'] == "onehot":    
             self.ActionModel = DiscreteActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
         else:
-            self.ActionModel = ContinousActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
+            self.ActionModel = ContinousActionModel(action_size, max_control, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
         # Take in current state(prosterior/prior and deterministic state)  to predict reward , cost, value, targetvalue
         self.RewardDecoder = DenseModel((1,), modelstate_size, config.reward).to(self.device)
         self.CostDecoder = DenseModel((1,), modelstate_size, config.cost).to(self.device)
@@ -400,7 +405,7 @@ class Trainer(object):
         self.world_list = [self.ObsEncoder, self.RSSM, self.RewardDecoder, self.CostDecoder,self.ObsDecoder, self.DiscountModel]
         self.actor_list = [self.ActionModel]
         self.value_list = [self.ValueModel, self.CostValueModel]
-        self.actorcritic_list = [self.ActionModel, self.ValueModel] # not used lol
+        # self.actorcritic_list = [self.ActionModel, self.ValueModel] # not used lol
         
         self.model_optimizer = optim.Adam(get_parameters(self.world_list), model_lr)
         self.actor_optimizer = optim.Adam(get_parameters(self.actor_list), actor_lr)

@@ -35,7 +35,7 @@ def main(args):
 
     print('using :', device)  
     # env = gym.make(env_name)
-    env = safety_gymnasium.make(env_name) 
+    env = safety_gymnasium.make(env_name, mode = 'rgb_array') 
 
     action_size = env.action_space.shape[0]
     action_dtype = np.float32
@@ -47,11 +47,13 @@ def main(args):
     # image_shape = obs['vision'].transpose(2, 0, 1).shape
     image_shape = (3, 64, 64)
 
+    print(env.action_space.high[0])
         # image_shape = obs['vision'].shape
     config = BaseSafeConfig(
             env = env_name,
             pixel = True,
             obs_shape = image_shape,
+            max_control =  env.action_space.high[0],
             action_size = action_size,
             obs_dtype = np.float32,
             action_dtype = action_dtype,
@@ -98,9 +100,9 @@ def main(args):
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not terminated, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist= trainer.ActionModel(model_state, deter=not True)
-                action = trainer.ActionModel.add_exploration(action, exploration_rate).detach()
-                if iter%400 == 0:
-                    exploration_rate *= 0.99
+                # action = trainer.ActionModel.add_exploration(action, exploration_rate).detach()
+                # if iter%400 == 0:
+                #     exploration_rate *= 0.99
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
 
@@ -110,7 +112,7 @@ def main(args):
             done_ = terminated or truncated
             if done_ :
                 number_games += 1
-                trainer.buffer.add(get_image_obs(obs), action.squeeze(0).cpu().numpy(), reward, cost, terminated)
+                trainer.buffer.add(get_image_obs(env), action.squeeze(0).cpu().numpy(), reward, cost, terminated)
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
                 train_metrics['train_costs'] = score_cost
@@ -138,7 +140,7 @@ def main(args):
                 prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
                 episode_actor_ent = []
             else:
-                trainer.buffer.add(get_image_obs(obs), action.squeeze(0).detach().cpu().numpy(), reward, cost, terminated)
+                trainer.buffer.add(get_image_obs(env), action.squeeze(0).detach().cpu().numpy(), reward, cost, terminated)
                 obs = next_obs
                 del next_obs
                 prev_rssmstate = posterior_rssm_state
