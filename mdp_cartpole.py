@@ -48,7 +48,7 @@ def main(args):
         batch_size = batch_size,
         model_dir=model_dir, 
     )
-
+    number_games = 0
     config_dict = config.__dict__
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)
