@@ -13,13 +13,10 @@ from CMBR.utils.buffer import TransitionBuffer
 
 from skimage.transform import resize
 
-def  get_image_obs(env):
-    image = env.render().copy()
-    image_=  resize(image, (3, 64, 64)) / 255.0 
-    return image
+def  get_image_obs(obs):
 
-    # image = obs['vision'].transpose(2, 0, 1)
-    # return resize(image, (3, 64, 64)) / 255.0 
+    image = obs['vision'].transpose(2, 0, 1)
+    return resize(image, (3, 64, 64)) / 255.0 
 
 class Trainer(object):
     def __init__(
@@ -46,20 +43,20 @@ class Trainer(object):
         self._model_initialize(config)
         self._optim_initialize(config)
 
-    def collect_seed_episodes(self, env, is_use_vision):
+    def collect_seed_episodes(self, env):
         
-        s, info  = env.reset() 
+        s, _  = env.reset() 
         done_ = False
         for i in range(self.seed_steps):
                 a = env.action_space.sample()
                 ns, reward, cost, terminated, truncated, _  =  env.step(a)
                 done_ = truncated or terminated
                 if done_:
-                    self.buffer.add(get_image_obs(env), a, reward, cost, terminated)
+                    self.buffer.add(get_image_obs(s), a, reward, cost, terminated)
                     s, _  = env.reset()
                     done_ = False
                 else:
-                    self.buffer.add(get_image_obs(env), a, reward, cost, terminated)
+                    self.buffer.add(get_image_obs(s), a, reward, cost, terminated)
                     s = ns    
 
     def train_batch(self, train_metrics):
@@ -239,6 +236,8 @@ class Trainer(object):
         discount = torch.cumprod(discount_arr[:-1], 0)
         policy_entropy = policy_entropy[1:].unsqueeze(-1)
         actor_loss = -torch.sum(torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
+
+        return actor_loss
         penalty = self.lambda_range_projection(self.lagrangian_multiplier).item()
 
         if self.config.actor_grad == 'reinforce':
@@ -276,7 +275,7 @@ class Trainer(object):
                 free_nats = self.kl_info['free_nats']
                 kl_lhs = torch.max(kl_lhs, kl_lhs.new_full(kl_lhs.size(), free_nats))
                 kl_rhs = torch.max(kl_rhs,kl_rhs.new_full(kl_rhs.size(), free_nats))
-            kl_loss = alpha * kl_lhs + (1-alpha) * kl_rhs
+            kl_loss = alpha * kl_lhs + (1 - alpha) * kl_rhs
 
         else: 
             kl_loss = torch.mean(torch.distributions.kl.kl_divergence(post_dist, prior_dist))

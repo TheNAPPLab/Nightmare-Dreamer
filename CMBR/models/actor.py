@@ -253,9 +253,12 @@ class ContinousActionModel(nn.Module):
             dist = SafeTruncatedNormal(mean, std, -1, 1)
             dist = ContDist(distributions.independent.Independent(dist, 1))
             if deter: #not training
-                return self.max_control *  dist.mode(), dist
+                cntrl =  torch.tensor(self.max_control).detach() * dist.mode()
+                return cntrl, dist
             else:
-                return self.max_control * dist.sample() , dist
+                # cntrl = torch.tensor(self.max_control).detach() * dist.sample()
+                cntrl = self.max_control * dist.sample()
+                return cntrl , dist
 
         else:
 
@@ -270,9 +273,11 @@ class ContinousActionModel(nn.Module):
             dist = SampleDist(dist)
 
         if deter: #not training
-                return  self.max_control * dist.mode(), dist
+                cntrl = self.max_control * dist.mode()
+                return  cntrl, dist
         else:
-                return  self.max_control * dist.sample(), dist
+                cntrl = self.max_control * dist.sample()
+                return  cntrl, dist
 
     def add_exploration(self, action, action_noise=0.3):
 

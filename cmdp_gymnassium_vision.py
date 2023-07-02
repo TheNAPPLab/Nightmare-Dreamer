@@ -35,7 +35,8 @@ def main(args):
 
     print('using :', device)  
     # env = gym.make(env_name)
-    env = safety_gymnasium.make(env_name, mode = 'rgb_array') 
+    env = safety_gymnasium.make(env_name) 
+
 
     action_size = env.action_space.shape[0]
     action_dtype = np.float32
@@ -47,13 +48,12 @@ def main(args):
     # image_shape = obs['vision'].transpose(2, 0, 1).shape
     image_shape = (3, 64, 64)
 
-    print(env.action_space.high[0])
         # image_shape = obs['vision'].shape
     config = BaseSafeConfig(
             env = env_name,
             pixel = True,
             obs_shape = image_shape,
-            max_control =  env.action_space.high[0],
+            max_control =   env.action_space.high,
             action_size = action_size,
             obs_dtype = np.float32,
             action_dtype = action_dtype,
@@ -71,7 +71,7 @@ def main(args):
         """training loop"""
         print('...training...')
         train_metrics = {}
-        trainer.collect_seed_episodes(env, args.is_use_vision)
+        trainer.collect_seed_episodes(env)
         obs, _ = env.reset()
         score, score_cost = 0, 0
         terminated, truncated = False, False
@@ -81,7 +81,6 @@ def main(args):
         scores = []
         costs = []
         best_mean_score = 0
-        best_mean_score_cost = 0
         best_save_path = os.path.join(model_dir, 'models_best.pth')
         
         for iter in range(1, trainer.config.train_steps):  
@@ -120,7 +119,7 @@ def main(args):
                 wandb.log(train_metrics, step = iter)
                 scores.append(score)
                 costs.append(cost)
-                if len(scores)>100:
+                if len(scores) > 100:
                     scores.pop(0)
                     costs.pop(0)
                     current_average = np.mean(scores)

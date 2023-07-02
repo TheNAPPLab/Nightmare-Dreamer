@@ -135,7 +135,7 @@ class BaseSafeConfig():
     env : str                                           
     obs_shape: Tuple                                            
     action_size: int
-    max_control : int = 1.00
+    max_control : Tuple
     pixel: bool = False
     action_repeat: int = 1
     
@@ -153,7 +153,8 @@ class BaseSafeConfig():
     eval_episode: int = 4
     eval_render: bool = True
     save_every: int = int(1e5)
-    seed_steps: int = 4000
+    # seed_steps: int = 4000
+    seed_steps: int = 400
     model_dir: int = 'results'
     gif_dir: int = 'results'
     cost_limit = 10.0
