@@ -53,7 +53,7 @@ def main(args):
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)
 
-    with wandb.init(project='mastering CartPole with world models', config=config_dict):
+    with wandb.init(project='Safe RL via Latent world models', config=config_dict):
         """training loop"""
         print('...training...')
         train_metrics = {}
