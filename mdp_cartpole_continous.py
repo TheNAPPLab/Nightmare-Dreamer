@@ -12,6 +12,14 @@ from dreamerv2.training.config import MinAtarConfig
 from dreamerv2.training.trainer_pendulm_continous import Trainer
 from dreamerv2.training.evaluator import Evaluator
 
+def sample_std(trainer, model_state):
+    action_samples = []
+    for _ in range(1000):
+        action_, _ = trainer.ActionModel(model_state, deter=False)
+        action_samples.append(action_.squeeze(0).cpu().numpy())
+    std = np.std(action_samples)
+    return std
+
 def main(args):
     wandb.login()
     env_name = args.env
@@ -50,7 +58,9 @@ def main(args):
         batch_size = batch_size,
         model_dir=model_dir, 
     )
+  
     number_games = 0
+    config.actor['dist'] = 'trunc_normal'
     config_dict = config.__dict__
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)
@@ -68,6 +78,7 @@ def main(args):
         prev_rssmstate = trainer.RSSM._init_rssm_state(1)
         prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
         episode_actor_ent = []
+        episode_actor_std = []
         iter_mean = []
         episode_mean = []
         iter_std = []
@@ -94,8 +105,13 @@ def main(args):
 
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
+
                 action_mean = torch.mean(action_dist.mean_()).item()
                 episode_mean.append(action_mean)
+
+                action_std = sample_std(trainer, model_state)
+                episode_actor_std.append(action_std)
+                
 
             next_obs, rew, terminated, truncated, _ = env.step( action.squeeze(0).cpu().numpy())
             score += rew
@@ -106,7 +122,10 @@ def main(args):
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
+                train_metrics['episode_actor_std'] = np.mean(episode_actor_std)
+                print(train_metrics['episode_actor_std'])
                 train_metrics['mean_of_episode_actions'] = np.mean(episode_mean)
+                episode_actor_std = []
                 episode_mean = [] #reset evey time
                 wandb.log(train_metrics, step=iter)
                 scores.append(score)

@@ -40,6 +40,7 @@ def main(args):
     config = MinAtarConfig(
         env=env_name,
         pixel = False,
+        actor_grad = 'reinforce', #dynamics
         obs_shape=obs_shape,
         action_size=action_size,
         obs_dtype = obs_dtype,
@@ -49,6 +50,7 @@ def main(args):
         model_dir=model_dir, 
     )
     number_games = 0
+    config.actor['dist'] = 'one_hot'
     config_dict = config.__dict__
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)
