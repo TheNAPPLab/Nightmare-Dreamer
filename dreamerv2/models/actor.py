@@ -126,12 +126,12 @@ class ContinousActionModel(nn.Module):
 
         if not deter:
             action = dist.sample()
-            action = 3.0 * action
+            # action = 3.0 * action
             return action, dist
         else:
-            action = dist.mode()
-            action = 3.0 * action
-            return dist.mode(), dist
+            action = dist.mo1de()
+            # action = 3.0 * action
+            return action, dist
         
     def add_exploration(self, action, action_min, action_max, noise_std = 0.1):
         # Scale the action based on the exploration schedule
