@@ -22,7 +22,7 @@ class MinAtarConfig():
 
     #training desc
     train_steps: int = int(5e6)
-    train_every: int = 50                                  #reduce this to potentially improve sample requirements
+    train_every: int = 40                                  #reduce this to potentially improve sample requirements
     collect_intervals: int = 5 
     batch_size: int = 50 
     seq_len: int = 50
@@ -43,7 +43,7 @@ class MinAtarConfig():
     grad_clip: float = 100.0
     discount_: float = 0.99
     lambda_: float = 0.95
-    horizon: int = 10
+    horizon: int = 15
     lr: Dict = field(default_factory=lambda:{'model':2e-4, 'actor':4e-5, 'critic':1e-4})
     #lr: Dict = field(default_factory=lambda:{'model':3e-4, 'actor':8e-5, 'critic':8e-5}) dm control
     loss_scale: Dict = field(default_factory=lambda:{'kl':1.0, 'reward':1.0, 'discount':5.0})

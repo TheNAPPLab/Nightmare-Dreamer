@@ -102,7 +102,7 @@ def main(args):
                 embed = trainer.ObsEncoder(torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(trainer.device))  
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not terminated, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
-                action, action_dist = trainer.ActionModel(model_state, deter = False)
+                action, action_dist = trainer.ActionModel(model_state, deter = True)
                 # exploration_schedule = exploration_schedule_init * math.exp(-iter * exploration_decay_rate)
                 # exploration_schedule = annealed_epsilon(iter)
                 # if random.random() < exploration_schedule:
