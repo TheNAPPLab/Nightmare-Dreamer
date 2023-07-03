@@ -172,6 +172,9 @@ class ContDist:
 
     def __getattr__(self, name):
         return getattr(self._dist, name)
+    
+    def mean_(self):
+        return self.mean
 
     def entropy(self):
         return self._dist.entropy()

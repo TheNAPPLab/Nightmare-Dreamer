@@ -68,6 +68,9 @@ def main(args):
         prev_rssmstate = trainer.RSSM._init_rssm_state(1)
         prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
         episode_actor_ent = []
+        iter_mean = []
+        episode_mean = []
+        iter_std = []
         scores = []
         best_mean_score = 0
         best_save_path = os.path.join(model_dir, 'models_best.pth')
@@ -87,8 +90,12 @@ def main(args):
                 # exploration_schedule = exploration_schedule_init * math.exp(-iter * exploration_decay_rate)
                 # if random.random() < exploration_schedule:
                 #     action = trainer.ActionModel.add_exploration(action, -3, 3,noise_std = 0.1).detach()
+
+
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
+                action_mean = torch.mean(action_dist.mean_()).item()
+                episode_mean.append(action_mean)
 
             next_obs, rew, terminated, truncated, _ = env.step( action.squeeze(0).cpu().numpy())
             score += rew
@@ -99,6 +106,8 @@ def main(args):
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
+                train_metrics['mean_of_episode_actions'] = np.mean(episode_mean)
+                episode_mean = [] #reset evey time
                 wandb.log(train_metrics, step=iter)
                 scores.append(score)
                 if len(scores)>100:
