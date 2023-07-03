@@ -123,7 +123,6 @@ def main(args):
                 train_metrics['number_games']  = number_games
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
                 train_metrics['episode_actor_std'] = np.mean(episode_actor_std)
-                print(train_metrics['episode_actor_std'])
                 train_metrics['mean_of_episode_actions'] = np.mean(episode_mean)
                 episode_actor_std = []
                 episode_mean = [] #reset evey time
