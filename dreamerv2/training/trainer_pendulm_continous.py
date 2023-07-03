@@ -6,11 +6,12 @@ import os
 from dreamerv2.utils.module import get_parameters, FreezeParameters
 from dreamerv2.utils.algorithm import compute_return
 
-from dreamerv2.models.actor import DiscreteActionModel
+from dreamerv2.models.actor import DiscreteActionModel, ContinousActionModel
 from dreamerv2.models.dense import DenseModel
 from dreamerv2.models.rssm import RSSM
 from dreamerv2.models.pixel import ObsDecoder, ObsEncoder
 from dreamerv2.utils.buffer import TransitionBuffer
+from dreamerv2.models.actor import RequiresGrad
 
 class Trainer(object):
     def __init__(
@@ -38,15 +39,17 @@ class Trainer(object):
         self._optim_initialize(config)
 
     def collect_seed_episodes(self, env):
-        s, done  = env.reset(), False 
-        for i in range(self.seed_steps):
+        s , _ = env.reset() 
+        terminated, truncated = False, False
+        for _ in range(self.seed_steps):
             a = env.action_space.sample()
-            ns, r, done, _ = env.step(a)
-            if done:
-                self.buffer.add(s,a,r,done)
-                s, done  = env.reset(), False 
+            ns, r, terminated, truncated, _ = env.step(a)
+            if terminated or truncated:
+                self.buffer.add(s, a,r,terminated)
+                s, _  = env.reset() 
+                terminated, truncated = False, False
             else:
-                self.buffer.add(s,a,r,done)
+                self.buffer.add(s,a,r,terminated)
                 s = ns    
 
     def train_batch(self, train_metrics):
@@ -134,7 +137,8 @@ class Trainer(object):
             batched_posterior = self.RSSM.rssm_detach(self.RSSM.rssm_seq_to_batch(posterior, self.batch_size, self.seq_len-1))
         
         with FreezeParameters(self.world_list):
-            imag_rssm_states, imag_log_prob, policy_entropy = self.RSSM.rollout_imagination(self.horizon, self.ActionModel, batched_posterior)
+            with RequiresGrad(self.ActionModel):
+                imag_rssm_states, imag_log_prob, policy_entropy = self.RSSM.rollout_imagination(self.horizon, self.ActionModel, batched_posterior)
         
         imag_modelstates = self.RSSM.get_model_state(imag_rssm_states)
         with FreezeParameters(self.world_list+self.value_list+[self.TargetValueModel]+[self.DiscountModel]):
@@ -290,7 +294,10 @@ class Trainer(object):
     
         self.buffer = TransitionBuffer(config.capacity, obs_shape, action_size, config.seq_len, config.batch_size, config.obs_dtype, config.action_dtype)
         self.RSSM = RSSM(action_size, rssm_node_size, embedding_size, self.device, config.rssm_type, config.rssm_info).to(self.device)
-        self.ActionModel = DiscreteActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
+        if config.actor['dist'] == 'one_hot':
+            self.ActionModel = DiscreteActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
+        else:
+             self.ActionModel = ContinousActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
         self.RewardDecoder = DenseModel((1,), modelstate_size, config.reward).to(self.device)
         self.ValueModel = DenseModel((1,), modelstate_size, config.critic).to(self.device)
         self.TargetValueModel = DenseModel((1,), modelstate_size, config.critic).to(self.device)
