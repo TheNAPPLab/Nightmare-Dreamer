@@ -44,8 +44,8 @@ class MinAtarConfig():
     discount_: float = 0.99
     lambda_: float = 0.95
     horizon: int = 15
-    lr: Dict = field(default_factory=lambda:{'model':2e-4, 'actor':4e-5, 'critic':1e-4})
-    #lr: Dict = field(default_factory=lambda:{'model':3e-4, 'actor':8e-5, 'critic':8e-5}) dm control
+    #lr: Dict = field(default_factory=lambda:{'model':2e-4, 'actor':4e-5, 'critic':1e-4})
+    lr: Dict = field(default_factory=lambda:{'model':3e-4, 'actor':8e-5, 'critic':8e-5}) #dm control
     loss_scale: Dict = field(default_factory=lambda:{'kl':1.0, 'reward':1.0, 'discount':5.0})
     kl: Dict = field(default_factory=lambda:{'use_kl_balance':True, 'kl_balance_scale':0.8, 'use_free_nats':False, 'free_nats':0.0})
     use_slow_target: float = True
