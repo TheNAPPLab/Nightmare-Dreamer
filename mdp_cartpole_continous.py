@@ -5,6 +5,8 @@ import torch
 import numpy as np
 import gym
 import gymnasium 
+import math
+import random
 # from dreamerv2.utils.wrapper import GymMinAtar, OneHotAction
 from dreamerv2.training.config import MinAtarConfig
 from dreamerv2.training.trainer_pendulm_continous import Trainer
@@ -52,6 +54,8 @@ def main(args):
     config_dict = config.__dict__
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)
+    exploration_schedule_init = 1.0  # Initial exploration schedule value
+    exploration_decay_rate = 0.01  # Decay rate
 
     with wandb.init(project='Safe RL via Latent world models', config=config_dict):
         """training loop"""
@@ -80,7 +84,9 @@ def main(args):
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not terminated, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist = trainer.ActionModel(model_state, deter = True)
-                # action = trainer.ActionModel.add_exploration(action, iter).detach()
+                exploration_schedule = exploration_schedule_init * math.exp(-iter * exploration_decay_rate)
+                if random.random() < exploration_schedule:
+                    action = trainer.ActionModel.add_exploration(action, exploration_schedule, iter, -3, 3).detach()
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
 
