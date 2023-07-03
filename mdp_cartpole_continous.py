@@ -86,7 +86,7 @@ def main(args):
                 action, action_dist = trainer.ActionModel(model_state, deter = True)
                 exploration_schedule = exploration_schedule_init * math.exp(-iter * exploration_decay_rate)
                 if random.random() < exploration_schedule:
-                    action = trainer.ActionModel.add_exploration(action, exploration_schedule, iter, -3, 3).detach()
+                    action = trainer.ActionModel.add_exploration(action, -3, 3,noise_std = 0.1).detach()
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
 

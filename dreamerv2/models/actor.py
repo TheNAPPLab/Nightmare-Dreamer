@@ -133,18 +133,18 @@ class ContinousActionModel(nn.Module):
             action = 3.0 * action
             return dist.mode(), dist
         
-    def add_exploration(self, action, exploration_schedule, action_min, action_max, noise_std = 0.1):
+    def add_exploration(self, action, action_min, action_max, noise_std = 0.1):
         # Scale the action based on the exploration schedule
-        exploration_action = action * exploration_schedule
+        # exploration_action = action * exploration_schedule
 
         # Add exploration noise
         noise = torch.randn_like(action) * noise_std  # Assuming noise_std is a parameter or a constant
-        exploration_action += noise
+        action += noise
 
         # Clip the action within valid bounds (if needed)
-        exploration_action = torch.clamp(exploration_action, action_min, action_max)
+        action = torch.clamp(action, action_min, action_max)
 
-        return exploration_action
+        return action
  
 
 class SafeTruncatedNormal(torchd.normal.Normal):
