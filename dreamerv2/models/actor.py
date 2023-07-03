@@ -129,7 +129,7 @@ class ContinousActionModel(nn.Module):
             # action = 3.0 * action
             return action, dist
         else:
-            action = dist.mo1de()
+            action = dist.mode()
             # action = 3.0 * action
             return action, dist
         
