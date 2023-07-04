@@ -200,7 +200,7 @@ class Trainer(object):
         discount = torch.cumprod(discount_arr[:-1], 0)
         policy_entropy = policy_entropy[1:].unsqueeze(-1)
         # actor_loss = -torch.sum(torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
-        actor_loss = -torch.mean(torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
+        actor_loss = -torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy))
         return actor_loss, discount, lambda_returns
 
     def _value_loss(self, imag_modelstates, discount, lambda_returns):
