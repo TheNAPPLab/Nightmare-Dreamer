@@ -31,7 +31,9 @@ def main(args):
     
     env = gymnasium.make(env_name) 
     obs_shape = env.observation_space.shape
-    action_size = 2
+    # action_size = 2 # cartpole
+    # action_size = 4 #lunar landing
+    action_size = env.action_space.n
     obs_dtype =  np.float32
     action_dtype = np.float32
     batch_size = args.batch_size
@@ -55,7 +57,7 @@ def main(args):
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)
 
-    with wandb.init(project='mastering CartPole with world models', config=config_dict):
+    with wandb.init(project='Safe RL via Latent world models', config=config_dict):
         """training loop"""
         print('...training...')
         train_metrics = {}
@@ -125,7 +127,8 @@ if __name__ == "__main__":
 
     """there are tonnes of HPs, if you want to do an ablation over any particular one, please add if here"""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env", type=str, default='CartPole-v1',  help='mini atari env name')
+    # parser.add_argument("--env", type=str, default='CartPole-v1',  help='mini atari env name')
+    parser.add_argument("--env", type=str, default='LunarLander-v2',  help='mini atari env name')
     parser.add_argument("--id", type=str, default='0', help='Experiment ID')
     parser.add_argument('--seed', type=int, default=123, help='Random seed')
     parser.add_argument('--device', default='cuda', help='CUDA or CPU')
@@ -133,3 +136,4 @@ if __name__ == "__main__":
     parser.add_argument('--seq_len', type=int, default=50, help='Sequence Length (chunk length)')
     args = parser.parse_args()
     main(args)
+#pip install box2d pygame

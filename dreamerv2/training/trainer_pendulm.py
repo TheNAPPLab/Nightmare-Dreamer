@@ -42,7 +42,7 @@ class Trainer(object):
         terminated, truncated = False, False
         for _ in range(self.seed_steps):
             a = env.action_space.sample()
-            a_ = np.eye(2)[a] 
+            a_ = np.eye(env.action_space.n)[a] 
             ns, r, terminated, truncated, _ = env.step(a)
             if terminated or truncated:
                 self.buffer.add(s, a_,r,terminated)
@@ -199,7 +199,8 @@ class Trainer(object):
         discount_arr = torch.cat([torch.ones_like(discount_arr[:1]), discount_arr[1:]])
         discount = torch.cumprod(discount_arr[:-1], 0)
         policy_entropy = policy_entropy[1:].unsqueeze(-1)
-        actor_loss = -torch.sum(torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
+        # actor_loss = -torch.sum(torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
+        actor_loss = -torch.mean(torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
         return actor_loss, discount, lambda_returns
 
     def _value_loss(self, imag_modelstates, discount, lambda_returns):
