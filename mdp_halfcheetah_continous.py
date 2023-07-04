@@ -90,8 +90,9 @@ def main(args):
         scores = []
         best_mean_score = 0
         best_save_path = os.path.join(model_dir, 'models_best.pth')
-        
-        for iter in range(1, trainer.config.train_steps):  
+        step = 0
+        for iter in range(1, trainer.config.train_steps): 
+            step += 1 
             if iter%trainer.config.train_every == 0:
                 train_metrics = trainer.train_batch(train_metrics)
             if iter%trainer.config.slow_target_update == 0:
@@ -112,24 +113,25 @@ def main(args):
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
 
-                # action_mean = torch.mean(action_dist.mean_()).item()
-                # episode_mean.append(action_mean)
+                action_mean = torch.mean(action_dist.mean_()).item()
+                episode_mean.append(action_mean)
 
-                # action_std = sample_std(trainer, model_state)
-                # episode_actor_std.append(action_std)
+                action_std = sample_std(trainer, model_state)
+                episode_actor_std.append(action_std)
                 
 
             next_obs, rew, terminated, truncated, _ = env.step( action.squeeze(0).cpu().numpy())
             score += rew
-
+            if step >= 500 and score < 0:
+              terminated = True
             if terminated or truncated:
                 number_games += 1
                 trainer.buffer.add(obs, action.squeeze(0).cpu().numpy(), rew, terminated)
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
-                # train_metrics['episode_actor_std'] = np.mean(episode_actor_std)
-                # train_metrics['mean_of_episode_actions'] = np.mean(episode_mean)
+                train_metrics['episode_actor_std'] = np.mean(episode_actor_std)
+                train_metrics['mean_of_episode_actions'] = np.mean(episode_mean)
                 episode_actor_std = []
                 episode_mean = [] #reset evey time
                 wandb.log(train_metrics, step=iter)
@@ -146,6 +148,7 @@ def main(args):
                 
                 obs, _ = env.reset()
                 score = 0
+                step = 0
                 terminated, truncated = False, False
                 prev_rssmstate = trainer.RSSM._init_rssm_state(1)
                 prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)

@@ -141,7 +141,7 @@ class Trainer(object):
                 imag_rssm_states, imag_log_prob, policy_entropy = self.RSSM.rollout_imagination(self.horizon, self.ActionModel, batched_posterior)
         
         imag_modelstates = self.RSSM.get_model_state(imag_rssm_states)
-        with FreezeParameters(self.world_list+self.value_list+[self.TargetValueModel]+[self.DiscountModel]):
+        with FreezeParameters(self.world_list + self.value_list+[self.TargetValueModel]+[self.DiscountModel]):
             imag_reward_dist = self.RewardDecoder(imag_modelstates)
             imag_reward = imag_reward_dist.mean
             imag_value_dist = self.TargetValueModel(imag_modelstates)
