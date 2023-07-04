@@ -13,6 +13,17 @@ from dreamerv2.training.config import SafetyGymConfig
 from dreamerv2.training.trainer_cmdp_goal import Trainer
 from dreamerv2.training.evaluator import Evaluator
 
+def onehot_to_control(onehot, num_bins = 15):
+    # Convert one-hot array to control values
+    index = np.argmax(onehot)
+
+    index_x = index % num_bins
+    index_y = index // num_bins
+
+    control_value_x = (index_x / (num_bins - 1) * 2) - 1
+    control_value_y = (index_y / (num_bins - 1) * 2) - 1
+
+    return np.array([control_value_x, control_value_y])
 
 def annealed_epsilon(current_step):
     epsilon = max(0.05, 1.0 - current_step / 30000)
@@ -47,7 +58,7 @@ def main(args):
     
     env = safety_gymnasium.make(env_name) 
     obs_shape = env.observation_space.shape
-    action_size = 2
+    action_size = 15*15
     obs_dtype =  np.float32
     action_dtype = np.float32
     batch_size = args.batch_size
@@ -66,7 +77,7 @@ def main(args):
     )
   
     number_games = 0
-    config.actor['dist'] = 'trunc_normal'
+    config.actor['dist'] = 'one_hot'
     config_dict = config.__dict__
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)
@@ -89,9 +100,7 @@ def main(args):
         scores = []
         best_mean_score = 0
         best_save_path = os.path.join(model_dir, 'models_best.pth')
-        step = 0
         for iter in range(1, trainer.config.train_steps): 
-            step += 1 
             if iter%trainer.config.train_every == 0:
                 train_metrics = trainer.train_batch(train_metrics)
             if iter%trainer.config.slow_target_update == 0:
@@ -102,34 +111,36 @@ def main(args):
                 embed = trainer.ObsEncoder(torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(trainer.device))  
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not terminated, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
-                action, action_dist = trainer.ActionModel(model_state, deter = True)
-               
-                exploration_schedule = annealed_epsilon(iter)
-                if random.random() < exploration_schedule:
-                    action = trainer.ActionModel.add_exploration(action, -3, 3, noise_std = 0.3).detach()
-
-
+                # action, action_dist = trainer.ActionModel(model_state, deter = True)
+                action, action_dist = trainer.ActionModel(model_state)
+                action = trainer.ActionModel.add_exploration(action, iter).detach()
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
+                # exploration_schedule = annealed_epsilon(iter)
+                # if random.random() < exploration_schedule:
+                #     action = trainer.ActionModel.add_exploration(action, -3, 3, noise_std = 0.3).detach()
 
-                action_mean = torch.mean(action_dist.mean_()).item()
-                episode_mean.append(action_mean)
 
-                action_std = sample_std(trainer, model_state)
-                episode_actor_std.append(action_std)
-                
 
-            next_obs, rew, _, terminated, truncated, _ = env.step(action.squeeze(0).cpu().numpy())
+
+                # action_mean = torch.mean(action_dist.mean_()).item()
+                # episode_mean.append(action_mean)
+
+                # action_std = sample_std(trainer, model_state)
+                # episode_actor_std.append(action_std)
+
+            continous_a = onehot_to_control(action.squeeze(0).cpu().numpy()) 
+            next_obs, rew, _, terminated, truncated, _ = env.step(continous_a)
             score += rew
             if terminated or truncated:
                 number_games += 1
                 trainer.buffer.add(obs, action.squeeze(0).cpu().numpy(), rew, terminated)
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
-                train_metrics['len_scores']  = len(score)
+                # train_metrics["exploration_schedule"] = exploration_schedule
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
-                train_metrics['episode_actor_std'] = np.mean(episode_actor_std)
-                train_metrics['mean_of_episode_actions'] = np.mean(episode_mean)
+                # train_metrics['episode_actor_std'] = np.mean(episode_actor_std)
+                # train_metrics['mean_of_episode_actions'] = np.mean(episode_mean)
                 episode_actor_std = []
                 episode_mean = [] #reset evey time
                 wandb.log(train_metrics, step = iter)
@@ -146,7 +157,7 @@ def main(args):
                 
                 obs, _ = env.reset()
                 score = 0
-                step = 0
+               
                 terminated, truncated = False, False
                 prev_rssmstate = trainer.RSSM._init_rssm_state(1)
                 prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)

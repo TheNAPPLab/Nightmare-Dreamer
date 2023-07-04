@@ -13,6 +13,25 @@ from dreamerv2.models.pixel import ObsDecoder, ObsEncoder
 from dreamerv2.utils.buffer import TransitionBuffer
 from dreamerv2.models.actor import RequiresGrad
 
+
+
+
+
+def control_to_onehot(control_values, num_bins = 15):
+    # Convert control values to one-hot array
+    control_value_x = control_values[0]
+    control_value_y = control_values[1]
+
+    index_x = int(((control_value_x + 1) / 2) * (num_bins - 1))
+    index_y = int(((control_value_y + 1) / 2) * (num_bins - 1))
+
+    index = index_y * num_bins + index_x
+
+    onehot = np.zeros(num_bins * num_bins)
+    onehot[index] = 1
+
+    return onehot
+
 class Trainer(object):
     def __init__(
         self, 
@@ -43,13 +62,14 @@ class Trainer(object):
         terminated, truncated = False, False
         for _ in range(self.seed_steps):
             a = env.action_space.sample()
-            ns, r,_ , terminated, truncated, _ = env.step(a)
+            ns, r, _ , terminated, truncated, _ = env.step(a)
+            disc = control_to_onehot(a)
             if terminated or truncated:
-                self.buffer.add(s, a, r, terminated)
+                self.buffer.add(s, disc, r, terminated)
                 s, _  = env.reset() 
                 terminated, truncated = False, False
             else:
-                self.buffer.add(s, a, r, terminated)
+                self.buffer.add(s, disc, r, terminated)
                 s = ns    
 
     def train_batch(self, train_metrics):

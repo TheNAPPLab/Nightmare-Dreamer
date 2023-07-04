@@ -106,9 +106,9 @@ class SafetyGymConfig():
     discount_: float = 0.99
     lambda_: float = 0.95
     horizon: int = 15
-    #lr: Dict = field(default_factory=lambda:{'model':2e-4, 'actor':4e-5, 'critic':1e-4})
-    lr: Dict = field(default_factory=lambda:{'model':3e-4, 'actor':8e-5, 'critic':8e-5}) #dm control
-    loss_scale: Dict = field(default_factory=lambda:{'kl':1.0, 'reward':1.0, 'discount':5.0})
+    lr: Dict = field(default_factory=lambda:{'model':2e-4, 'actor':4e-5, 'critic':1e-4})
+    #lr: Dict = field(default_factory=lambda:{'model':3e-4, 'actor':8e-5, 'critic':8e-5}) #dm control
+    loss_scale: Dict = field(default_factory=lambda:{'kl':0.1, 'reward':1.0, 'discount':5.0})
     kl: Dict = field(default_factory=lambda:{'use_kl_balance':True, 'kl_balance_scale':0.8, 'use_free_nats':False, 'free_nats':0.0})
     use_slow_target: float = True
     slow_target_update: int = 100
@@ -119,7 +119,7 @@ class SafetyGymConfig():
     actor: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist':'trunc_normal', 'min_std': 0.1, 'init_std':5, 'mean_scale':5, 'activation':nn.ELU})
     critic: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist': 'normal', 'activation':nn.ELU})
     expl: Dict = field(default_factory=lambda:{'train_noise':0.4, 'eval_noise':0.0, 'expl_min':0.05, 'expl_decay':7000.0, 'expl_type':'epsilon_greedy'})
-    actor_grad: str ='dynamics'
+    actor_grad: str ='reinforce'
     actor_grad_mix: int = 0.0
     actor_entropy_scale: float = 1e-4
 
