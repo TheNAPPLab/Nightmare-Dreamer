@@ -42,7 +42,7 @@ def main(args):
     config = MinAtarConfig(
         env=env_name,
         pixel = False,
-        actor_grad = 'dynamics', #reinforce
+        actor_grad = 'reinforce', #reinforce
         obs_shape=obs_shape,
         action_size=action_size,
         obs_dtype = obs_dtype,
@@ -127,8 +127,8 @@ if __name__ == "__main__":
 
     """there are tonnes of HPs, if you want to do an ablation over any particular one, please add if here"""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env", type=str, default='CartPole-v1',  help='mini atari env name')
-    # parser.add_argument("--env", type=str, default='LunarLander-v2',  help='mini atari env name')
+    #parser.add_argument("--env", type=str, default='CartPole-v1',  help='mini atari env name')
+    parser.add_argument("--env", type=str, default='LunarLander-v2',  help='mini atari env name')
     parser.add_argument("--id", type=str, default='0', help='Experiment ID')
     parser.add_argument('--seed', type=int, default=123, help='Random seed')
     parser.add_argument('--device', default='cuda', help='CUDA or CPU')
