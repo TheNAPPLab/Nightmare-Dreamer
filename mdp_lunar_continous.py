@@ -101,8 +101,8 @@ def main(args):
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
-                train_metrics['epsilon_value'] = expl_amount
-                if number_games % 100:
+                train_metrics['Noise_Std'] = expl_amount
+                if number_games % 100 == 0:
                     train_metrics['Eval_score'] = eval_model_continous(env, trainer)
                 wandb.log(train_metrics, step=iter)
                 scores.append(score)
