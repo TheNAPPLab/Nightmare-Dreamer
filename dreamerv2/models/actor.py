@@ -150,7 +150,8 @@ class ContinousActionModel(nn.Module):
 
         if self.expl_type == 'gaussian':
             noise = np.random.normal(0, expl_amount, size = action.shape)
-            action = action + torch.from_numpy(noise)
+            noise = torch.from_numpy(noise).to(action.device)
+            action = action + noise
         else: # implement 
             NotImplementedError
 
