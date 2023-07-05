@@ -9,6 +9,8 @@ import gymnasium
 from dreamerv2.training.config import MinAtarConfig
 from dreamerv2.training.trainer_pendulm import Trainer
 from dreamerv2.training.evaluator import Evaluator
+from helper import calculate_epsilon, eval_model
+
 
 def main(args):
     wandb.login()
@@ -31,8 +33,6 @@ def main(args):
     
     env = gymnasium.make(env_name) 
     obs_shape = env.observation_space.shape
-    # action_size = 2 # cartpole
-    # action_size = 4 #lunar landing
     action_size = env.action_space.n
     obs_dtype =  np.float32
     action_dtype = np.float32
@@ -53,6 +53,9 @@ def main(args):
     )
     number_games = 0
     config.actor['dist'] = 'one_hot'
+    config.expl['train_noise'] = 1.0
+    config.expl['expl_min'] = 0.05
+    config.expl['expl_decay'] = 35_000
     config_dict = config.__dict__
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)
@@ -96,18 +99,22 @@ def main(args):
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
+                train_metrics['epsilon_value'] = calculate_epsilon(trainer.config, itr=iter)
                 wandb.log(train_metrics, step=iter)
                 scores.append(score)
                 if len(scores)>100:
                     scores.pop(0)
                     current_average = np.mean(scores)
+                    print("Last_100_avg_score", current_average )
+                    train_metrics['Last_100_avg_score'] =  current_average
                     if current_average>best_mean_score:
                         best_mean_score = current_average 
-                        train_metrics['current_avg_score'] =  current_average
+                        train_metrics['current_best_avg_score'] =  current_average
                         print('saving best model with mean score : ', best_mean_score)
                         save_dict = trainer.get_save_dict()
                         torch.save(save_dict, best_save_path)
-                
+                if iter % trainer.config.eval_every == 0:
+                    train_metrics['Eval_score'] = eval_model(env, trainer)
                 obs, _ = env.reset()
                 score = 0
                 terminated, truncated = False, False
