@@ -89,6 +89,7 @@ def main(args):
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist = trainer.ActionModel(model_state)
                 action, expl_amount = trainer.ActionModel.add_exploration(action, iter).detach()
+                action = action.detach()
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
             next_obs, rew, terminated, truncated, _ = env.step( np.argmax(action.cpu().numpy()))

@@ -59,7 +59,7 @@ class DiscreteActionModel(nn.Module):
             
     def add_exploration(self, action: torch.Tensor, itr: int, mode='train'):
         if mode == 'train':
-            if iter <= self.decay_start:
+            if itr <= self.decay_start:
                 expl_amount = self.train_noise
             else:
                 expl_amount = self.train_noise
