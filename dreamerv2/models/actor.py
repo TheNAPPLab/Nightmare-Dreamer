@@ -102,6 +102,7 @@ class ContinousActionModel(nn.Module):
         self.act_fn = actor_info['activation']
         self.dist = actor_info['dist']
         self.act_fn = actor_info['activation']
+        self.decay_start = expl_info['decay_start']
         self.train_noise = expl_info['train_noise']
         self.eval_noise = expl_info['eval_noise']
         self.expl_min = expl_info['expl_min']
@@ -132,25 +133,30 @@ class ContinousActionModel(nn.Module):
 
         if not deter:
             action = dist.sample()
-            # action = 3.0 * action
             return action, dist
         else:
             action = dist.mode()
-            # action = 3.0 * action
             return action, dist
         
-    def add_exploration(self, action, action_min, action_max, noise_std = 0.1):
-        # Scale the action based on the exploration schedule
-        # exploration_action = action * exploration_schedule
+    def add_exploration(self, itr, action, action_min, action_max, mode= 'train'):
+        if mode == 'train':
+            if itr <= self.decay_start:
+                expl_amount = self.train_noise
+            else:
+                expl_amount = self.train_noise
+                ir = itr - self.decay_start + 1
+                expl_amount = expl_amount - ir/self.expl_decay
+                expl_amount = max(self.expl_min, expl_amount)
 
-        # Add exploration noise
-        noise = torch.randn_like(action) * noise_std  # Assuming noise_std is a parameter or a constant
-        action += noise
+        if self.expl_type == 'gaussian':
+            noise = np.random.normal(0, expl_amount, size = action.shape)
+            action = action + torch.from_numpy(noise)
+        else: # implement 
+            NotImplementedError
 
         # Clip the action within valid bounds (if needed)
-        action = torch.clamp(action, action_min, action_max)
-
-        return action
+        action = torch.clamp(action.float(), action_min, action_max)
+        return action, expl_amount
  
 
 class SafeTruncatedNormal(torchd.normal.Normal):
@@ -161,7 +167,7 @@ class SafeTruncatedNormal(torchd.normal.Normal):
         self._clip = clip
         self._mult = mult
 
-    def rsample(self, sample_shape):
+    def sample(self, sample_shape):
         event = super().rsample(sample_shape)
         if self._clip:
             clipped = torch.clip(event, self._low + self._clip, self._high - self._clip)
@@ -189,7 +195,7 @@ class ContDist:
         return self._dist.mean
 
     def sample(self, sample_shape=()):
-        return self._dist.rsample(sample_shape)
+        return self._dist.sample(sample_shape)
 
     def log_prob(self, x):
         return self._dist.log_prob(x)
@@ -203,3 +209,8 @@ class RequiresGrad:
 
     def __exit__(self, *args):
         self._model.requires_grad_(requires_grad=False)
+
+
+'''
+mean = -0.0704
+'''
