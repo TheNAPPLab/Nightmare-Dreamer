@@ -24,6 +24,7 @@ class DiscreteActionModel(nn.Module):
         self.dist = actor_info['dist']
         self.act_fn = actor_info['activation']
         self.train_noise = expl_info['train_noise']
+        self.decay_start = expl_info['decay_start']
         self.eval_noise = expl_info['eval_noise']
         self.expl_min = expl_info['expl_min']
         self.expl_decay = expl_info['expl_decay']
@@ -58,9 +59,14 @@ class DiscreteActionModel(nn.Module):
             
     def add_exploration(self, action: torch.Tensor, itr: int, mode='train'):
         if mode == 'train':
-            expl_amount = self.train_noise
-            expl_amount = expl_amount - itr/self.expl_decay
-            expl_amount = max(self.expl_min, expl_amount)
+            if iter <= self.decay_start:
+                expl_amount = self.train_noise
+            else:
+                expl_amount = self.train_noise
+                ir = itr - self.decay_start + 1
+                expl_amount = expl_amount - ir/self.expl_decay
+                expl_amount = max(self.expl_min, expl_amount)
+
         elif mode == 'eval':
             expl_amount = self.eval_noise
         else:
@@ -71,7 +77,7 @@ class DiscreteActionModel(nn.Module):
                 index = torch.randint(0, self.action_size, action.shape[:-1], device=action.device)
                 action = torch.zeros_like(action)
                 action[:, index] = 1
-            return action
+            return action, expl_amount
 
         raise NotImplementedError
     

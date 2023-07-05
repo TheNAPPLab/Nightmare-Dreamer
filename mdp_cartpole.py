@@ -55,7 +55,8 @@ def main(args):
     config.actor['dist'] = 'one_hot'
     config.expl['train_noise'] = 1.0
     config.expl['expl_min'] = 0.05
-    config.expl['expl_decay'] = 35_000
+    config.expl['expl_decay'] = 300_000
+    config.expl['decay_start'] = 35_000
     config_dict = config.__dict__
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)
@@ -87,7 +88,7 @@ def main(args):
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not terminated, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist = trainer.ActionModel(model_state)
-                action = trainer.ActionModel.add_exploration(action, iter).detach()
+                action, expl_amount = trainer.ActionModel.add_exploration(action, iter).detach()
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
             next_obs, rew, terminated, truncated, _ = env.step( np.argmax(action.cpu().numpy()))
@@ -99,7 +100,7 @@ def main(args):
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
-                train_metrics['epsilon_value'] = calculate_epsilon(trainer.config, itr=iter)
+                train_metrics['epsilon_value'] = expl_amount
                 wandb.log(train_metrics, step=iter)
                 scores.append(score)
                 if len(scores)>100:
