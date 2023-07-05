@@ -104,6 +104,7 @@ class ContinousActionModel(nn.Module):
         self.act_fn = actor_info['activation']
         self.decay_start = expl_info['decay_start']
         self.train_noise = expl_info['train_noise']
+        self.cache_expl = expl_info['train_noise']
         self.eval_noise = expl_info['eval_noise']
         self.expl_min = expl_info['expl_min']
         self.expl_decay = expl_info['expl_decay']
@@ -143,10 +144,14 @@ class ContinousActionModel(nn.Module):
             if itr <= self.decay_start:
                 expl_amount = self.train_noise
             else:
-                expl_amount = self.train_noise
-                ir = itr - self.decay_start + 1
-                expl_amount = expl_amount - ir/self.expl_decay
-                expl_amount = max(self.expl_min, expl_amount)
+                if itr % 100==0:
+                  expl_amount = self.train_noise
+                  ir = itr - self.decay_start + 1
+                  expl_amount = expl_amount - ir/self.expl_decay
+                  expl_amount = max(self.expl_min, expl_amount)
+                  self.cache_expl = expl_amount
+                else:
+                  expl_amount = self.cache_expl
 
         if self.expl_type == 'gaussian':
             noise = np.random.normal(0, expl_amount, size = action.shape)
