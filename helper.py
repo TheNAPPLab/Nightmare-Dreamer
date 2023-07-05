@@ -34,67 +34,49 @@ def calculate_epsilon(config, itr):
     return max(config.expl['expl_min'] , expl_amount)
 
 def eval_model(env, trainer):
-    obs_, _ = env.reset()
-    score_ = 0
-    terminated_, truncated_ = False, False
-    prev_rssmstate_ = trainer.RSSM._init_rssm_state(1)
-    prev_action_ = torch.zeros(1, trainer.action_size).to(trainer.device)
     scores_ = []
-
     for _ in range(5):
-        with torch.no_grad():
-            embed_ = trainer.ObsEncoder(torch.tensor(obs_, dtype=torch.float32).unsqueeze(0).to(trainer.device))  
-            _, posterior_rssm_state_ = trainer.RSSM.rssm_observe(embed_, prev_action_, not terminated_, prev_rssmstate_)
-            model_state_ = trainer.RSSM.get_model_state(posterior_rssm_state_)
-            action_, _ = trainer.ActionModel(model_state_)
-            action = action.detach()
+        obs_, _ = env.reset()
+        score_ = 0
+        terminated_, truncated_ = False, False
+        prev_rssmstate_ = trainer.RSSM._init_rssm_state(1)
+        prev_action_ = torch.zeros(1, trainer.action_size).to(trainer.device)
+        while not terminated_ and not truncated_:
+            with torch.no_grad():
+                embed_ = trainer.ObsEncoder(torch.tensor(obs_, dtype=torch.float32).unsqueeze(0).to(trainer.device))  
+                _, posterior_rssm_state_ = trainer.RSSM.rssm_observe(embed_, prev_action_, not terminated_, prev_rssmstate_)
+                model_state_ = trainer.RSSM.get_model_state(posterior_rssm_state_)
+                action_, _ = trainer.ActionModel(model_state_)
+                action = action.detach()
         next_obs_, rew_, terminated_, truncated_, _ = env.step(np.argmax(action_.cpu().numpy()))
         score_ += rew_
-        if terminated_ or truncated_:
-            trainer.buffer.add(obs_, action_.squeeze(0).cpu().numpy(), rew_, terminated_) # add high quality games also
-            scores_.append(score_) 
-            obs_, _ = env.reset()
-            score_ = 0
-            terminated_, truncated_ = False, False
-            prev_rssmstate_ = trainer.RSSM._init_rssm_state(1)
-            prev_action_ = torch.zeros(1, trainer.action_size).to(trainer.device)
-        else:
-            trainer.buffer.add(obs_, action_.squeeze(0).detach().cpu().numpy(), rew_, terminated_)
-            obs_ = next_obs_
-            prev_rssmstate_ = posterior_rssm_state_
-            prev_action_ = action_
+        obs_ = next_obs_
+        prev_rssmstate_ = posterior_rssm_state_
+        prev_action_ = action_
     return np.mean(scores_)
 
 
 
 def eval_model_continous(env, trainer):
-    obs_, _ = env.reset()
-    score_ = 0
-    terminated_, truncated_ = False, False
-    prev_rssmstate_ = trainer.RSSM._init_rssm_state(1)
-    prev_action_ = torch.zeros(1, trainer.action_size).to(trainer.device)
     scores_ = []
     for _ in range(5):
-        with torch.no_grad():
-            embed_ = trainer.ObsEncoder(torch.tensor(obs_, dtype=torch.float32).unsqueeze(0).to(trainer.device))  
-            _, posterior_rssm_state_ = trainer.RSSM.rssm_observe(embed_, prev_action_, not terminated_, prev_rssmstate_)
-            model_state_ = trainer.RSSM.get_model_state(posterior_rssm_state_)
-            action_, _ = trainer.ActionModel(model_state_, deter = True)
-        next_obs_, rew_, terminated_, truncated_, _ = env.step(action_.squeeze(0).cpu().numpy())
-        score_ += rew_
-        if terminated_ or truncated_:
-            trainer.buffer.add(obs_, action_.squeeze(0).cpu().numpy(), rew_, terminated_) # add high quality games also
-            scores_.append(score_) 
-            obs_, _ = env.reset()
-            score_ = 0
-            terminated_, truncated_ = False, False
-            prev_rssmstate_ = trainer.RSSM._init_rssm_state(1)
-            prev_action_ = torch.zeros(1, trainer.action_size).to(trainer.device)
-        else:
-            trainer.buffer.add(obs_, action_.squeeze(0).detach().cpu().numpy(), rew_, terminated_)
+        score_ = 0
+        obs_, _ = env.reset()
+        terminated_, truncated_ = False, False
+        prev_rssmstate_ = trainer.RSSM._init_rssm_state(1)
+        prev_action_ = torch.zeros(1, trainer.action_size).to(trainer.device)
+        while not terminated_ and not truncated_:
+            with torch.no_grad():
+                embed_ = trainer.ObsEncoder(torch.tensor(obs_, dtype=torch.float32).unsqueeze(0).to(trainer.device))  
+                _, posterior_rssm_state_ = trainer.RSSM.rssm_observe(embed_, prev_action_, not terminated_, prev_rssmstate_)
+                model_state_ = trainer.RSSM.get_model_state(posterior_rssm_state_)
+                action_, _ = trainer.ActionModel(model_state_, deter = True)
+            next_obs_, rew_, terminated_, truncated_, _ = env.step(action_.squeeze(0).cpu().numpy())
+            score_ += rew_
             obs_ = next_obs_
             prev_rssmstate_ = posterior_rssm_state_
             prev_action_ = action_
+        scores_.append(score_) 
     return np.mean(scores_)
 
 
