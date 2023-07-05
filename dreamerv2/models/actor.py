@@ -144,7 +144,7 @@ class ContinousActionModel(nn.Module):
             if itr <= self.decay_start:
                 expl_amount = self.train_noise
             else:
-                if itr % 100==0:
+                if itr % 1000==0:
                   expl_amount = self.train_noise
                   ir = itr - self.decay_start + 1
                   expl_amount = expl_amount - ir/self.expl_decay

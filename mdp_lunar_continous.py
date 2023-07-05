@@ -55,7 +55,7 @@ def main(args):
     config.actor['dist'] = 'trunc_normal'
     config.expl['train_noise'] = 1.0
     config.expl['expl_min'] = 0.01
-    config.expl['expl_decay'] = 50_000
+    config.expl['expl_decay'] = 100_000
     config.expl['decay_start'] = 10_000
     config.expl['expl_type'] = 'gaussian'
     config_dict = config.__dict__
