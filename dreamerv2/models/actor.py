@@ -1,6 +1,7 @@
 import torch 
 import torch.nn as nn
 import numpy as np
+from helper import exponential_decay, PinkNoiseGenerator
 from torch import distributions as torchd
 
 class DiscreteActionModel(nn.Module):
@@ -96,6 +97,7 @@ class ContinousActionModel(nn.Module):
         self.deter_size = deter_size
         self.stoch_size = stoch_size
         self.embedding_size = embedding_size
+        self.decay_type = 'stepped_linear'
         self._min_std = actor_info['min_std']
         self.layers = actor_info['layers']
         self.node_size = actor_info['node_size']
@@ -139,22 +141,42 @@ class ContinousActionModel(nn.Module):
             action = dist.mode()
             return action, dist
         
+    def reset_exploration(self, seq_len):
+        if self.expl_type == 'pink':
+            self.pink_generator = PinkNoiseGenerator(seq_len)
+
     def add_exploration(self, itr, action, action_min, action_max, mode= 'train'):
         if mode == 'train':
             if itr <= self.decay_start:
                 expl_amount = self.train_noise
             else:
-                if itr % 800==0:
-                  expl_amount = self.train_noise
-                  ir = itr - self.decay_start + 1
-                  expl_amount = expl_amount - ir/self.expl_decay
-                  expl_amount = max(self.expl_min, expl_amount)
-                  self.cache_expl = expl_amount
-                else:
-                  expl_amount = self.cache_expl
+
+                if self.decay_type == 'stepped_linear':
+                    if itr % 1000==0:
+                        expl_amount = self.train_noise
+                        ir = itr - self.decay_start + 1
+                        expl_amount = expl_amount - ir/self.expl_decay
+                        expl_amount = max(self.expl_min, expl_amount)
+                        self.cache_expl = expl_amount
+                    else:
+                        expl_amount = self.cache_expl
+                elif self.decay_type == 'linear':
+                    expl_amount = self.train_noise
+                    ir = itr - self.decay_start + 1
+                    expl_amount = expl_amount - ir/self.expl_decay
+                    expl_amount = max(self.expl_min, expl_amount)
+                elif self.decay_type == 'exponent':
+                    decayed_value = exponential_decay(1.0, 0.00001, itr)
+                    expl_amount = decayed_value
+
+
 
         if self.expl_type == 'gaussian':
             noise = np.random.normal(0, expl_amount, size = action.shape)
+            noise = torch.from_numpy(noise).to(action.device)
+            action = action + noise
+        elif self.expl_type == 'pink':
+            noise = self.pink_generator.generate_noise(expl_amount)
             noise = torch.from_numpy(noise).to(action.device)
             action = action + noise
         else: # implement 

@@ -114,7 +114,7 @@ class RSSM(nn.Module, RSSMUtils):
         priors = []
         posteriors = []
         for t in range(seq_len):
-            prev_action = action[t]*nonterms[t]
+            prev_action = action[t] * nonterms[t]
             prior_rssm_state, posterior_rssm_state = self.rssm_observe(obs_embed[t], prev_action, nonterms[t], prev_rssm_state)
             priors.append(prior_rssm_state)
             posteriors.append(posterior_rssm_state)
