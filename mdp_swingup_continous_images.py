@@ -55,7 +55,6 @@ def main(args):
     )
     number_games = 0
     config.actor['max_action'] = 2.0
-    config.capacity = int(1e2)
     config.actor['dist'] = 'trunc_normal'
     config.expl['train_noise'] = 1.0
     config.expl['expl_min'] = 0.1
