@@ -52,6 +52,7 @@ def main(args):
         model_dir=model_dir, 
     )
     number_games = 0
+    config.actor['max_action'] = 1.0
     config.actor['dist'] = 'trunc_normal'
     config.expl['train_noise'] = 1.0
     config.expl['expl_min'] = 0.01
@@ -88,7 +89,7 @@ def main(args):
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not terminated, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist = trainer.ActionModel(model_state, deter = False)
-                action, expl_amount = trainer.ActionModel.add_exploration(iter, action, -1, 1)
+                action, expl_amount = trainer.ActionModel.add_exploration(iter, action, -config.actor['max_action'] , config.actor['max_action'] )
                 action = action.detach()
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)

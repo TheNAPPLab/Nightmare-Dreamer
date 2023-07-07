@@ -83,7 +83,7 @@ def eval_model_continous(env, trainer):
 
 def eval_model_continous_images(env, trainer):
     scores_ = []
-    for _ in range(5):
+    for _ in range(10):
         score_ = 0
         obs_, _ = env.reset()
         terminated_, truncated_ = False, False
@@ -135,3 +135,6 @@ def  get_image_obs(obs):
     return resize(image, (3, 64, 64)) / 255.0 
 
 
+def  get_image_env(env):
+    image = env.render().copy().transpose(2, 0, 1)
+    return resize(image, (3, 64, 64)) / 255.0 

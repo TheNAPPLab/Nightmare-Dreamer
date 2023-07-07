@@ -7,7 +7,7 @@ import gym
 import gymnasium 
 # from dreamerv2.utils.wrapper import GymMinAtar, OneHotAction
 from dreamerv2.training.config import MinAtarConfig
-from dreamerv2.training.trainer_lunar_landing_continous_images import Trainer
+from dreamerv2.training.trainer_pendulum_continous_images import Trainer
 from dreamerv2.training.evaluator import Evaluator
 from helper import  eval_model_continous_images, get_image_obs 
 from gymnasium.wrappers import PixelObservationWrapper
@@ -51,14 +51,16 @@ def main(args):
         action_dtype = action_dtype,
         seq_len = seq_len,
         batch_size = batch_size,
-        model_dir=model_dir, 
+        model_dir = model_dir, 
     )
     number_games = 0
+    config.actor['max_action'] = 2.0
+    config.capacity = int(1e2)
     config.actor['dist'] = 'trunc_normal'
     config.expl['train_noise'] = 1.0
-    config.expl['expl_min'] = 0.01
-    config.expl['expl_decay'] = 100_000
-    config.expl['decay_start'] = 12_000
+    config.expl['expl_min'] = 0.1
+    config.expl['expl_decay'] = 150_000
+    config.expl['decay_start'] = 30_000
     config.expl['expl_type'] = 'gaussian'
     config_dict = config.__dict__
     trainer = Trainer(config, device)
@@ -90,7 +92,7 @@ def main(args):
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not terminated, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist = trainer.ActionModel(model_state, deter = False)
-                action, expl_amount = trainer.ActionModel.add_exploration(iter, action, -3, 3)
+                action, expl_amount = trainer.ActionModel.add_exploration(iter, action, -config.actor['max_action'], config.actor['max_action'])
                 action = action.detach()
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
@@ -137,7 +139,7 @@ if __name__ == "__main__":
 
     """there are tonnes of HPs, if you want to do an ablation over any particular one, please add if here"""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env", type=str, default='InvertedPendulum-v4',  help='mini atari env name')
+    parser.add_argument("--env", type=str, default='Pendulum-v1',  help='mini atari env name')
     parser.add_argument("--id", type=str, default='0', help='Experiment ID')
     parser.add_argument('--seed', type=int, default=123, help='Random seed')
     parser.add_argument('--device', default='cuda', help='CUDA or CPU')

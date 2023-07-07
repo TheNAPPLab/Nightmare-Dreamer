@@ -97,6 +97,7 @@ class ContinousActionModel(nn.Module):
         self.deter_size = deter_size
         self.stoch_size = stoch_size
         self.embedding_size = embedding_size
+        self.max_action  =  actor_info['max_action']
         self.decay_type = 'stepped_linear'
         self._min_std = actor_info['min_std']
         self.layers = actor_info['layers']
@@ -136,10 +137,10 @@ class ContinousActionModel(nn.Module):
 
         if not deter:
             action = dist.sample()
-            return action, dist
+            return self.max_action * action, dist
         else:
             action = dist.mode()
-            return action, dist
+            return self.max_action * action, dist
         
     def reset_exploration(self, seq_len):
         if self.expl_type == 'pink':
