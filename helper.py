@@ -141,7 +141,7 @@ class PinkNoiseGenerator:
 #### Code For Getting Image Observation ###
 def  get_image_obs(obs):
     image = obs['pixels'].transpose(2, 0, 1)
-    return resize(image, (3, 64, 64)) / 255.0 
+    return resize(image, (3, 32, 32)) / 255.0 
 
 
 def  get_image_grey(obs):
@@ -153,7 +153,7 @@ def  get_image_grey(obs):
 
 def  get_image_env(env):
     image = env.render().copy().transpose(2, 0, 1)
-    return resize(image, (3, 64, 64)) / 255.0 
+    return resize(image, (3, 32, 32)) / 255.0 
 
 def get_obs(state, config, env):
     if config.pixel:

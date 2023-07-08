@@ -153,7 +153,7 @@ class Trainer(object):
             discount_dist = self.DiscountModel(imag_modelstates)
             discount_arr = self.discount*torch.round(discount_dist.base_dist.probs)              #mean = prob(disc==1)
 
-        actor_loss, discount, lambda_returns = self._actor_loss(imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy, imag_dist)
+        actor_loss, discount, lambda_returns = self._actor_loss(imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy, imag_dist = None)
         value_loss = self._value_loss(imag_modelstates, discount, lambda_returns)     
 
         mean_target = torch.mean(lambda_returns, dim=1)

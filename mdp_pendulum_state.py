@@ -13,7 +13,7 @@ import numpy as np
 import gym
 import gymnasium 
 # from dreamerv2.utils.wrapper import GymMinAtar, OneHotAction
-from dreamerv2.training.config import MinAtarConfig
+from dreamerv2.training.config import MinAtarConfig, FlatStateConfig
 from dreamerv2.training.training_pendulum.trainer_pendulm import Trainer
 from dreamerv2.training.evaluator import Evaluator
 from helper import eval_model_continous, get_obs
@@ -51,7 +51,7 @@ def main(args):
     batch_size = args.batch_size
     seq_len = args.seq_len
 
-    config = MinAtarConfig(
+    config = FlatStateConfig(
         env = env_name,
         pixel = False,
         actor_grad = 'dynamics', #reinforce
@@ -73,7 +73,7 @@ def main(args):
     config.eval_episode = 20
     config.actor_entropy_scale = 1e-6
     config.eval_every = 100
-    config.train_every = 5
+    config.train_every = 10
     config.critic['use_mse_critic'] = False
     config.expl['should_explore'] = False
     config.expl['train_noise'] = 1.0
@@ -94,8 +94,7 @@ def main(args):
     evaluator = Evaluator(config, device)
 
 
-
-    with wandb.init(project='Safe RL via Latent world models', config = config_dict):
+    with wandb.init(project='Safe RL via Latent world models - State Obs', config = config_dict):
         """training loop"""
         print('...training...')
         train_metrics = {}
