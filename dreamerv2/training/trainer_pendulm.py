@@ -11,6 +11,7 @@ from dreamerv2.models.dense import DenseModel
 from dreamerv2.models.rssm import RSSM
 from dreamerv2.models.pixel import ObsDecoder, ObsEncoder
 from dreamerv2.utils.buffer import TransitionBuffer
+from helper import index_to_discrete
 
 class Trainer(object):
     def __init__(
@@ -42,14 +43,14 @@ class Trainer(object):
         terminated, truncated = False, False
         for _ in range(self.seed_steps):
             a = env.action_space.sample()
-            a_ = np.eye(env.action_space.n)[a] 
+            a_ = index_to_discrete(env, a)
             ns, r, terminated, truncated, _ = env.step(a)
             if terminated or truncated:
-                self.buffer.add(s, a_,r,terminated)
+                self.buffer.add(s, a_, r, terminated)
                 s, _  = env.reset() 
                 terminated, truncated = False, False
             else:
-                self.buffer.add(s,a_,r,terminated)
+                self.buffer.add(s, a_, r, terminated)
                 s = ns    
 
     def train_batch(self, train_metrics):
@@ -117,18 +118,18 @@ class Trainer(object):
             std_targ.append(target_info['std_targ'])
 
         train_metrics['model_loss'] = np.mean(model_l)
-        train_metrics['kl_loss']=np.mean(kl_l)
-        train_metrics['reward_loss']=np.mean(reward_l)
-        train_metrics['obs_loss']=np.mean(obs_l)
-        train_metrics['value_loss']=np.mean(value_l)
-        train_metrics['actor_loss']=np.mean(actor_l)
-        train_metrics['prior_entropy']=np.mean(prior_ent_l)
-        train_metrics['posterior_entropy']=np.mean(post_ent_l)
-        train_metrics['pcont_loss']=np.mean(pcont_l)
-        train_metrics['mean_targ']=np.mean(mean_targ)
-        train_metrics['min_targ']=np.mean(min_targ)
-        train_metrics['max_targ']=np.mean(max_targ)
-        train_metrics['std_targ']=np.mean(std_targ)
+        train_metrics['kl_loss'] = np.mean(kl_l)
+        train_metrics['reward_loss'] = np.mean(reward_l)
+        train_metrics['obs_loss'] = np.mean(obs_l)
+        train_metrics['value_loss'] = np.mean(value_l)
+        train_metrics['actor_loss'] = np.mean(actor_l)
+        train_metrics['prior_entropy'] = np.mean(prior_ent_l)
+        train_metrics['posterior_entropy'] = np.mean(post_ent_l)
+        train_metrics['pcont_loss'] = np.mean(pcont_l)
+        train_metrics['mean_targ'] = np.mean(mean_targ)
+        train_metrics['min_targ'] = np.mean(min_targ)
+        train_metrics['max_targ'] = np.mean(max_targ)
+        train_metrics['std_targ'] = np.mean(std_targ)
 
         return train_metrics
 
@@ -165,24 +166,6 @@ class Trainer(object):
 
         return actor_loss, value_loss, target_info
 
-    def representation_loss(self, obs, actions, rewards, nonterms):
-
-        embed = self.ObsEncoder(obs)                                         #t to t+seq_len   
-        prev_rssm_state = self.RSSM._init_rssm_state(self.batch_size)   
-        prior, posterior = self.RSSM.rollout_observation(self.seq_len, embed, actions, nonterms, prev_rssm_state)
-        post_modelstate = self.RSSM.get_model_state(posterior)               #t to t+seq_len   
-        obs_dist = self.ObsDecoder(post_modelstate[:-1])                     #t to t+seq_len-1  
-        reward_dist = self.RewardDecoder(post_modelstate[:-1])               #t to t+seq_len-1  
-        pcont_dist = self.DiscountModel(post_modelstate[:-1])                #t to t+seq_len-1   
-        
-        obs_loss = self._obs_loss(obs_dist, obs[:-1])
-        reward_loss = self._reward_loss(reward_dist, rewards[1:])
-        pcont_loss = self._pcont_loss(pcont_dist, nonterms[1:])
-        prior_dist, post_dist, div = self._kl_loss(prior, posterior)
-
-        model_loss = self.loss_scale['kl'] * div + reward_loss + obs_loss + self.loss_scale['discount']*pcont_loss
-        return model_loss, div, obs_loss, reward_loss, pcont_loss, prior_dist, post_dist, posterior
-
     def _actor_loss(self, imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy):
 
         lambda_returns = compute_return(imag_reward[:-1], imag_value[:-1], discount_arr[:-1], bootstrap=imag_value[-1], lambda_=self.lambda_)
@@ -210,9 +193,32 @@ class Trainer(object):
             value_target = lambda_returns.detach()
 
         value_dist = self.ValueModel(value_modelstates) 
-        value_loss = -torch.mean(value_discount*value_dist.log_prob(value_target).unsqueeze(-1))
+
+        if self.config.critic['use_mse_critic']:
+            pass
+        else:
+            value_loss = -torch.mean(value_discount*value_dist.log_prob(value_target).unsqueeze(-1))
         return value_loss
-            
+ 
+    def representation_loss(self, obs, actions, rewards, nonterms):
+
+        embed = self.ObsEncoder(obs)                                         #t to t+seq_len   
+        prev_rssm_state = self.RSSM._init_rssm_state(self.batch_size)   
+        prior, posterior = self.RSSM.rollout_observation(self.seq_len, embed, actions, nonterms, prev_rssm_state)
+        post_modelstate = self.RSSM.get_model_state(posterior)               #t to t+seq_len   
+        obs_dist = self.ObsDecoder(post_modelstate[:-1])                     #t to t+seq_len-1  
+        reward_dist = self.RewardDecoder(post_modelstate[:-1])               #t to t+seq_len-1  
+        pcont_dist = self.DiscountModel(post_modelstate[:-1])                #t to t+seq_len-1   
+        
+        obs_loss = self._obs_loss(obs_dist, obs[:-1])
+        reward_loss = self._reward_loss(reward_dist, rewards[1:])
+        pcont_loss = self._pcont_loss(pcont_dist, nonterms[1:])
+        prior_dist, post_dist, div = self._kl_loss(prior, posterior)
+
+        model_loss = self.loss_scale['kl'] * div + reward_loss + obs_loss + self.loss_scale['discount']*pcont_loss
+        return model_loss, div, obs_loss, reward_loss, pcont_loss, prior_dist, post_dist, posterior
+
+           
     def _obs_loss(self, obs_dist, obs):
         obs_loss = -torch.mean(obs_dist.log_prob(obs))
         return obs_loss

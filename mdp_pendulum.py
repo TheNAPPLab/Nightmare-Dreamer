@@ -14,9 +14,9 @@ import gym
 import gymnasium 
 # from dreamerv2.utils.wrapper import GymMinAtar, OneHotAction
 from dreamerv2.training.config import MinAtarConfig
-from dreamerv2.training.trainer_lunar_landing_continous import Trainer
+from dreamerv2.training.trainer_pendulm import Trainer
 from dreamerv2.training.evaluator import Evaluator
-from helper import  eval_model_continous
+from helper import eval_model_continous
 
 
 def main(args):
@@ -59,18 +59,26 @@ def main(args):
         model_dir=model_dir, 
     )
     number_games = 0
+
+    ##Config start ####
     config.actor['dist'] = 'trunc_normal'
-    config.actor['max_action'] = 2
+    config.actor['max_action'] = 2.0
+    config.capacity = int(5e6)
     config.eval_episode = 20
     config.actor_entropy_scale = 1e-6
     config.eval_every = 100
     config.train_every = 5
+    config.critic['use_mse_critic'] = False
     config.expl['should_explore'] = False
     config.expl['train_noise'] = 1.0
     config.expl['expl_min'] = 0.01
     config.expl['expl_decay'] = 100_000
     config.expl['decay_start'] = 10_000
     config.expl['expl_type'] = 'gaussian'
+    ### Config End ###
+
+
+
     config_dict = config.__dict__
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)
@@ -116,6 +124,7 @@ def main(args):
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
+                
                 if config.expl['should_explore']:
                     train_metrics['noise_Std'] = expl_amount
 

@@ -4,6 +4,9 @@ from scipy.signal import lfilter
 from skimage.transform import resize
 from skimage.color import rgb2gray
 
+
+
+### Converting Control Dims For Discretisation #####
 def control_to_onehot(control_values, num_bins = 15):
     # Convert control values to one-hot array
     control_value_x = control_values[0]
@@ -30,12 +33,13 @@ def onehot_to_control(onehot, num_bins = 15):
     control_value_y = (index_y / (num_bins - 1) * 2) - 1
 
     return np.array([control_value_x, control_value_y])
+### Converting Control Dims For Discretisation #####
 
-def calculate_epsilon(config, itr):
-    expl_amount = config.expl['train_noise'] = 1.0
-    expl_amount = expl_amount - itr/config.expl['expl_decay']
-    return max(config.expl['expl_min'] , expl_amount)
+def index_to_discrete(env, a):
+    return np.eye(env.action_space.n)[a] 
 
+
+#### Code For Evaluation #########
 def eval_model(env, trainer):
     scores_ = []
     for _ in range(5):
@@ -104,6 +108,9 @@ def eval_model_continous_images(env, trainer, eval_steps):
         scores_.append(score_) 
     return np.mean(scores_)
 
+
+#### Code For Evaluation End #########
+
 def exponential_decay(initial_value, decay_rate, current_step):
     decayed_value = initial_value * np.exp(-decay_rate * current_step)
     return decayed_value
@@ -131,6 +138,7 @@ class PinkNoiseGenerator:
             denominator = 1 - (k / (order + 1)) ** 2
             self.coefficients[k] = self.coefficients[order - k] = np.sqrt(denominator)
 
+#### Code For Getting Image Observation ###
 def  get_image_obs(obs):
     image = obs['pixels'].transpose(2, 0, 1)
     return resize(image, (3, 64, 64)) / 255.0 
@@ -146,3 +154,5 @@ def  get_image_grey(obs):
 def  get_image_env(env):
     image = env.render().copy().transpose(2, 0, 1)
     return resize(image, (3, 64, 64)) / 255.0 
+
+#### Code For Getting Image Observation ###
