@@ -138,7 +138,11 @@ class Trainer(object):
         
         with FreezeParameters(self.world_list):
             with RequiresGrad(self.ActionModel):
-                imag_rssm_states, imag_log_prob, policy_entropy = self.RSSM.rollout_imagination(self.horizon, self.ActionModel, batched_posterior)
+
+                if self.config.use_torch_entropy:
+                    imag_rssm_states, imag_log_prob, policy_entropy, imag_dist = self.RSSM.rollout_imagination(self.horizon, self.ActionModel, batched_posterior, self.config.use_torch_entropy)
+                else :
+                    imag_rssm_states, imag_log_prob, policy_entropy = self.RSSM.rollout_imagination(self.horizon, self.ActionModel, batched_posterior)
         
         imag_modelstates = self.RSSM.get_model_state(imag_rssm_states)
         with FreezeParameters(self.world_list+self.value_list+[self.TargetValueModel]+[self.DiscountModel]):
@@ -149,7 +153,7 @@ class Trainer(object):
             discount_dist = self.DiscountModel(imag_modelstates)
             discount_arr = self.discount*torch.round(discount_dist.base_dist.probs)              #mean = prob(disc==1)
 
-        actor_loss, discount, lambda_returns = self._actor_loss(imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy)
+        actor_loss, discount, lambda_returns = self._actor_loss(imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy, imag_dist)
         value_loss = self._value_loss(imag_modelstates, discount, lambda_returns)     
 
         mean_target = torch.mean(lambda_returns, dim=1)
@@ -166,12 +170,12 @@ class Trainer(object):
 
         return actor_loss, value_loss, target_info
 
-    def _actor_loss(self, imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy):
+    def _actor_loss(self, imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy, imag_dist = None ):
 
-        lambda_returns = compute_return(imag_reward[:-1], imag_value[:-1], discount_arr[:-1], bootstrap=imag_value[-1], lambda_=self.lambda_)
+        lambda_returns = compute_return(imag_reward[:-1], imag_value[:-1], discount_arr[:-1], bootstrap = imag_value[-1], lambda_ = self.lambda_)
         
         if self.config.actor_grad == 'reinforce':
-            advantage = (lambda_returns-imag_value[:-1]).detach()
+            advantage = ( lambda_returns - imag_value[:-1] ).detach()
             objective = imag_log_prob[1:].unsqueeze(-1) * advantage
 
         elif self.config.actor_grad == 'dynamics':
@@ -184,7 +188,8 @@ class Trainer(object):
         if self.config.use_torch_entropy:
             policy_entropy = policy_entropy[1:].unsqueeze(-1)
         else:
-            pass
+            imag_dist.sample()  # using sample because it calls rsample which would have gradients
+            imag_dist = torch.clip(-0.999, 0.999)
         actor_loss = -torch.sum(torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
         return actor_loss, discount, lambda_returns
     

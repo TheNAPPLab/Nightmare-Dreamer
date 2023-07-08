@@ -69,7 +69,7 @@ def main(args):
     config.actor_entropy_scale = 1e-6
     config.eval_every = 100
     config.train_every = 5
-    config.critic['use_mse_critic'] = True
+    config.critic['use_mse_critic'] = False
     config.expl['should_explore'] = False
     config.expl['train_noise'] = 1.0
     config.expl['expl_min'] = 0.01
@@ -99,6 +99,7 @@ def main(args):
         scores = []
         best_mean_score = float('-inf')
         best_save_path = os.path.join(model_dir, 'models_best.pth')
+
         for iter in range(1, trainer.config.train_steps):
 
             if iter%trainer.config.train_every == 0:
@@ -116,11 +117,19 @@ def main(args):
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist = trainer.ActionModel(model_state, deter = False)
                 if config.expl['should_explore']:
-                    action, expl_amount = trainer.ActionModel.add_exploration(iter, action, -config.actor['max_action'], -config.actor['max_action'])
+                    if config.actor['dist'] == 'one_hot':
+                        pass
+                    else:
+                        action, expl_amount = trainer.ActionModel.add_exploration(iter, action, -config.actor['max_action'], -config.actor['max_action'])
                 action = action.detach()
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
-            next_obs, rew, terminated, truncated, _ = env.step(action.squeeze(0).cpu().numpy())
+
+            if config.actor['dist'] == 'one_hot':
+                 next_obs, rew, terminated, truncated, _ = env.step( np.argmax(action.cpu().numpy()) )
+            else:
+                next_obs, rew, terminated, truncated, _ = env.step(action.squeeze(0).cpu().numpy())
+
             score += rew
 
             if terminated or truncated:
