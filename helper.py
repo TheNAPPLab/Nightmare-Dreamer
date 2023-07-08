@@ -155,4 +155,9 @@ def  get_image_env(env):
     image = env.render().copy().transpose(2, 0, 1)
     return resize(image, (3, 64, 64)) / 255.0 
 
+def get_obs(state, config, env):
+    if config.pixel:
+        pass
+    else:
+        return state
 #### Code For Getting Image Observation ###

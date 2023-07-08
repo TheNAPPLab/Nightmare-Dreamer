@@ -139,7 +139,7 @@ class Trainer(object):
         with FreezeParameters(self.world_list):
             with RequiresGrad(self.ActionModel):
 
-                if self.config.use_torch_entropy:
+                if not self.config.use_torch_entropy:
                     imag_rssm_states, imag_log_prob, policy_entropy, imag_dist = self.RSSM.rollout_imagination(self.horizon, self.ActionModel, batched_posterior, self.config.use_torch_entropy)
                 else :
                     imag_rssm_states, imag_log_prob, policy_entropy = self.RSSM.rollout_imagination(self.horizon, self.ActionModel, batched_posterior)

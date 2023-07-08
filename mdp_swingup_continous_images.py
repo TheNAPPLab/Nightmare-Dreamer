@@ -5,13 +5,11 @@ import torch
 import numpy as np
 import gym
 import gymnasium 
-# from dreamerv2.utils.wrapper import GymMinAtar, OneHotAction
 from dreamerv2.training.config import MinAtarConfig
-from dreamerv2.training.trainer_pendulum_continous_images import Trainer
+from dreamerv2.training.training_pendulum.trainer_pendulum_continous_images import Trainer
 from dreamerv2.training.evaluator import Evaluator
 from helper import  eval_model_continous_images, get_image_obs 
 from gymnasium.wrappers import PixelObservationWrapper
-
 
 def main(args):
     wandb.login()
@@ -33,9 +31,8 @@ def main(args):
         device = torch.device('cpu')
     print('using :', device)  
     
-    env = PixelObservationWrapper(gymnasium.make(env_name, render_mode="rgb_array", continous = True))
-    #env = PixelObservationWrapper(gymnasium.make(env_name, render_mode="rgb_array"))
-    obs_shape = (3, 64, 64)
+    env = PixelObservationWrapper(gymnasium.make(env_name, render_mode="rgb_array"))
+    obs_shape = (3, 32, 32)
     action_size = 1
     obs_dtype =  np.float32
     action_dtype = np.float32
@@ -55,14 +52,25 @@ def main(args):
         model_dir = model_dir, 
     )
     number_games = 0
-    config.actor['max_action'] = 1.0
-    config.capacity = int(1e2)
     config.actor['dist'] = 'trunc_normal'
+    config.actor['max_action'] = 2.0
+    config.train_steps = int(1e6)
+    config.capacity = int(2e6) #2e6
+    config.eval_episode = 20
+    config.actor_entropy_scale = 1e-6
+    config.eval_every = 100
+    config.train_every: int = 10
+    config.critic['use_mse_critic'] = False
+    config.expl['should_explore'] = False
     config.expl['train_noise'] = 1.0
-    config.expl['expl_min'] = 0.1
-    config.expl['expl_decay'] = 500_000
-    config.expl['decay_start'] = 30_000
+    config.expl['expl_min'] = 0.4
+    config.expl['expl_decay'] = 1_000_000
+    config.expl['decay_start'] = 600_000
     config.expl['expl_type'] = 'gaussian'
+    config.use_torch_entropy = False
+    config.access_image = 'obs' #env, vision, obs
+    ### Config End ###
+
     config_dict = config.__dict__
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)
@@ -79,25 +87,37 @@ def main(args):
         prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
         episode_actor_ent = []
         scores = []
-        best_mean_score = 0
+        best_mean_score = float('-inf')
         best_save_path = os.path.join(model_dir, 'models_best.pth')
         for iter in range(1, trainer.config.train_steps):  
+
             if iter%trainer.config.train_every == 0:
                 train_metrics = trainer.train_batch(train_metrics)
+
             if iter%trainer.config.slow_target_update == 0:
-                trainer.update_target()                
+                trainer.update_target()
+
             if iter%trainer.config.save_every == 0:
                 trainer.save_model(iter)
+
             with torch.no_grad():
                 embed = trainer.ObsEncoder(torch.tensor(get_image_obs(obs), dtype=torch.float32).unsqueeze(0).to(trainer.device)) 
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not terminated, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist = trainer.ActionModel(model_state, deter = False)
-                action, expl_amount = trainer.ActionModel.add_exploration(iter, action, -config.actor['max_action'], config.actor['max_action'])
+                if config.expl['should_explore']:
+                    if config.actor['dist'] == 'one_hot':
+                        pass
+                    else:
+                        action, expl_amount = trainer.ActionModel.add_exploration(iter, action, -config.actor['max_action'], -config.actor['max_action'])
                 action = action.detach()
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
-            next_obs, rew, terminated, truncated, _ = env.step(action.squeeze(0).cpu().numpy())
+
+            if config.actor['dist'] == 'one_hot':
+                next_obs, rew, terminated, truncated, _ = env.step( np.argmax(action.cpu().numpy()) )
+            else:
+                next_obs, rew, terminated, truncated, _ = env.step(action.squeeze(0).cpu().numpy())
             score += rew
 
             if terminated or truncated:
@@ -106,16 +126,19 @@ def main(args):
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
-                train_metrics['Noise_Std'] = expl_amount
-                if number_games % 100 == 0:
-                    train_metrics['Eval_score'] = eval_model_continous_images(env, trainer)
+
+                if config.expl['should_explore']:
+                    train_metrics['noise_Std'] = expl_amount
+                if number_games % config.eval_every == 0:
+                    train_metrics['eval_score'] = eval_model_continous_images(env, trainer, config.eval_episode)
                 wandb.log(train_metrics, step=iter)
                 scores.append(score)
                 if len(scores)>100:
                     scores.pop(0)
                     current_average = np.mean(scores)
-                    train_metrics['Last_100_avg_score'] =   np.mean(scores)
-                    if current_average>best_mean_score:
+                    train_metrics['last_100_avg_score'] =   np.mean(scores)
+
+                    if current_average > best_mean_score:
                         best_mean_score = current_average 
                         train_metrics['current_best_avg_score'] =  current_average
                         print('saving best model with mean score : ', best_mean_score)
@@ -139,9 +162,8 @@ def main(args):
 if __name__ == "__main__":
 
     """there are tonnes of HPs, if you want to do an ablation over any particular one, please add if here"""
-    #LunarLander-v2 Pendulum-v1
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env", type=str, default='LunarLander-v2',  help='mini atari env name')
+    parser.add_argument("--env", type=str, default='Pendulum-v1',  help='mini atari env name')
     parser.add_argument("--id", type=str, default='0', help='Experiment ID')
     parser.add_argument('--seed', type=int, default=123, help='Random seed')
     parser.add_argument('--device', default='cuda', help='CUDA or CPU')

@@ -16,7 +16,9 @@ import gymnasium
 from dreamerv2.training.config import MinAtarConfig
 from dreamerv2.training.training_pendulum.trainer_pendulm import Trainer
 from dreamerv2.training.evaluator import Evaluator
-from helper import eval_model_continous
+from helper import eval_model_continous, get_obs
+
+
 
 
 def main(args):
@@ -38,7 +40,10 @@ def main(args):
         device = torch.device('cpu')
     print('using :', device)  
     
-    env = gymnasium.make( env_name ) 
+
+
+    env = gymnasium.make( env_name )
+
     obs_shape = env.observation_space.shape
     action_size = 1
     obs_dtype =  np.float32
@@ -47,7 +52,7 @@ def main(args):
     seq_len = args.seq_len
 
     config = MinAtarConfig(
-        env=env_name,
+        env = env_name,
         pixel = False,
         actor_grad = 'dynamics', #reinforce
         obs_shape=obs_shape,
@@ -61,7 +66,7 @@ def main(args):
     number_games = 0
 
     ##Config start ####
-    config.actor['dist'] = 'trunc_normal'
+    config.actor['dist'] = 'trunc_normal'  #one_hot
     config.actor['max_action'] = 2.0
     config.train_steps = int(1e6)
     config.capacity = int(2e6) #2e6
@@ -76,14 +81,19 @@ def main(args):
     config.expl['expl_decay'] = 100_000
     config.expl['decay_start'] = 10_000
     config.expl['expl_type'] = 'gaussian'
-    config.use_torch_entropy = True
+    config.use_torch_entropy = False
+    config.access_image = 'obs' #env, vision, obs
     ### Config End ###
 
+
+  
 
 
     config_dict = config.__dict__
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)
+
+
 
     with wandb.init(project='Safe RL via Latent world models', config = config_dict):
         """training loop"""
@@ -112,29 +122,30 @@ def main(args):
                 trainer.save_model(iter)
 
             with torch.no_grad():
-                embed = trainer.ObsEncoder(torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(trainer.device)) 
+                embed = trainer.ObsEncoder(torch.tensor(get_obs(obs, config, env), dtype=torch.float32).unsqueeze(0).to(trainer.device)) 
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not terminated, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist = trainer.ActionModel(model_state, deter = False)
+
                 if config.expl['should_explore']:
                     if config.actor['dist'] == 'one_hot':
                         pass
                     else:
                         action, expl_amount = trainer.ActionModel.add_exploration(iter, action, -config.actor['max_action'], -config.actor['max_action'])
+
                 action = action.detach()
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
 
             if config.actor['dist'] == 'one_hot':
-                 next_obs, rew, terminated, truncated, _ = env.step( np.argmax(action.cpu().numpy()) )
+                next_obs, rew, terminated, truncated, _ = env.step( np.argmax(action.cpu().numpy()) )
             else:
                 next_obs, rew, terminated, truncated, _ = env.step(action.squeeze(0).cpu().numpy())
-
             score += rew
 
             if terminated or truncated:
                 number_games += 1
-                trainer.buffer.add(obs, action.squeeze(0).detach().cpu().numpy(), rew, terminated)
+                trainer.buffer.add(get_obs(obs, config, env), action.squeeze(0).detach().cpu().numpy(), rew, terminated)
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
@@ -152,12 +163,14 @@ def main(args):
                     scores.pop(0)
                     current_average = np.mean(scores)
                     train_metrics['last_100_avg_score'] =   np.mean(scores)
+
                     if current_average > best_mean_score:
                         best_mean_score = current_average 
                         train_metrics['current_best_avg_score'] =  current_average
                         print('saving best model with mean score : ', best_mean_score)
                         save_dict = trainer.get_save_dict()
                         torch.save(save_dict, best_save_path)
+
                 obs, _ = env.reset()
                 score = 0
                 terminated, truncated = False, False
@@ -165,7 +178,7 @@ def main(args):
                 prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
                 episode_actor_ent = []
             else:
-                trainer.buffer.add(obs, action.squeeze(0).detach().cpu().numpy(), rew, terminated)
+                trainer.buffer.add(get_obs(obs, config, env), action.squeeze(0).detach().cpu().numpy(), rew, terminated)
                 obs = next_obs
                 prev_rssmstate = posterior_rssm_state
                 prev_action = action

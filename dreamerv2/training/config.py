@@ -30,7 +30,7 @@ class MinAtarConfig():
     eval_render: bool = False
     eval_every : int = int(1e2)
     save_every: int = int(1e5)
-    seed_steps: int = 10_000
+    seed_steps: int = 4000
     model_dir: int = 'results'
     gif_dir: int = 'results'
     

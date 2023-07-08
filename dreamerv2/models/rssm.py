@@ -93,8 +93,8 @@ class RSSM(nn.Module, RSSMUtils):
         next_rssm_states = self.rssm_stack_states(next_rssm_states, dim = 0)
         action_entropy = torch.stack(action_entropy, dim = 0)
         imag_log_probs = torch.stack(imag_log_probs, dim = 0)
-        if not use_torch_entropy:
-            imag_dist = torch.stack(imag_dist, dim = 0)
+        # if not use_torch_entropy:
+        #     imag_dist = torch.stack(imag_dist, dim = 0)
         
         if use_torch_entropy:
 
