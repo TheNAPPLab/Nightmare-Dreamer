@@ -165,25 +165,6 @@ class Trainer(object):
         }
 
         return actor_loss, value_loss, target_info
-
-    def representation_loss(self, obs, actions, rewards, nonterms):
-
-        embed = self.ObsEncoder(obs)                                         #t to t+seq_len   
-        prev_rssm_state = self.RSSM._init_rssm_state(self.batch_size)   
-        prior, posterior = self.RSSM.rollout_observation(self.seq_len, embed, actions, nonterms, prev_rssm_state)
-        post_modelstate = self.RSSM.get_model_state(posterior)               #t to t+seq_len   
-        obs_dist = self.ObsDecoder(post_modelstate[:-1])                     #t to t+seq_len-1  
-        reward_dist = self.RewardDecoder(post_modelstate[:-1])               #t to t+seq_len-1  
-        pcont_dist = self.DiscountModel(post_modelstate[:-1])                #t to t+seq_len-1   
-        
-        obs_loss = self._obs_loss(obs_dist, obs[:-1])
-        reward_loss = self._reward_loss(reward_dist, rewards[1:])
-        pcont_loss = self._pcont_loss(pcont_dist, nonterms[1:])
-        prior_dist, post_dist, div = self._kl_loss(prior, posterior)
-
-        model_loss = self.loss_scale['kl'] * div + reward_loss + obs_loss + self.loss_scale['discount']*pcont_loss
-        return model_loss, div, obs_loss, reward_loss, pcont_loss, prior_dist, post_dist, posterior
-
     def _actor_loss(self, imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy):
 
         lambda_returns = compute_return(imag_reward[:-1], imag_value[:-1], discount_arr[:-1], bootstrap=imag_value[-1], lambda_=self.lambda_)
@@ -202,17 +183,40 @@ class Trainer(object):
         policy_entropy = policy_entropy[1:].unsqueeze(-1)
         actor_loss = -torch.sum(torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
         return actor_loss, discount, lambda_returns
-
+    
     def _value_loss(self, imag_modelstates, discount, lambda_returns):
         with torch.no_grad():
             value_modelstates = imag_modelstates[:-1].detach()
             value_discount = discount.detach()
             value_target = lambda_returns.detach()
 
-        value_dist = self.ValueModel(value_modelstates) 
-        value_loss = -torch.mean(value_discount*value_dist.log_prob(value_target).unsqueeze(-1))
+        value_dist = self.ValueModel(value_modelstates)
+        if self.config.critic['use_mse_critic']:
+            pass
+        else:
+            value_loss = -torch.mean(value_discount*value_dist.log_prob(value_target).unsqueeze(-1))
         return value_loss
-            
+       
+    def representation_loss(self, obs, actions, rewards, nonterms):
+
+        embed = self.ObsEncoder(obs)                                         #t to t+seq_len   
+        prev_rssm_state = self.RSSM._init_rssm_state(self.batch_size)   
+        prior, posterior = self.RSSM.rollout_observation(self.seq_len, embed, actions, nonterms, prev_rssm_state)
+        post_modelstate = self.RSSM.get_model_state(posterior)               #t to t+seq_len   
+        obs_dist = self.ObsDecoder(post_modelstate[:-1])                     #t to t+seq_len-1  
+        reward_dist = self.RewardDecoder(post_modelstate[:-1])               #t to t+seq_len-1  
+        pcont_dist = self.DiscountModel(post_modelstate[:-1])                #t to t+seq_len-1   
+        
+        obs_loss = self._obs_loss(obs_dist, obs[:-1])
+        reward_loss = self._reward_loss(reward_dist, rewards[1:])
+        pcont_loss = self._pcont_loss(pcont_dist, nonterms[1:])
+        prior_dist, post_dist, div = self._kl_loss(prior, posterior)
+
+        model_loss = self.loss_scale['kl'] * div + reward_loss + obs_loss + self.loss_scale['discount']*pcont_loss
+        return model_loss, div, obs_loss, reward_loss, pcont_loss, prior_dist, post_dist, posterior
+
+
+     
     def _obs_loss(self, obs_dist, obs):
         obs_loss = -torch.mean(obs_dist.log_prob(obs))
         return obs_loss

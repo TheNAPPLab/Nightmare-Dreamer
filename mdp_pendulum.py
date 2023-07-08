@@ -14,7 +14,7 @@ import gym
 import gymnasium 
 # from dreamerv2.utils.wrapper import GymMinAtar, OneHotAction
 from dreamerv2.training.config import MinAtarConfig
-from dreamerv2.training.trainer_pendulm import Trainer
+from dreamerv2.training.training_pendulum.trainer_pendulm import Trainer
 from dreamerv2.training.evaluator import Evaluator
 from helper import eval_model_continous
 
@@ -40,7 +40,7 @@ def main(args):
     
     env = gymnasium.make( env_name ) 
     obs_shape = env.observation_space.shape
-    action_size = env.action_space.n
+    action_size = 1
     obs_dtype =  np.float32
     action_dtype = np.float32
     batch_size = args.batch_size
@@ -63,7 +63,8 @@ def main(args):
     ##Config start ####
     config.actor['dist'] = 'trunc_normal'
     config.actor['max_action'] = 2.0
-    config.capacity = int(5e6)
+    config.train_steps = int(1e6)
+    config.capacity = int(2e6) #2e6
     config.eval_episode = 20
     config.actor_entropy_scale = 1e-6
     config.eval_every = 100
@@ -97,7 +98,8 @@ def main(args):
         scores = []
         best_mean_score = float('-inf')
         best_save_path = os.path.join(model_dir, 'models_best.pth')
-        for iter in range(1, trainer.config.train_steps):  
+        for iter in range(1, trainer.config.train_steps):
+
             if iter%trainer.config.train_every == 0:
                 train_metrics = trainer.train_batch(train_metrics)
             if iter%trainer.config.slow_target_update == 0:

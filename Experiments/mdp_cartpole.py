@@ -7,7 +7,7 @@ import gym
 import gymnasium 
 # from dreamerv2.utils.wrapper import GymMinAtar, OneHotAction
 from dreamerv2.training.config import MinAtarConfig
-from dreamerv2.training.trainer_pendulm import Trainer
+from dreamerv2.training.training_folders.trainer_cartpole import Trainer
 from dreamerv2.training.evaluator import Evaluator
 from helper import calculate_epsilon, eval_model
 

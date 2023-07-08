@@ -9,7 +9,7 @@ import math
 import random
 # from dreamerv2.utils.wrapper import GymMinAtar, OneHotAction
 from dreamerv2.training.config import MinAtarConfig
-from dreamerv2.training.trainer_pendulm_continous import Trainer
+from dreamerv2.training.training_pendulum.trainer_pendulm import Trainer
 from dreamerv2.training.evaluator import Evaluator
 
 def sample_std(trainer, model_state):
