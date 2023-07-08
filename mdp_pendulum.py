@@ -76,6 +76,7 @@ def main(args):
     config.expl['expl_decay'] = 100_000
     config.expl['decay_start'] = 10_000
     config.expl['expl_type'] = 'gaussian'
+    config.use_torch_entropy = True
     ### Config End ###
 
 
@@ -102,8 +103,10 @@ def main(args):
 
             if iter%trainer.config.train_every == 0:
                 train_metrics = trainer.train_batch(train_metrics)
+
             if iter%trainer.config.slow_target_update == 0:
-                trainer.update_target()                
+                trainer.update_target()
+
             if iter%trainer.config.save_every == 0:
                 trainer.save_model(iter)
 

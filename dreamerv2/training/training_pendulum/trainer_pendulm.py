@@ -181,7 +181,10 @@ class Trainer(object):
 
         discount_arr = torch.cat([torch.ones_like(discount_arr[:1]), discount_arr[1:]])
         discount = torch.cumprod(discount_arr[:-1], 0)
-        policy_entropy = policy_entropy[1:].unsqueeze(-1)
+        if self.config.use_torch_entropy:
+            policy_entropy = policy_entropy[1:].unsqueeze(-1)
+        else:
+            pass
         actor_loss = -torch.sum(torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
         return actor_loss, discount, lambda_returns
     
@@ -216,8 +219,6 @@ class Trainer(object):
         model_loss = self.loss_scale['kl'] * div + reward_loss + obs_loss + self.loss_scale['discount']*pcont_loss
         return model_loss, div, obs_loss, reward_loss, pcont_loss, prior_dist, post_dist, posterior
 
-
-     
     def _obs_loss(self, obs_dist, obs):
         obs_loss = -torch.mean(obs_dist.log_prob(obs))
         return obs_loss
