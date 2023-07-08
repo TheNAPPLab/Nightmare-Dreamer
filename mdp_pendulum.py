@@ -69,7 +69,7 @@ def main(args):
     config.actor_entropy_scale = 1e-6
     config.eval_every = 100
     config.train_every = 5
-    config.critic['use_mse_critic'] = False
+    config.critic['use_mse_critic'] = True
     config.expl['should_explore'] = False
     config.expl['train_noise'] = 1.0
     config.expl['expl_min'] = 0.01

@@ -165,6 +165,7 @@ class Trainer(object):
         }
 
         return actor_loss, value_loss, target_info
+
     def _actor_loss(self, imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy):
 
         lambda_returns = compute_return(imag_reward[:-1], imag_value[:-1], discount_arr[:-1], bootstrap=imag_value[-1], lambda_=self.lambda_)
@@ -192,7 +193,7 @@ class Trainer(object):
 
         value_dist = self.ValueModel(value_modelstates)
         if self.config.critic['use_mse_critic']:
-            pass
+            value_loss = torch.mean((value_dist.mean - value_target)**2)
         else:
             value_loss = -torch.mean(value_discount*value_dist.log_prob(value_target).unsqueeze(-1))
         return value_loss
