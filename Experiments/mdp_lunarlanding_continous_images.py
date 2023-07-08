@@ -7,9 +7,10 @@ import gym
 import gymnasium 
 # from dreamerv2.utils.wrapper import GymMinAtar, OneHotAction
 from dreamerv2.training.config import MinAtarConfig
-from dreamerv2.training.trainer_lunar_landing_continous import Trainer
+from dreamerv2.training.trainer_pendulum_continous_images import Trainer
 from dreamerv2.training.evaluator import Evaluator
-from helper import  eval_model_continous
+from helper import  eval_model_continous_images, get_image_obs 
+from gymnasium.wrappers import GrayScaleObservation
 
 
 def main(args):
@@ -24,15 +25,16 @@ def main(args):
 
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
+
     if torch.cuda.is_available() and args.device:
         device = torch.device('cuda')
         torch.cuda.manual_seed(args.seed)
     else:
         device = torch.device('cpu')
     print('using :', device)  
-    
-    env = gymnasium.make(env_name, continuous = True) 
-    obs_shape = env.observation_space.shape
+    env = gymnasium.make(env_name, render_mode="rgb_array", continuous = True)
+    env = GrayScaleObservation(env, keep_dim=False)
+    obs_shape = (1, 64, 64)
     action_size = 2
     obs_dtype =  np.float32
     action_dtype = np.float32
@@ -41,22 +43,24 @@ def main(args):
 
     config = MinAtarConfig(
         env=env_name,
-        pixel = False,
+        pixel = True,
         actor_grad = 'dynamics', #reinforce
-        obs_shape=obs_shape,
-        action_size=action_size,
+        obs_shape = obs_shape,
+        action_size = action_size,
         obs_dtype = obs_dtype,
         action_dtype = action_dtype,
         seq_len = seq_len,
         batch_size = batch_size,
-        model_dir=model_dir, 
+        model_dir = model_dir, 
     )
     number_games = 0
+    config.actor['max_action'] = 1.0
+    config.capacity = int(1e2)
     config.actor['dist'] = 'trunc_normal'
     config.expl['train_noise'] = 1.0
-    config.expl['expl_min'] = 0.01
-    config.expl['expl_decay'] = 100_000
-    config.expl['decay_start'] = 10_000
+    config.expl['expl_min'] = 0.1
+    config.expl['expl_decay'] = 500_000
+    config.expl['decay_start'] = 30_000
     config.expl['expl_type'] = 'gaussian'
     config_dict = config.__dict__
     trainer = Trainer(config, device)
@@ -84,11 +88,11 @@ def main(args):
             if iter%trainer.config.save_every == 0:
                 trainer.save_model(iter)
             with torch.no_grad():
-                embed = trainer.ObsEncoder(torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(trainer.device)) 
+                embed = trainer.ObsEncoder(torch.tensor(get_image_obs(obs), dtype=torch.float32).unsqueeze(0).to(trainer.device)) 
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not terminated, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist = trainer.ActionModel(model_state, deter = False)
-                action, expl_amount = trainer.ActionModel.add_exploration(iter, action, -1, 1)
+                action, expl_amount = trainer.ActionModel.add_exploration(iter, action, -config.actor['max_action'], config.actor['max_action'])
                 action = action.detach()
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
@@ -97,13 +101,13 @@ def main(args):
 
             if terminated or truncated:
                 number_games += 1
-                trainer.buffer.add(obs, action.squeeze(0).detach().cpu().numpy(), rew, terminated)
+                trainer.buffer.add(get_image_obs(obs), action.squeeze(0).detach().cpu().numpy(), rew, terminated)
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
                 train_metrics['Noise_Std'] = expl_amount
                 if number_games % 100 == 0:
-                    train_metrics['Eval_score'] = eval_model_continous(env, trainer)
+                    train_metrics['Eval_score'] = eval_model_continous_images(env, trainer)
                 wandb.log(train_metrics, step=iter)
                 scores.append(score)
                 if len(scores)>100:
@@ -123,7 +127,7 @@ def main(args):
                 prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
                 episode_actor_ent = []
             else:
-                trainer.buffer.add(obs, action.squeeze(0).detach().cpu().numpy(), rew, terminated)
+                trainer.buffer.add(get_image_obs(obs), action.squeeze(0).detach().cpu().numpy(), rew, terminated)
                 obs = next_obs
                 prev_rssmstate = posterior_rssm_state
                 prev_action = action
@@ -134,6 +138,7 @@ def main(args):
 if __name__ == "__main__":
 
     """there are tonnes of HPs, if you want to do an ablation over any particular one, please add if here"""
+    #LunarLander-v2 Pendulum-v1
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", type=str, default='LunarLander-v2',  help='mini atari env name')
     parser.add_argument("--id", type=str, default='0', help='Experiment ID')

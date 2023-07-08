@@ -33,7 +33,8 @@ def main(args):
         device = torch.device('cpu')
     print('using :', device)  
     
-    env = PixelObservationWrapper(gymnasium.make(env_name, render_mode="rgb_array"))
+    env = PixelObservationWrapper(gymnasium.make(env_name, render_mode="rgb_array", continous = True))
+    #env = PixelObservationWrapper(gymnasium.make(env_name, render_mode="rgb_array"))
     obs_shape = (3, 64, 64)
     action_size = 1
     obs_dtype =  np.float32
@@ -54,11 +55,12 @@ def main(args):
         model_dir = model_dir, 
     )
     number_games = 0
-    config.actor['max_action'] = 2.0
+    config.actor['max_action'] = 1.0
+    config.capacity = int(1e2)
     config.actor['dist'] = 'trunc_normal'
     config.expl['train_noise'] = 1.0
     config.expl['expl_min'] = 0.1
-    config.expl['expl_decay'] = 150_000
+    config.expl['expl_decay'] = 500_000
     config.expl['decay_start'] = 30_000
     config.expl['expl_type'] = 'gaussian'
     config_dict = config.__dict__
@@ -137,8 +139,9 @@ def main(args):
 if __name__ == "__main__":
 
     """there are tonnes of HPs, if you want to do an ablation over any particular one, please add if here"""
+    #LunarLander-v2 Pendulum-v1
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env", type=str, default='Pendulum-v1',  help='mini atari env name')
+    parser.add_argument("--env", type=str, default='LunarLander-v2',  help='mini atari env name')
     parser.add_argument("--id", type=str, default='0', help='Experiment ID')
     parser.add_argument('--seed', type=int, default=123, help='Random seed')
     parser.add_argument('--device', default='cuda', help='CUDA or CPU')

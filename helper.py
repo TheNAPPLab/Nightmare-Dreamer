@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from scipy.signal import lfilter
 from skimage.transform import resize
+from skimage.color import rgb2gray
 
 def control_to_onehot(control_values, num_bins = 15):
     # Convert control values to one-hot array
@@ -59,9 +60,9 @@ def eval_model(env, trainer):
 
 
 
-def eval_model_continous(env, trainer):
+def eval_model_continous(env, trainer, eval_steps):
     scores_ = []
-    for _ in range(5):
+    for _ in range(eval_steps):
         score_ = 0
         obs_, _ = env.reset()
         terminated_, truncated_ = False, False
@@ -81,9 +82,9 @@ def eval_model_continous(env, trainer):
         scores_.append(score_) 
     return np.mean(scores_)
 
-def eval_model_continous_images(env, trainer):
+def eval_model_continous_images(env, trainer, eval_steps):
     scores_ = []
-    for _ in range(10):
+    for _ in range(eval_steps):
         score_ = 0
         obs_, _ = env.reset()
         terminated_, truncated_ = False, False
@@ -133,6 +134,13 @@ class PinkNoiseGenerator:
 def  get_image_obs(obs):
     image = obs['pixels'].transpose(2, 0, 1)
     return resize(image, (3, 64, 64)) / 255.0 
+
+
+def  get_image_grey(obs):
+    image = obs['pixels']
+    gray_image = rgb2gray(image)
+    resized_image = resize(gray_image, (64, 64))
+    return resized_image[np.newaxis, :, :]
 
 
 def  get_image_env(env):

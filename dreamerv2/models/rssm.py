@@ -110,7 +110,7 @@ class RSSM(nn.Module, RSSMUtils):
             posterior_rssm_state = RSSMContState(posterior_mean, std, posterior_stoch_state, deter_state)
         return prior_rssm_state, posterior_rssm_state
 
-    def rollout_observation(self, seq_len:int, obs_embed: torch.Tensor, action: torch.Tensor, nonterms: torch.Tensor, prev_rssm_state):
+    def rollout_observation(self, seq_len : int, obs_embed: torch.Tensor, action: torch.Tensor, nonterms: torch.Tensor, prev_rssm_state):
         priors = []
         posteriors = []
         for t in range(seq_len):

@@ -22,13 +22,13 @@ class MinAtarConfig():
 
     #training desc
     train_steps: int = int(5e6)
-    train_every: int = 40                                  #reduce this to potentially improve sample requirements
+    train_every: int = 10       #reduce this to potentially improve sample requirements
     collect_intervals: int = 5 
     batch_size: int = 50 
     seq_len: int = 50
     eval_episode: int = 4
     eval_render: bool = False
-    eval_every : int = int(1e3)
+    eval_every : int = int(1e2)
     save_every: int = int(1e5)
     seed_steps: int = 4000
     model_dir: int = 'results'
@@ -60,7 +60,7 @@ class MinAtarConfig():
     expl: Dict = field(default_factory=lambda:{'train_noise':0.4, 'eval_noise':0.0, 'expl_min':0.05, 'expl_decay':7000.0, 'expl_type':'epsilon_greedy', "decay_start":35_000})
     actor_grad: str ='dynamics'
     actor_grad_mix: int = 0.0
-    actor_entropy_scale: float = 1e-4
+    actor_entropy_scale: float = 1e-4 
 
     #learnt world-models desc
     obs_encoder: Dict = field(default_factory=lambda:{'layers':3, 'node_size':100, 'dist': None, 'activation':nn.ELU, 'kernel':3, 'depth':16})
