@@ -147,7 +147,7 @@ def  get_image_obs(obs):
 def  get_image_grey(obs):
     image = obs['pixels']
     gray_image = rgb2gray(image)
-    resized_image = resize(gray_image, (64, 64))
+    resized_image = resize(gray_image, (45, 45))
     return resized_image[np.newaxis, :, :]
 
 
