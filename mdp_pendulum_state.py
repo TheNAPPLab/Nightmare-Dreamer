@@ -71,7 +71,7 @@ def main(args):
     config.train_steps = int(1e6)
     config.capacity = int(2e6) #2e6
     config.eval_episode = 20
-    config.actor_entropy_scale = 1e-6
+    config.actor_entropy_scale = 1e-5
     config.eval_every = 100
     config.train_every = 10
     config.critic['use_mse_critic'] = False

@@ -146,9 +146,9 @@ class Trainer(object):
             imag_reward_dist = self.RewardDecoder(imag_modelstates)
             imag_reward = imag_reward_dist.mean
             imag_value_dist = self.TargetValueModel(imag_modelstates)
-            imag_value = imag_value_dist.mean
+            imag_value = imag_value_dist if self.config.critic['use_mse_critic'] else imag_value_dist.mean
             discount_dist = self.DiscountModel(imag_modelstates)
-            discount_arr = self.discount*torch.round(discount_dist.base_dist.probs)              #mean = prob(disc==1)
+            discount_arr = self.discount * torch.round(discount_dist.base_dist.probs)     #mean = prob(disc==1)
 
         actor_loss, discount, lambda_returns = self._actor_loss(imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy)
         value_loss = self._value_loss(imag_modelstates, discount, lambda_returns)     
@@ -166,6 +166,7 @@ class Trainer(object):
         }
 
         return actor_loss, value_loss, target_info
+    
     def _actor_loss(self, imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy):
 
         lambda_returns = compute_return(imag_reward[:-1], imag_value[:-1], discount_arr[:-1], bootstrap=imag_value[-1], lambda_=self.lambda_)
@@ -193,7 +194,10 @@ class Trainer(object):
             value_target = lambda_returns.detach()
 
         value_dist = self.ValueModel(value_modelstates) 
-        value_loss = -torch.mean(value_discount*value_dist.log_prob(value_target).unsqueeze(-1))
+        if self.config.critic['use_mse_critic']:
+            value_loss = torch.mean((value_discount * value_dist - value_target)**2)
+        else:
+            value_loss = -torch.mean(value_discount*value_dist.log_prob(value_target).unsqueeze(-1))
         return value_loss
     
     def representation_loss(self, obs, actions, rewards, nonterms):
@@ -303,6 +307,7 @@ class Trainer(object):
             self.ActionModel = DiscreteActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
         else:
             self.ActionModel = ContinousActionModel(action_size, deter_size, stoch_size, embedding_size, config.actor, config.expl).to(self.device)
+
         self.RewardDecoder = DenseModel((1,), modelstate_size, config.reward).to(self.device)
         self.ValueModel = DenseModel((1,), modelstate_size, config.critic).to(self.device)
         self.TargetValueModel = DenseModel((1,), modelstate_size, config.critic).to(self.device)

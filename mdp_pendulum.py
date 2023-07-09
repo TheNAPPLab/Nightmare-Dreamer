@@ -83,6 +83,7 @@ def main(args):
     config.expl['expl_type'] = 'gaussian'
     config.use_torch_entropy = True
     config.access_image = 'obs' #env, vision, obs
+    config.loss_scale['kl'] = 1.0  # 2.0
     ### Config End ###
 
 

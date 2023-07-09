@@ -31,16 +31,20 @@ def main(args):
         device = torch.device('cpu')
     print('using :', device)  
     
-    env = PixelObservationWrapper(gymnasium.make(env_name, render_mode="rgb_array"))
-    obs_shape = (3, 32, 32)
-    action_size = 1
+    if env_name == "LunarLander-v2":
+        env = PixelObservationWrapper(gymnasium.make(env_name, render_mode="rgb_array", continuous = True))
+    else:
+        env = PixelObservationWrapper(gymnasium.make(env_name, render_mode="rgb_array"))
+
+    obs_shape = (3, 45, 45)
+    action_size = 2
     obs_dtype =  np.float32
     action_dtype = np.float32
     batch_size = args.batch_size
     seq_len = args.seq_len
 
     config = MinAtarConfig(
-        env=env_name,
+        env = env_name,
         pixel = True,
         actor_grad = 'dynamics', #reinforce
         obs_shape = obs_shape,
@@ -53,22 +57,24 @@ def main(args):
     )
     number_games = 0
     config.actor['dist'] = 'trunc_normal'
-    config.actor['max_action'] = 2.0
-    config.train_steps = int(1e6)
+    config.actor['max_action'] = 1.0
+    config.train_steps = int(2e6) #5e6
     config.capacity = int(2e6) #2e6
     config.eval_episode = 20
-    config.actor_entropy_scale = 1e-6
+    config.actor_entropy_scale = 1e-5
     config.eval_every = 100
     config.train_every: int = 10
-    config.critic['use_mse_critic'] = False
+    config.critic['use_mse_critic'] = True
+    config.critic['dist'] = None if config.critic['use_mse_critic'] else 'normal'  #set as scalar
     config.expl['should_explore'] = False
     config.expl['train_noise'] = 1.0
     config.expl['expl_min'] = 0.4
     config.expl['expl_decay'] = 1_000_000
     config.expl['decay_start'] = 600_000
     config.expl['expl_type'] = 'gaussian'
-    config.use_torch_entropy = False
+    config.use_torch_entropy = True
     config.access_image = 'obs' #env, vision, obs
+    config.loss_scale['kl'] = 1.0  #2.0
     ### Config End ###
 
     config_dict = config.__dict__
@@ -79,7 +85,9 @@ def main(args):
         """training loop"""
         print('...training...')
         train_metrics = {}
+        print('...Collecting Seed Samples...')
         trainer.collect_seed_episodes(env)
+        print('...Done Collecting Seed Samples...')
         obs, _ = env.reset()
         score = 0
         terminated, truncated = False, False
@@ -89,6 +97,7 @@ def main(args):
         scores = []
         best_mean_score = float('-inf')
         best_save_path = os.path.join(model_dir, 'models_best.pth')
+
         for iter in range(1, trainer.config.train_steps):  
 
             if iter%trainer.config.train_every == 0:
@@ -101,15 +110,18 @@ def main(args):
                 trainer.save_model(iter)
 
             with torch.no_grad():
+            
                 embed = trainer.ObsEncoder(torch.tensor(get_image_obs(obs), dtype=torch.float32).unsqueeze(0).to(trainer.device)) 
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not terminated, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist = trainer.ActionModel(model_state, deter = False)
+
                 if config.expl['should_explore']:
                     if config.actor['dist'] == 'one_hot':
                         pass
                     else:
                         action, expl_amount = trainer.ActionModel.add_exploration(iter, action, -config.actor['max_action'], -config.actor['max_action'])
+
                 action = action.detach()
                 action_ent = torch.mean(action_dist.entropy()).item()
                 episode_actor_ent.append(action_ent)
@@ -118,6 +130,7 @@ def main(args):
                 next_obs, rew, terminated, truncated, _ = env.step( np.argmax(action.cpu().numpy()) )
             else:
                 next_obs, rew, terminated, truncated, _ = env.step(action.squeeze(0).cpu().numpy())
+
             score += rew
 
             if terminated or truncated:
@@ -127,10 +140,11 @@ def main(args):
                 train_metrics['number_games']  = number_games
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
 
-                if config.expl['should_explore']:
-                    train_metrics['noise_Std'] = expl_amount
+                if config.expl['should_explore']: train_metrics['noise_Std'] = expl_amount
+
                 if number_games % config.eval_every == 0:
                     train_metrics['eval_score'] = eval_model_continous_images(env, trainer, config.eval_episode)
+
                 wandb.log(train_metrics, step=iter)
                 scores.append(score)
                 if len(scores)>100:
@@ -144,6 +158,7 @@ def main(args):
                         print('saving best model with mean score : ', best_mean_score)
                         save_dict = trainer.get_save_dict()
                         torch.save(save_dict, best_save_path)
+
                 obs, _ = env.reset()
                 score = 0
                 terminated, truncated = False, False
@@ -163,7 +178,8 @@ if __name__ == "__main__":
 
     """there are tonnes of HPs, if you want to do an ablation over any particular one, please add if here"""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env", type=str, default='Pendulum-v1',  help='mini atari env name')
+    #parser.add_argument("--env", type=str, default='Pendulum-v1',  help='mini atari env name')
+    parser.add_argument("--env", type=str, default='LunarLander-v2',  help='mini atari env name')
     parser.add_argument("--id", type=str, default='0', help='Experiment ID')
     parser.add_argument('--seed', type=int, default=123, help='Random seed')
     parser.add_argument('--device', default='cuda', help='CUDA or CPU')
