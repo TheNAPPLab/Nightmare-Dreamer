@@ -63,7 +63,7 @@ def main(args):
     config.eval_episode = 20
     config.actor_entropy_scale = 1e-5
     config.eval_every = 100
-    config.train_every: int = 10
+    config.train_every: int = 5
     config.critic['use_mse_critic'] = True
     config.critic['dist'] = None if config.critic['use_mse_critic'] else 'normal'  #set as scalar
     config.expl['should_explore'] = False
