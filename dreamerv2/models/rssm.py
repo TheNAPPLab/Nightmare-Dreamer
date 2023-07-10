@@ -95,11 +95,12 @@ class RSSM(nn.Module, RSSMUtils):
         imag_log_probs = torch.stack(imag_log_probs, dim = 0)
         # if not use_torch_entropy:
         #     imag_dist = torch.stack(imag_dist, dim = 0)
-        
-        if use_torch_entropy:
-            return next_rssm_states, imag_log_probs, action_entropy
-        else:
-            return next_rssm_states, imag_log_probs, action_entropy, imag_dist
+        return next_rssm_states, imag_log_probs, action_entropy if use_torch_entropy \
+                    else next_rssm_states, imag_log_probs, action_entropy, imag_dist
+        # if use_torch_entropy:
+        #     return next_rssm_states, imag_log_probs, action_entropy
+        # else:
+        #     return next_rssm_states, imag_log_probs, action_entropy, imag_dist
 
     def rssm_observe(self, obs_embed, prev_action, prev_nonterm, prev_rssm_state):
         prior_rssm_state = self.rssm_imagine(prev_action, prev_rssm_state, prev_nonterm)
