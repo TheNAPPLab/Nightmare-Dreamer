@@ -39,7 +39,6 @@ def main(args):
         env = gymnasium.make(env_name, continuous = True) \
             if env_name == "LunarLander-v2" else gymnasium.make(env_name)
     obs_shape =  (3, 45, 45) if pixel else env.observation_space.shape
-    obs_shape = env.observation_space.shape
     action_size = 2 if env_name == "LunarLander-v2" else 1
     obs_dtype =  np.float32
     action_dtype = np.float32
