@@ -62,9 +62,9 @@ def main(args):
     config.actor['dist'] = 'trunc_normal'
     config.actor['max_action'] = 1.0 if env_name == "LunarLander-v2" else 2.0
     config.train_steps = int(2e6) #5e6
-    config.capacity = int(1e2) #2e6
+    config.capacity = int(2e6) #2e6
     config.eval_episode = 20
-    config.actor_entropy_scale = 1e-4
+    config.actor_entropy_scale = 1e-5
     config.eval_every = 100
     config.train_every: int = 5
     config.critic['use_mse_critic'] = True
@@ -78,7 +78,7 @@ def main(args):
     config.use_torch_entropy = True
     config.access_image = 'obs' #env, vision, obs
     config.loss_scale['kl'] = 1.0  #2.0
-    config.seed_steps = 2600 # 4000
+    config.seed_steps = 4000 # 4000
     config.discount['use'] = False 
     ### Config End ###
 
