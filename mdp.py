@@ -70,7 +70,7 @@ def main(args):
     config.use_torch_entropy = True
     config.access_image = 'obs' #env, vision, obs
     config.loss_scale['kl'] = 1.0  #2.0
-    config.seed_steps = 2600
+    config.seed_steps = 4000
     ### Config End ###
 
     config_dict = config.__dict__
