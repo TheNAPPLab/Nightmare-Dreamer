@@ -8,11 +8,13 @@ import gymnasium
 from dreamerv2.training.config import MinAtarConfig
 from dreamerv2.training.training_pendulum.trainer_pendulm import Trainer
 from dreamerv2.training.evaluator import Evaluator
-from helper import eval_model_continous, get_obs
+from helper import eval_model_continous, eval_model_continous_images, get_obs, get_image_obs
+from gymnasium.wrappers import PixelObservationWrapper
 
 def main(args):
     wandb.login()
     env_name = args.env
+    pixel = args.pixel
     exp_id = args.id
 
     '''make dir for saving results'''
@@ -28,9 +30,15 @@ def main(args):
         torch.cuda.manual_seed(args.seed)
     else:
         device = torch.device('cpu')
-    print('using :', device)  
-    
-    env = gymnasium.make(env_name, continuous = True) if env_name == "LunarLander-v2" else gymnasium.make(env_name)
+    print('using :', device)
+
+    if pixel:
+        env = PixelObservationWrapper(gymnasium.make(env_name, render_mode="rgb_array", continuous = True))  \
+            if env_name == "LunarLander-v2" else  PixelObservationWrapper(gymnasium.make(env_name, render_mode="rgb_array"))
+    else:
+        env = gymnasium.make(env_name, continuous = True) \
+            if env_name == "LunarLander-v2" else gymnasium.make(env_name)
+    obs_shape =  (3, 45, 45) if pixel else env.observation_space.shape
     obs_shape = env.observation_space.shape
     action_size = 2 if env_name == "LunarLander-v2" else 1
     obs_dtype =  np.float32
@@ -40,7 +48,7 @@ def main(args):
 
     config = MinAtarConfig(
         env = env_name,
-        pixel = False,
+        pixel = pixel,
         actor_grad = 'dynamics', #reinforce
         obs_shape = obs_shape,
         action_size = action_size,
@@ -70,7 +78,8 @@ def main(args):
     config.use_torch_entropy = True
     config.access_image = 'obs' #env, vision, obs
     config.loss_scale['kl'] = 1.0  #2.0
-    config.seed_steps = 4000
+    config.seed_steps = 2600 # 4000
+    config.discount['use'] = False 
     ### Config End ###
 
     config_dict = config.__dict__
@@ -106,8 +115,10 @@ def main(args):
                 trainer.save_model(iter)
 
             with torch.no_grad():
-            
-                embed = trainer.ObsEncoder(torch.tensor(get_obs(obs, config, env), dtype=torch.float32).unsqueeze(0).to(trainer.device)) 
+                if not config.pixel:
+                    embed = trainer.ObsEncoder(torch.tensor(get_obs(obs, config, env), dtype=torch.float32).unsqueeze(0).to(trainer.device)) 
+                else:
+                    embed = trainer.ObsEncoder(torch.tensor(get_image_obs(obs), dtype=torch.float32).unsqueeze(0).to(trainer.device)) 
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not terminated, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist = trainer.ActionModel(model_state, deter = False)
@@ -131,7 +142,10 @@ def main(args):
 
             if terminated or truncated:
                 number_games += 1
-                trainer.buffer.add(get_obs(obs, config, env), action.squeeze(0).detach().cpu().numpy(), rew, terminated)
+                if not config.pixel:
+                    trainer.buffer.add(get_obs(obs, config, env), action.squeeze(0).detach().cpu().numpy(), rew, terminated)
+                else:
+                    trainer.buffer.add(get_image_obs(obs), action.squeeze(0).detach().cpu().numpy(), rew, terminated)
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
@@ -139,8 +153,9 @@ def main(args):
                 if config.expl['should_explore']: train_metrics['noise_Std'] = expl_amount
 
                 if number_games % config.eval_every == 0:
-                    train_metrics['eval_score'] = eval_model_continous(env, trainer, config.eval_episode)
-
+                    train_metrics['eval_score'] = eval_model_continous_images(env, trainer, config.eval_episode) \
+                        if config.pixel else eval_model_continous(env, trainer, config.eval_episode)
+                    
                 wandb.log(train_metrics, step = iter)
                 scores.append(score)
 
@@ -163,7 +178,10 @@ def main(args):
                 prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
                 episode_actor_ent = []
             else:
-                trainer.buffer.add(get_obs(obs, config, env), action.squeeze(0).detach().cpu().numpy(), rew, terminated)
+                if not config.pixel:
+                    trainer.buffer.add(get_obs(obs, config, env), action.squeeze(0).detach().cpu().numpy(), rew, terminated)
+                else:
+                    trainer.buffer.add(get_image_obs(obs), action.squeeze(0).detach().cpu().numpy(), rew, terminated)
                 obs = next_obs
                 prev_rssmstate = posterior_rssm_state
                 prev_action = action
@@ -177,6 +195,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", type=str, default='LunarLander-v2',  help='mini atari env name')
     #parser.add_argument("--env", type=str, default='Pendulum-v1',  help='mini atari env name')
+    parser.add_argument("--pixel", type=bool, default = True,  help='mini atari env name')
     parser.add_argument("--id", type=str, default='0', help='Experiment ID')
     parser.add_argument('--seed', type=int, default=123, help='Random seed')
     parser.add_argument('--device', default='cuda', help='CUDA or CPU')

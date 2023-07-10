@@ -61,7 +61,7 @@ def main(args):
     config.train_steps = int(2e6) #5e6
     config.capacity = int(1e2) #2e6
     config.eval_episode = 20
-    config.actor_entropy_scale = 1e-5
+    config.actor_entropy_scale = 1e-4
     config.eval_every = 100
     config.train_every: int = 5
     config.critic['use_mse_critic'] = True
@@ -75,7 +75,8 @@ def main(args):
     config.use_torch_entropy = True
     config.access_image = 'obs' #env, vision, obs
     config.loss_scale['kl'] = 1.0  #2.0
-    config.seed_steps = 2600
+    config.seed_steps = 4000
+    config.discount['use'] = False 
     ### Config End ###
 
     config_dict = config.__dict__
@@ -181,6 +182,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     #parser.add_argument("--env", type=str, default='Pendulum-v1',  help='mini atari env name')
     parser.add_argument("--env", type=str, default='LunarLander-v2',  help='mini atari env name')
+    parser.add_argument("--pixel", type=str, default='LunarLander-v2',  help='mini atari env name')
     parser.add_argument("--id", type=str, default='0', help='Experiment ID')
     parser.add_argument('--seed', type=int, default=123, help='Random seed')
     parser.add_argument('--device', default='cuda', help='CUDA or CPU')

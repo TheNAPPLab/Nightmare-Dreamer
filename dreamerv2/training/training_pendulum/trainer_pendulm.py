@@ -12,6 +12,7 @@ from dreamerv2.models.rssm import RSSM
 from dreamerv2.models.pixel import ObsDecoder, ObsEncoder
 from dreamerv2.utils.buffer import TransitionBuffer
 from dreamerv2.models.actor import RequiresGrad
+from helper import  get_image_obs
 
 class Trainer(object):
     def __init__(
@@ -45,11 +46,17 @@ class Trainer(object):
             a = env.action_space.sample()
             ns, r, terminated, truncated, _ = env.step(a)
             if terminated or truncated:
-                self.buffer.add(s, a,r,terminated)
+                if self.config.pixel:
+                    self.buffer.add(get_image_obs(s), a, r, terminated)
+                else:
+                    self.buffer.add(s, a,r,terminated)
                 s, _  = env.reset() 
                 terminated, truncated = False, False
             else:
-                self.buffer.add(s,a,r,terminated)
+                if self.config.pixel:
+                    self.buffer.add(get_image_obs(s), a, r, terminated)
+                else:
+                    self.buffer.add(s, a,r,terminated)
                 s = ns    
 
     def train_batch(self, train_metrics):
@@ -77,8 +84,11 @@ class Trainer(object):
             rewards = torch.tensor(rewards, dtype=torch.float32).to(self.device).unsqueeze(-1)   #t-1 to t+seq_len-1
             nonterms = torch.tensor(1-terms, dtype=torch.float32).to(self.device).unsqueeze(-1)  #t-1 to t+seq_len-1
 
-            model_loss, kl_loss, obs_loss, reward_loss, pcont_loss, prior_dist, post_dist, posterior = self.representation_loss(obs, actions, rewards, nonterms)
-            
+            if self.config.discount['use']:
+                model_loss, kl_loss, obs_loss, reward_loss, pcont_loss, prior_dist, post_dist, posterior = self.representation_loss(obs, actions, rewards, nonterms)
+            else:
+                model_loss, kl_loss, obs_loss, reward_loss, prior_dist, post_dist, posterior = self.representation_loss(obs, actions, rewards, nonterms)
+
             self.model_optimizer.zero_grad()
             model_loss.backward()
             grad_norm_model = torch.nn.utils.clip_grad_norm_(get_parameters(self.world_list), self.grad_clip_norm)
@@ -110,7 +120,8 @@ class Trainer(object):
             model_l.append(model_loss.item())
             reward_l.append(reward_loss.item())
             kl_l.append(kl_loss.item())
-            pcont_l.append(pcont_loss.item())
+            if self.config.discount['use']:
+                pcont_l.append(pcont_loss.item())
             mean_targ.append(target_info['mean_targ'])
             min_targ.append(target_info['min_targ'])
             max_targ.append(target_info['max_targ'])
@@ -124,7 +135,8 @@ class Trainer(object):
         train_metrics['actor_loss']=np.mean(actor_l)
         train_metrics['prior_entropy']=np.mean(prior_ent_l)
         train_metrics['posterior_entropy']=np.mean(post_ent_l)
-        train_metrics['pcont_loss']=np.mean(pcont_l)
+        if self.config.discount['use']:
+            train_metrics['pcont_loss']=np.mean(pcont_l)
         train_metrics['mean_targ']=np.mean(mean_targ)
         train_metrics['min_targ']=np.mean(min_targ)
         train_metrics['max_targ']=np.mean(max_targ)
@@ -134,26 +146,33 @@ class Trainer(object):
 
     def actorcritc_loss(self, posterior):
         with torch.no_grad():
-            batched_posterior = self.RSSM.rssm_detach(self.RSSM.rssm_seq_to_batch(posterior, self.batch_size, self.seq_len-1))
+           batched_posterior = self.RSSM.rssm_detach(self.RSSM.rssm_seq_to_batch(posterior, self.batch_size, self.seq_len-1))
         
         with FreezeParameters(self.world_list):
-            with RequiresGrad(self.ActionModel):
-
-                if not self.config.use_torch_entropy:
-                    imag_rssm_states, imag_log_prob, policy_entropy, imag_dist = self.RSSM.rollout_imagination(self.horizon, self.ActionModel, batched_posterior, self.config.use_torch_entropy)
-                else :
-                    imag_rssm_states, imag_log_prob, policy_entropy = self.RSSM.rollout_imagination(self.horizon, self.ActionModel, batched_posterior)
+            if not self.config.use_torch_entropy:
+                imag_rssm_states, imag_log_prob, policy_entropy, imag_dist = self.RSSM.rollout_imagination(self.horizon, self.ActionModel, batched_posterior, self.config.use_torch_entropy)
+            else:
+                imag_rssm_states, imag_log_prob, policy_entropy = self.RSSM.rollout_imagination(self.horizon, self.ActionModel, batched_posterior)
+        
         imag_modelstates = self.RSSM.get_model_state(imag_rssm_states)
-        with FreezeParameters(self.world_list+self.value_list+[self.TargetValueModel]+[self.DiscountModel]):
-            imag_reward_dist = self.RewardDecoder(imag_modelstates)
-            imag_reward = imag_reward_dist.mean
-            imag_value_dist = self.TargetValueModel(imag_modelstates)
-            imag_value = imag_value_dist if self.config.critic['use_mse_critic'] else imag_value_dist.mean
-            discount_dist = self.DiscountModel(imag_modelstates)
-            # discount_arr_a = self.discount*torch.round(discount_dist.base_dist.probs)  #mean = prob(disc==1)
-            discount_arr = discount_dist.mean
+        if self.config.discount['use']:
+            with FreezeParameters(self.world_list + self.value_list+[self.TargetValueModel]+[self.DiscountModel]):
+                imag_reward_dist = self.RewardDecoder(imag_modelstates)
+                imag_reward = imag_reward_dist.mean
+                imag_value_dist = self.TargetValueModel(imag_modelstates)
+                imag_value = imag_value_dist if self.config.critic['use_mse_critic'] else imag_value_dist.mean
+                discount_dist = self.DiscountModel(imag_modelstates)
+                # discount_arr = self.discount * torch.round(discount_dist.base_dist.probs)     #mean = prob(disc==1)
+                discount_arr = discount_dist.mean
+        else:
+            with FreezeParameters(self.world_list+self.value_list+[self.TargetValueModel]):
+                imag_reward_dist = self.RewardDecoder(imag_modelstates)
+                imag_reward = imag_reward_dist.mean
+                imag_value_dist = self.TargetValueModel(imag_modelstates)
+                imag_value = imag_value_dist if self.config.critic['use_mse_critic'] else imag_value_dist.mean
+                discount_arr = self.discount  * torch.ones_like(imag_reward)
 
-        actor_loss, discount, lambda_returns = self._actor_loss(imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy, imag_dist = None)
+        actor_loss, discount, lambda_returns = self._actor_loss(imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy)
         value_loss = self._value_loss(imag_modelstates, discount, lambda_returns)     
 
         mean_target = torch.mean(lambda_returns, dim=1)
@@ -169,7 +188,7 @@ class Trainer(object):
         }
 
         return actor_loss, value_loss, target_info
-
+    
     def _actor_loss(self, imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy, imag_dist = None ):
 
         lambda_returns = compute_return(imag_reward[:-1], imag_value[:-1], discount_arr[:-1], bootstrap = imag_value[-1], lambda_ = self.lambda_)
@@ -186,15 +205,14 @@ class Trainer(object):
         discount_arr = torch.cat([torch.ones_like(discount_arr[:1]), discount_arr[1:]])
         weights = torch.cumprod(discount_arr[:-1], 0)
 
-
-
         if self.config.use_torch_entropy:
             policy_entropy = policy_entropy[1:].unsqueeze(-1)
-        else:
-            imag_dist.sample()  # using sample because it calls rsample which would have gradients
-            imag_dist = torch.clip(-0.999, 0.999)
+        # else:
+        #     imag_dist.sample()  # using sample because it calls rsample which would have gradients
+        #     imag_dist = torch.clip(-0.999, 0.999)
 
-        actor_loss = -torch.sum(torch.mean(weights * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
+        # actor_loss = -torch.sum(torch.mean(weights * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
+        actor_loss = -torch.mean(weights * (objective + self.actor_entropy_scale * policy_entropy))
         return actor_loss, weights, lambda_returns
     
     def _value_loss(self, imag_modelstates, discount, lambda_returns):
@@ -203,13 +221,16 @@ class Trainer(object):
             value_discount = discount.detach()
             value_target = lambda_returns.detach()
 
-        value_dist = self.ValueModel(value_modelstates)
-        if self.config.critic['use_mse_critic']:
-            value_loss = torch.mean((value_discount * value_dist - value_target)**2) / 2.0
-        else:
-            value_loss = -torch.mean(value_discount*value_dist.log_prob(value_target).unsqueeze(-1))
-        return value_loss
-       
+        value_dist = self.ValueModel(value_modelstates) 
+        value_loss = torch.mean((value_discount * value_dist - value_target)**2) / 2.0 if self.config.critic['use_mse_critic']\
+            else -torch.mean(value_discount*value_dist.log_prob(value_target).unsqueeze(-1))
+        
+        # if self.config.critic['use_mse_critic']:
+        #     value_loss = torch.mean((value_discount * value_dist - value_target)**2) / 2.0
+        # else:
+        #     value_loss = -torch.mean(value_discount*value_dist.log_prob(value_target).unsqueeze(-1))
+        return value_loss  
+      
     def representation_loss(self, obs, actions, rewards, nonterms):
 
         embed = self.ObsEncoder(obs)                                         #t to t+seq_len   
@@ -217,16 +238,23 @@ class Trainer(object):
         prior, posterior = self.RSSM.rollout_observation(self.seq_len, embed, actions, nonterms, prev_rssm_state)
         post_modelstate = self.RSSM.get_model_state(posterior)               #t to t+seq_len   
         obs_dist = self.ObsDecoder(post_modelstate[:-1])                     #t to t+seq_len-1  
-        reward_dist = self.RewardDecoder(post_modelstate[:-1])               #t to t+seq_len-1  
-        pcont_dist = self.DiscountModel(post_modelstate[:-1])                #t to t+seq_len-1   
+        reward_dist = self.RewardDecoder(post_modelstate[:-1])               #t to t+seq_len-1
+        if self.config.discount['use']:
+            pcont_dist = self.DiscountModel(post_modelstate[:-1])                #t to t+seq_len-1   
         
         obs_loss = self._obs_loss(obs_dist, obs[:-1])
         reward_loss = self._reward_loss(reward_dist, rewards[1:])
-        pcont_loss = self._pcont_loss(pcont_dist, nonterms[1:])
+        if self.config.discount['use']:
+            pcont_loss = self._pcont_loss(pcont_dist, nonterms[1:])
+
         prior_dist, post_dist, div = self._kl_loss(prior, posterior)
 
-        model_loss = self.loss_scale['kl'] * div + reward_loss + obs_loss + self.loss_scale['discount']*pcont_loss
-        return model_loss, div, obs_loss, reward_loss, pcont_loss, prior_dist, post_dist, posterior
+        if self.config.discount['use']:
+            model_loss = self.loss_scale['kl'] * div + reward_loss + obs_loss + self.loss_scale['discount'] * pcont_loss
+            return model_loss, div, obs_loss, reward_loss, pcont_loss, prior_dist, post_dist, posterior
+        else:
+            model_loss = self.loss_scale['kl'] * div + reward_loss + obs_loss
+            return model_loss, div, obs_loss, reward_loss, prior_dist, post_dist, posterior
 
     def _obs_loss(self, obs_dist, obs):
         obs_loss = -torch.mean(obs_dist.log_prob(obs))
@@ -273,15 +301,25 @@ class Trainer(object):
         torch.save(save_dict, save_path)
 
     def get_save_dict(self):
-        return {
-            "RSSM": self.RSSM.state_dict(),
-            "ObsEncoder": self.ObsEncoder.state_dict(),
-            "ObsDecoder": self.ObsDecoder.state_dict(),
-            "RewardDecoder": self.RewardDecoder.state_dict(),
-            "ActionModel": self.ActionModel.state_dict(),
-            "ValueModel": self.ValueModel.state_dict(),
-            "DiscountModel": self.DiscountModel.state_dict(),
-        }
+        if self.config.discount['use']:
+            return {
+                "RSSM": self.RSSM.state_dict(),
+                "ObsEncoder": self.ObsEncoder.state_dict(),
+                "ObsDecoder": self.ObsDecoder.state_dict(),
+                "RewardDecoder": self.RewardDecoder.state_dict(),
+                "ActionModel": self.ActionModel.state_dict(),
+                "ValueModel": self.ValueModel.state_dict(),
+                "DiscountModel": self.DiscountModel.state_dict(),
+            }
+        else:
+            return {
+                "RSSM": self.RSSM.state_dict(),
+                "ObsEncoder": self.ObsEncoder.state_dict(),
+                "ObsDecoder": self.ObsDecoder.state_dict(),
+                "RewardDecoder": self.RewardDecoder.state_dict(),
+                "ActionModel": self.ActionModel.state_dict(),
+                "ValueModel": self.ValueModel.state_dict(),
+            }
     
     def load_save_dict(self, saved_dict):
         self.RSSM.load_state_dict(saved_dict["RSSM"])
@@ -290,7 +328,8 @@ class Trainer(object):
         self.RewardDecoder.load_state_dict(saved_dict["RewardDecoder"])
         self.ActionModel.load_state_dict(saved_dict["ActionModel"])
         self.ValueModel.load_state_dict(saved_dict["ValueModel"])
-        self.DiscountModel.load_state_dict(saved_dict['DiscountModel'])
+        if self.config.discount['use']:
+            self.DiscountModel.load_state_dict(saved_dict['DiscountModel'])
             
     def _model_initialize(self, config):
         obs_shape = config.obs_shape
@@ -331,7 +370,8 @@ class Trainer(object):
         model_lr = config.lr['model']
         actor_lr = config.lr['actor']
         value_lr = config.lr['critic']
-        self.world_list = [self.ObsEncoder, self.RSSM, self.RewardDecoder, self.ObsDecoder, self.DiscountModel]
+        self.world_list = [self.ObsEncoder, self.RSSM, self.RewardDecoder, self.ObsDecoder]
+        if self.config.discount['use'] : self.world_list.append(self.DiscountModel)
         self.actor_list = [self.ActionModel]
         self.value_list = [self.ValueModel]
         self.actorcritic_list = [self.ActionModel, self.ValueModel]
