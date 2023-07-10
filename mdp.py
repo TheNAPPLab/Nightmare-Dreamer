@@ -6,10 +6,9 @@ import numpy as np
 import gym
 import gymnasium 
 from dreamerv2.training.config import MinAtarConfig
-from dreamerv2.training.training_pendulum.trainer_pendulum_continous_images import Trainer
+from dreamerv2.training.training_pendulum.trainer_pendulm import Trainer
 from dreamerv2.training.evaluator import Evaluator
-from helper import  eval_model_continous_images, get_image_obs 
-from gymnasium.wrappers import PixelObservationWrapper
+from helper import eval_model_continous, get_obs
 
 def main(args):
     wandb.login()
@@ -31,13 +30,9 @@ def main(args):
         device = torch.device('cpu')
     print('using :', device)  
     
-    if env_name == "LunarLander-v2":
-        env = PixelObservationWrapper(gymnasium.make(env_name, render_mode="rgb_array", continuous = True))
-    else:
-        env = PixelObservationWrapper(gymnasium.make(env_name, render_mode="rgb_array"))
-
-    obs_shape = (3, 45, 45)
-    action_size = 2
+    env = gymnasium.make(env_name, continuous = True) if env_name == "LunarLander-v2" else gymnasium.make(env_name)
+    obs_shape = env.observation_space.shape
+    action_size = 2 if env_name == "LunarLander-v2" else 1
     obs_dtype =  np.float32
     action_dtype = np.float32
     batch_size = args.batch_size
@@ -45,7 +40,7 @@ def main(args):
 
     config = MinAtarConfig(
         env = env_name,
-        pixel = True,
+        pixel = False,
         actor_grad = 'dynamics', #reinforce
         obs_shape = obs_shape,
         action_size = action_size,
@@ -61,7 +56,7 @@ def main(args):
     config.train_steps = int(2e6) #5e6
     config.capacity = int(1e2) #2e6
     config.eval_episode = 20
-    config.actor_entropy_scale = 1e-5
+    config.actor_entropy_scale = 1e-4
     config.eval_every = 100
     config.train_every: int = 5
     config.critic['use_mse_critic'] = True
@@ -81,8 +76,8 @@ def main(args):
     config_dict = config.__dict__
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)
-
-    with wandb.init(project='Safe RL via Latent world models', config = config_dict):
+    # with wandb.init(project='Safe RL via Latent world models', config = config_dict):
+    with wandb.init(project='Safe RL via Latent world models Test', config = config_dict):
         """training loop"""
         print('...training...')
         train_metrics = {}
@@ -112,7 +107,7 @@ def main(args):
 
             with torch.no_grad():
             
-                embed = trainer.ObsEncoder(torch.tensor(get_image_obs(obs), dtype=torch.float32).unsqueeze(0).to(trainer.device)) 
+                embed = trainer.ObsEncoder(torch.tensor(get_obs(obs, config, env), dtype=torch.float32).unsqueeze(0).to(trainer.device)) 
                 _, posterior_rssm_state = trainer.RSSM.rssm_observe(embed, prev_action, not terminated, prev_rssmstate)
                 model_state = trainer.RSSM.get_model_state(posterior_rssm_state)
                 action, action_dist = trainer.ActionModel(model_state, deter = False)
@@ -136,7 +131,7 @@ def main(args):
 
             if terminated or truncated:
                 number_games += 1
-                trainer.buffer.add(get_image_obs(obs), action.squeeze(0).detach().cpu().numpy(), rew, terminated)
+                trainer.buffer.add(get_obs(obs, config, env), action.squeeze(0).detach().cpu().numpy(), rew, terminated)
                 train_metrics['train_rewards'] = score
                 train_metrics['number_games']  = number_games
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
@@ -144,10 +139,11 @@ def main(args):
                 if config.expl['should_explore']: train_metrics['noise_Std'] = expl_amount
 
                 if number_games % config.eval_every == 0:
-                    train_metrics['eval_score'] = eval_model_continous_images(env, trainer, config.eval_episode)
+                    train_metrics['eval_score'] = eval_model_continous(env, trainer, config.eval_episode)
 
-                wandb.log(train_metrics, step=iter)
+                wandb.log(train_metrics, step = iter)
                 scores.append(score)
+
                 if len(scores)>100:
                     scores.pop(0)
                     current_average = np.mean(scores)
@@ -167,7 +163,7 @@ def main(args):
                 prev_action = torch.zeros(1, trainer.action_size).to(trainer.device)
                 episode_actor_ent = []
             else:
-                trainer.buffer.add(get_image_obs(obs), action.squeeze(0).detach().cpu().numpy(), rew, terminated)
+                trainer.buffer.add(get_obs(obs, config, env), action.squeeze(0).detach().cpu().numpy(), rew, terminated)
                 obs = next_obs
                 prev_rssmstate = posterior_rssm_state
                 prev_action = action
@@ -179,8 +175,8 @@ if __name__ == "__main__":
 
     """there are tonnes of HPs, if you want to do an ablation over any particular one, please add if here"""
     parser = argparse.ArgumentParser()
-    #parser.add_argument("--env", type=str, default='Pendulum-v1',  help='mini atari env name')
     parser.add_argument("--env", type=str, default='LunarLander-v2',  help='mini atari env name')
+    #parser.add_argument("--env", type=str, default='Pendulum-v1',  help='mini atari env name')
     parser.add_argument("--id", type=str, default='0', help='Experiment ID')
     parser.add_argument('--seed', type=int, default=123, help='Random seed')
     parser.add_argument('--device', default='cuda', help='CUDA or CPU')

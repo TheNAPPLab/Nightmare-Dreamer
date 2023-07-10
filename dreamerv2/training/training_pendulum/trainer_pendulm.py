@@ -143,15 +143,15 @@ class Trainer(object):
                     imag_rssm_states, imag_log_prob, policy_entropy, imag_dist = self.RSSM.rollout_imagination(self.horizon, self.ActionModel, batched_posterior, self.config.use_torch_entropy)
                 else :
                     imag_rssm_states, imag_log_prob, policy_entropy = self.RSSM.rollout_imagination(self.horizon, self.ActionModel, batched_posterior)
-        
         imag_modelstates = self.RSSM.get_model_state(imag_rssm_states)
         with FreezeParameters(self.world_list+self.value_list+[self.TargetValueModel]+[self.DiscountModel]):
             imag_reward_dist = self.RewardDecoder(imag_modelstates)
             imag_reward = imag_reward_dist.mean
             imag_value_dist = self.TargetValueModel(imag_modelstates)
-            imag_value = imag_value_dist.mean
+            imag_value = imag_value_dist if self.config.critic['use_mse_critic'] else imag_value_dist.mean
             discount_dist = self.DiscountModel(imag_modelstates)
-            discount_arr = self.discount*torch.round(discount_dist.base_dist.probs)              #mean = prob(disc==1)
+            # discount_arr_a = self.discount*torch.round(discount_dist.base_dist.probs)  #mean = prob(disc==1)
+            discount_arr = discount_dist.mean
 
         actor_loss, discount, lambda_returns = self._actor_loss(imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy, imag_dist = None)
         value_loss = self._value_loss(imag_modelstates, discount, lambda_returns)     
@@ -184,14 +184,18 @@ class Trainer(object):
             raise NotImplementedError
 
         discount_arr = torch.cat([torch.ones_like(discount_arr[:1]), discount_arr[1:]])
-        discount = torch.cumprod(discount_arr[:-1], 0)
+        weights = torch.cumprod(discount_arr[:-1], 0)
+
+
+
         if self.config.use_torch_entropy:
             policy_entropy = policy_entropy[1:].unsqueeze(-1)
         else:
             imag_dist.sample()  # using sample because it calls rsample which would have gradients
             imag_dist = torch.clip(-0.999, 0.999)
-        actor_loss = -torch.sum(torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
-        return actor_loss, discount, lambda_returns
+
+        actor_loss = -torch.sum(torch.mean(weights * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
+        return actor_loss, weights, lambda_returns
     
     def _value_loss(self, imag_modelstates, discount, lambda_returns):
         with torch.no_grad():
@@ -201,7 +205,7 @@ class Trainer(object):
 
         value_dist = self.ValueModel(value_modelstates)
         if self.config.critic['use_mse_critic']:
-            value_loss = torch.mean((value_dist.mean - value_target)**2)
+            value_loss = torch.mean((value_discount * value_dist - value_target)**2) / 2.0
         else:
             value_loss = -torch.mean(value_discount*value_dist.log_prob(value_target).unsqueeze(-1))
         return value_loss

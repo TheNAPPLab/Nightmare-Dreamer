@@ -75,6 +75,7 @@ def main(args):
     config.eval_every = 100
     config.train_every = 5
     config.critic['use_mse_critic'] = False
+    config.critic['dist'] = None if config.critic['use_mse_critic'] else 'normal'  #set as scalar
     config.expl['should_explore'] = False
     config.expl['train_noise'] = 1.0
     config.expl['expl_min'] = 0.01
@@ -84,6 +85,7 @@ def main(args):
     config.use_torch_entropy = True
     config.access_image = 'obs' #env, vision, obs
     config.loss_scale['kl'] = 1.0  # 2.0
+    #config.seed_steps = 2600
     ### Config End ###
 
 
@@ -100,7 +102,9 @@ def main(args):
         """training loop"""
         print('...training...')
         train_metrics = {}
+        print('...Collecting Seed Samples...')
         trainer.collect_seed_episodes(env)
+        print('...Done Collecting Seed Samples...')
         obs, _ = env.reset()
         score = 0
         terminated, truncated = False, False
@@ -142,6 +146,7 @@ def main(args):
                 next_obs, rew, terminated, truncated, _ = env.step( np.argmax(action.cpu().numpy()) )
             else:
                 next_obs, rew, terminated, truncated, _ = env.step(action.squeeze(0).cpu().numpy())
+                
             score += rew
 
             if terminated or truncated:
@@ -151,8 +156,7 @@ def main(args):
                 train_metrics['number_games']  = number_games
                 train_metrics['action_ent'] =  np.mean(episode_actor_ent)
                 
-                if config.expl['should_explore']:
-                    train_metrics['noise_Std'] = expl_amount
+                if config.expl['should_explore']: train_metrics['noise_Std'] = expl_amount
 
                 if number_games % config.eval_every == 0:
                     train_metrics['eval_score'] = eval_model_continous(env, trainer, config.eval_episode )

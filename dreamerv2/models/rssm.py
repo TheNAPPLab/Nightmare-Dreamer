@@ -76,7 +76,7 @@ class RSSM(nn.Module, RSSMUtils):
             prior_rssm_state = RSSMContState(prior_mean, std, prior_stoch_state, deter_state)
         return prior_rssm_state
 
-    def rollout_imagination(self, horizon:int, actor:nn.Module, prev_rssm_state, use_torch_entropy = False):
+    def rollout_imagination(self, horizon:int, actor:nn.Module, prev_rssm_state, use_torch_entropy = True):
         rssm_state = prev_rssm_state
         next_rssm_states = []
         action_entropy = []
@@ -97,11 +97,9 @@ class RSSM(nn.Module, RSSMUtils):
         #     imag_dist = torch.stack(imag_dist, dim = 0)
         
         if use_torch_entropy:
-
-            return next_rssm_states, imag_log_probs, action_entropy, imag_dist
-        else:
-            
             return next_rssm_states, imag_log_probs, action_entropy
+        else:
+            return next_rssm_states, imag_log_probs, action_entropy, imag_dist
 
     def rssm_observe(self, obs_embed, prev_action, prev_nonterm, prev_rssm_state):
         prior_rssm_state = self.rssm_imagine(prev_action, prev_rssm_state, prev_nonterm)

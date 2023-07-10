@@ -85,10 +85,6 @@ def main(args):
     config.access_image = 'obs' #env, vision, obs
     ### Config End ###
 
-
-  
-
-
     config_dict = config.__dict__
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)

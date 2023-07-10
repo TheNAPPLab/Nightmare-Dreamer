@@ -148,7 +148,8 @@ class Trainer(object):
             imag_value_dist = self.TargetValueModel(imag_modelstates)
             imag_value = imag_value_dist if self.config.critic['use_mse_critic'] else imag_value_dist.mean
             discount_dist = self.DiscountModel(imag_modelstates)
-            discount_arr = self.discount * torch.round(discount_dist.base_dist.probs)     #mean = prob(disc==1)
+            # discount_arr = self.discount * torch.round(discount_dist.base_dist.probs)     #mean = prob(disc==1)
+            discount_arr = discount_dist.mean
 
         actor_loss, discount, lambda_returns = self._actor_loss(imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy)
         value_loss = self._value_loss(imag_modelstates, discount, lambda_returns)     
@@ -181,11 +182,12 @@ class Trainer(object):
             raise NotImplementedError
 
         discount_arr = torch.cat([torch.ones_like(discount_arr[:1]), discount_arr[1:]])
-        discount = torch.cumprod(discount_arr[:-1], 0)
+        weights = torch.cumprod(discount_arr[:-1], 0)
+
         policy_entropy = policy_entropy[1:].unsqueeze(-1)
         # actor_loss = -torch.sum(torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
-        actor_loss = -torch.mean(discount * (objective + self.actor_entropy_scale * policy_entropy))
-        return actor_loss, discount, lambda_returns
+        actor_loss = -torch.mean(weights * (objective + self.actor_entropy_scale * policy_entropy))
+        return actor_loss, weights, lambda_returns
 
     def _value_loss(self, imag_modelstates, discount, lambda_returns):
         with torch.no_grad():
@@ -194,10 +196,13 @@ class Trainer(object):
             value_target = lambda_returns.detach()
 
         value_dist = self.ValueModel(value_modelstates) 
-        if self.config.critic['use_mse_critic']:
-            value_loss = torch.mean((value_discount * value_dist - value_target)**2)
-        else:
-            value_loss = -torch.mean(value_discount*value_dist.log_prob(value_target).unsqueeze(-1))
+        value_loss = torch.mean((value_discount * value_dist - value_target)**2) / 2.0 if self.config.critic['use_mse_critic']\
+            else -torch.mean(value_discount*value_dist.log_prob(value_target).unsqueeze(-1))
+        
+        # if self.config.critic['use_mse_critic']:
+        #     value_loss = torch.mean((value_discount * value_dist - value_target)**2) / 2.0
+        # else:
+        #     value_loss = -torch.mean(value_discount*value_dist.log_prob(value_target).unsqueeze(-1))
         return value_loss
     
     def representation_loss(self, obs, actions, rewards, nonterms):
