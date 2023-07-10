@@ -85,8 +85,8 @@ def main(args):
     config_dict = config.__dict__
     trainer = Trainer(config, device)
     evaluator = Evaluator(config, device)
-    # with wandb.init(project='Safe RL via Latent world models', config = config_dict):
-    with wandb.init(project='Safe RL via Latent world models Test', config = config_dict):
+    with wandb.init(project='Safe RL via Latent world models', config = config_dict):
+    #with wandb.init(project='Safe RL via Latent world models Test', config = config_dict):
         """training loop"""
         print('...training...')
         train_metrics = {}
