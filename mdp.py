@@ -10,6 +10,7 @@ from dreamerv2.training.training_pendulum.trainer_pendulm import Trainer
 from dreamerv2.training.evaluator import Evaluator
 from helper import eval_model_continous, eval_model_continous_images, get_obs, get_image_obs
 from gymnasium.wrappers import PixelObservationWrapper
+import logging
 
 def main(args):
     wandb.login()
@@ -65,7 +66,7 @@ def main(args):
     config.eval_episode = 20
     config.actor_entropy_scale = 1e-5
     config.eval_every = 100
-    config.train_every: int = 5
+    config.train_every: int = 100
     config.critic['use_mse_critic'] = True
     config.critic['dist'] = None if config.critic['use_mse_critic'] else 'normal'  #set as scalar
     config.expl['should_explore'] = False

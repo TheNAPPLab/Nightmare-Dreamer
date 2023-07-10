@@ -13,6 +13,10 @@ from dreamerv2.models.pixel import ObsDecoder, ObsEncoder
 from dreamerv2.utils.buffer import TransitionBuffer
 from dreamerv2.models.actor import RequiresGrad
 from helper import  get_image_obs
+import logging
+
+logging.basicConfig(filename='debug.log', level=logging.DEBUG)
+# reward 
 
 class Trainer(object):
     def __init__(
@@ -83,7 +87,10 @@ class Trainer(object):
             actions = torch.tensor(actions, dtype=torch.float32).to(self.device)                 #t-1, t+seq_len-1
             rewards = torch.tensor(rewards, dtype=torch.float32).to(self.device).unsqueeze(-1)   #t-1 to t+seq_len-1
             nonterms = torch.tensor(1-terms, dtype=torch.float32).to(self.device).unsqueeze(-1)  #t-1 to t+seq_len-1
-
+            logging.debug(f"obs: {str(obs)}")
+            logging.debug(f"actions: {str(actions)}")
+            logging.debug(f"rewards: {str(rewards)}")
+            logging.debug(f"nonterms: {str(nonterms)}")
             if self.config.discount['use']:
                 model_loss, kl_loss, obs_loss, reward_loss, pcont_loss, prior_dist, post_dist, posterior = self.representation_loss(obs, actions, rewards, nonterms)
             else:
@@ -91,7 +98,7 @@ class Trainer(object):
 
             self.model_optimizer.zero_grad()
             model_loss.backward()
-            grad_norm_model = torch.nn.utils.clip_grad_norm_(get_parameters(self.world_list), self.grad_clip_norm)
+            torch.nn.utils.clip_grad_norm_(get_parameters(self.world_list), self.grad_clip_norm)
             self.model_optimizer.step()
 
             actor_loss, value_loss, target_info = self.actorcritc_loss(posterior)
@@ -102,8 +109,8 @@ class Trainer(object):
             actor_loss.backward()
             value_loss.backward()
 
-            grad_norm_actor = torch.nn.utils.clip_grad_norm_(get_parameters(self.actor_list), self.grad_clip_norm)
-            grad_norm_value = torch.nn.utils.clip_grad_norm_(get_parameters(self.value_list), self.grad_clip_norm)
+            torch.nn.utils.clip_grad_norm_(get_parameters(self.actor_list), self.grad_clip_norm)
+            torch.nn.utils.clip_grad_norm_(get_parameters(self.value_list), self.grad_clip_norm)
 
             self.actor_optimizer.step()
             self.value_optimizer.step()
@@ -159,11 +166,14 @@ class Trainer(object):
             with FreezeParameters(self.world_list + self.value_list+[self.TargetValueModel]+[self.DiscountModel]):
                 imag_reward_dist = self.RewardDecoder(imag_modelstates)
                 imag_reward = imag_reward_dist.mean
+                logging.debug(f"Image returns: {str(imag_reward)}")
                 imag_value_dist = self.TargetValueModel(imag_modelstates)
                 imag_value = imag_value_dist if self.config.critic['use_mse_critic'] else imag_value_dist.mean
+                logging.debug(f"Image Value: {str(imag_value)}")
                 discount_dist = self.DiscountModel(imag_modelstates)
                 # discount_arr = self.discount * torch.round(discount_dist.base_dist.probs)     #mean = prob(disc==1)
                 discount_arr = discount_dist.mean
+                logging.debug(f"Image Discount: {str(discount_arr)}")
         else:
             with FreezeParameters(self.world_list+self.value_list+[self.TargetValueModel]):
                 imag_reward_dist = self.RewardDecoder(imag_modelstates)
@@ -192,6 +202,7 @@ class Trainer(object):
     def _actor_loss(self, imag_reward, imag_value, discount_arr, imag_log_prob, policy_entropy, imag_dist = None ):
 
         lambda_returns = compute_return(imag_reward[:-1], imag_value[:-1], discount_arr[:-1], bootstrap = imag_value[-1], lambda_ = self.lambda_)
+        logging.debug(f"Lamda Returns: {str(lambda_returns)}")
         
         if self.config.actor_grad == 'reinforce':
             advantage = ( lambda_returns - imag_value[:-1] ).detach()
@@ -204,6 +215,7 @@ class Trainer(object):
 
         discount_arr = torch.cat([torch.ones_like(discount_arr[:1]), discount_arr[1:]])
         weights = torch.cumprod(discount_arr[:-1], 0)
+        logging.debug(f"Weights: {str(weights)}")
 
         if self.config.use_torch_entropy:
             policy_entropy = policy_entropy[1:].unsqueeze(-1)
@@ -212,7 +224,9 @@ class Trainer(object):
         #     imag_dist = torch.clip(-0.999, 0.999)
 
         # actor_loss = -torch.sum(torch.mean(weights * (objective + self.actor_entropy_scale * policy_entropy), dim=1)) 
-        actor_loss = -torch.mean(weights * (objective + self.actor_entropy_scale * policy_entropy))
+        entopy_term =  self.actor_entropy_scale * policy_entropy
+        logging.debug(f"Entropy Term: {str(entopy_term)}")
+        actor_loss = -torch.mean(weights * (objective + entopy_term))
         return actor_loss, weights, lambda_returns
     
     def _value_loss(self, imag_modelstates, discount, lambda_returns):
@@ -222,8 +236,11 @@ class Trainer(object):
             value_target = lambda_returns.detach()
 
         value_dist = self.ValueModel(value_modelstates) 
-        value_loss = torch.mean((value_discount * value_dist - value_target)**2) / 2.0 if self.config.critic['use_mse_critic']\
-            else -torch.mean(value_discount*value_dist.log_prob(value_target).unsqueeze(-1))
+        logging.debug(f"Value Dist: {str(value_dist)}")
+        discounted_value = value_discount * value_dist
+        logging.debug(f"Distcounted Value: {str(discounted_value)}")
+        value_loss = torch.mean((discounted_value - value_target)**2) / 2.0 if self.config.critic['use_mse_critic']\
+            else -torch.mean(discounted_value.log_prob(value_target).unsqueeze(-1))
         
         # if self.config.critic['use_mse_critic']:
         #     value_loss = torch.mean((value_discount * value_dist - value_target)**2) / 2.0
