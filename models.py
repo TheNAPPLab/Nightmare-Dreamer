@@ -48,13 +48,13 @@ class WorldModel(nn.Module):
           feat_size,  # pytorch version
           [], config.discount_layers, config.units, config.act, dist='binary')
     for name in config.grad_heads:
-      assert name in self.heads, name
+      assert name in self.heads, name # check if imagination model and reward are compulsorily intalised
     self._model_opt = tools.Optimizer(
         'model', self.parameters(), config.model_lr, config.opt_eps, config.grad_clip,
-        config.weight_decay, opt=config.opt,
-        use_amp=self._use_amp)
+        config.weight_decay, opt = config.opt,
+        use_amp = self._use_amp)
     self._scales = dict(
-        reward=config.reward_scale, discount=config.discount_scale)
+        reward = config.reward_scale, discount = config.discount_scale)
 
   def _train(self, data):
     data = self.preprocess(data)
@@ -122,8 +122,10 @@ class WorldModel(nn.Module):
         self.dynamics.get_feat(states)).mode()[:6]
     init = {k: v[:, -1] for k, v in states.items()}
     prior = self.dynamics.imagine(data['action'][:6, 5:], init)
-    openl = self.heads['image'](self.dynamics.get_feat(prior)).mode()
-    reward_prior = self.heads['reward'](self.dynamics.get_feat(prior)).mode()
+    openl = self.heads['image'](
+        self.dynamics.get_feat(prior)).mode()
+    reward_prior = self.heads['reward'](
+        self.dynamics.get_feat(prior)).mode()
     model = torch.cat([recon[:, :5] + 0.5, openl + 0.5], 1)
     error = (model - truth + 1) / 2
 
@@ -143,6 +145,7 @@ class ImagBehavior(nn.Module):
       feat_size = config.dyn_stoch * config.dyn_discrete + config.dyn_deter
     else:
       feat_size = config.dyn_stoch + config.dyn_deter
+    # intilaise actor, value network and target value network
     self.actor = networks.ActionHead(
         feat_size,  # pytorch version
         config.num_actions, config.actor_layers, config.units, config.act,
@@ -153,11 +156,12 @@ class ImagBehavior(nn.Module):
         [], config.value_layers, config.units, config.act,
         config.value_head)
     if config.slow_value_target or config.slow_actor_target:
+      # target network
       self._slow_value = networks.DenseHead(
           feat_size,  # pytorch version
           [], config.value_layers, config.units, config.act)
       self._updates = 0
-    kw = dict(wd=config.weight_decay, opt=config.opt, use_amp=self._use_amp)
+    kw = dict(wd=config.weight_decay, opt=config.opt, use_amp=self._use_amp) #?
     self._actor_opt = tools.Optimizer(
         'actor', self.actor.parameters(), config.actor_lr, config.opt_eps, config.actor_grad_clip,
         **kw)
@@ -166,15 +170,16 @@ class ImagBehavior(nn.Module):
         **kw)
 
   def _train(
-      self, start, objective=None, action=None, reward=None, imagine=None, tape=None, repeats=None):
+      self, start, objective = None, action = None, reward = None, imagine = None, tape = None, repeats = None):
     objective = objective or self._reward
     self._update_slow_target()
     metrics = {}
 
     with tools.RequiresGrad(self.actor):
-      with torch.cuda.amp.autocast(self._use_amp):
+      with torch.cuda.amp.autocast(self._use_amp): #prcesion
         imag_feat, imag_state, imag_action = self._imagine(
             start, self.actor, self._config.imag_horizon, repeats)
+        
         reward = objective(imag_feat, imag_state, imag_action)
         actor_ent = self.actor(imag_feat).entropy()
         state_ent = self._world_model.dynamics.get_dist(
@@ -190,7 +195,7 @@ class ImagBehavior(nn.Module):
           target, weights = self._compute_target(
               imag_feat, imag_state, imag_action, reward, actor_ent, state_ent,
               self._config.slow_value_target)
-        value_input = imag_feat
+        value_input = imag_feat # inputs to value network
 
     with tools.RequiresGrad(self.value):
       with torch.cuda.amp.autocast(self._use_amp):

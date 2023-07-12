@@ -1,0 +1,5 @@
+python3 dreamer.py --logdir ~/logdir/atari_pong/dreamerv2/1 \
+    --configs defaults atari --task atari_pong
+
+
+to_np = lambda x: x.detach().cpu().numpy()

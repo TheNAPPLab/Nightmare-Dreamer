@@ -5,8 +5,10 @@ import os
 import pathlib
 import sys
 import warnings
+import wandb
+if sys.platform == 'linux':
+  os.environ['MUJOCO_GL'] = 'egl'
 
-os.environ['MUJOCO_GL'] = 'egl'
 
 import numpy as np
 import ruamel.yaml as yaml
@@ -34,26 +36,31 @@ class Dreamer(nn.Module):
     self._should_train = tools.Every(config.train_every)
     self._should_pretrain = tools.Once()
     self._should_reset = tools.Every(config.reset_every)
-    self._should_expl = tools.Until(int(
-        config.expl_until / config.action_repeat))
+    self._should_expl = tools.Until( 
+      int(config.expl_until / config.action_repeat)
+    )
     self._metrics = {}
     self._step = count_steps(config.traindir)
     # Schedules.
     config.actor_entropy = (
-        lambda x=config.actor_entropy: tools.schedule(x, self._step))
+        lambda x = config.actor_entropy: tools.schedule(x, self._step))
+    
     config.actor_state_entropy = (
-        lambda x=config.actor_state_entropy: tools.schedule(x, self._step))
+        lambda x = config.actor_state_entropy: tools.schedule(x, self._step))
+    
     config.imag_gradient_mix = (
         lambda x=config.imag_gradient_mix: tools.schedule(x, self._step))
+    
     self._dataset = dataset
     self._wm = models.WorldModel(self._step, config)
     self._task_behavior = models.ImagBehavior(
         config, self._wm, config.behavior_stop_grad)
-    reward = lambda f, s, a: self._wm.heads['reward'](f).mean
-    self._expl_behavior = dict(
-        greedy=lambda: self._task_behavior,
-        random=lambda: expl.Random(config),
-        plan2explore=lambda: expl.Plan2Explore(config, self._wm, reward),
+    #inline function to get the reward prediction using world model, not sure why we need it though
+    reward = lambda f, s, a: self._wm.heads['reward'](f).mean 
+    self._expl_behavior = dict( # greedy which is using actor policy
+        greedy = lambda: self._task_behavior,
+        random = lambda: expl.Random(config),
+        plan2explore = lambda: expl.Plan2Explore(config, self._wm, reward),
     )[config.expl_behavior]()
 
   def __call__(self, obs, reset, state=None, reward=None, training=True):
@@ -80,6 +87,7 @@ class Dreamer(nn.Module):
         openl = self._wm.video_pred(next(self._dataset))
         self._logger.video('train_openl', to_np(openl))
         self._logger.write(fps=True)
+        wandb.log(self._logger._scalars, step = self._logger.step)
 
     policy_output, state = self._policy(obs, state, training)
 
@@ -155,6 +163,11 @@ class Dreamer(nn.Module):
 
 
 def count_steps(folder):
+  '''
+  - find all files with extension .npz convert to string
+  - COunt the file names wit that extension to know number of steps
+
+  '''
   return sum(int(str(n).split('-')[-1][:-4]) - 1 for n in folder.glob('*.npz'))
 
 
@@ -221,9 +234,22 @@ def process_episode(config, logger, mode, train_eps, eval_eps, episode):
   if mode == 'eval' or config.expl_gifs:
     logger.video(f'{mode}_policy', video[None])
   logger.write()
+  wandb.log(logger._scalars, step = logger.step)
 
+def set_test_paramters(config):
+  config.debug = True
+  config.pretrain =  1
+  config.prefill = 1
+  config.train_steps = 1
+  config.batch_size = 10
+  config.batch_length = 20
 
 def main(config):
+  config_dict = config.__dict__
+  config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+  if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
+  print(config_dict)
+  run =  wandb.init(project='Safe RL via Latent world models Setup', config = config_dict)
   logdir = pathlib.Path(config.logdir).expanduser()
   config.traindir = config.traindir or logdir / 'train_eps'
   config.evaldir = config.evaldir or logdir / 'eval_eps'
@@ -231,10 +257,10 @@ def main(config):
   config.eval_every //= config.action_repeat
   config.log_every //= config.action_repeat
   config.time_limit //= config.action_repeat
-  config.act = getattr(torch.nn, config.act)
+  config.act = getattr(torch.nn, config.act) #activation layer
 
   print('Logdir', logdir)
-  logdir.mkdir(parents=True, exist_ok=True)
+  logdir.mkdir(parents = True, exist_ok = True)
   config.traindir.mkdir(parents=True, exist_ok=True)
   config.evaldir.mkdir(parents=True, exist_ok=True)
   step = count_steps(config.traindir)
@@ -265,7 +291,7 @@ def main(config):
     else:
       random_actor = torchd.independent.Independent(
           torchd.uniform.Uniform(torch.Tensor(acts.low)[None],
-                                 torch.Tensor(acts.high)[None]), 1)
+                                torch.Tensor(acts.high)[None]), 1)
     def random_agent(o, d, s, r):
       action = random_actor.sample()
       logprob = random_actor.log_prob(action)
@@ -277,8 +303,9 @@ def main(config):
   print('Simulate agent.')
   train_dataset = make_dataset(train_eps, config)
   eval_dataset = make_dataset(eval_eps, config)
+  #intialise world models, and imgination(actor, critic)
   agent = Dreamer(config, logger, train_dataset).to(config.device)
-  agent.requires_grad_(requires_grad=False)
+  agent.requires_grad_(requires_grad = False)
   if (logdir / 'latest_model.pt').exists():
     agent.load_state_dict(torch.load(logdir / 'latest_model.pt'))
     agent._should_pretrain._once = False
@@ -286,10 +313,11 @@ def main(config):
   state = None
   while agent._step < config.steps:
     logger.write()
+    wandb.log(logger._scalars, step = logger.step)
     print('Start evaluation.')
     video_pred = agent._wm.video_pred(next(eval_dataset))
     logger.video('eval_openl', to_np(video_pred))
-    eval_policy = functools.partial(agent, training=False)
+    eval_policy = functools.partial(agent, training = False)
     tools.simulate(eval_policy, eval_envs, episodes=1)
     print('Start training.')
     state = tools.simulate(agent, train_envs, config.eval_every, state=state)
@@ -303,7 +331,8 @@ def main(config):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
-  parser.add_argument('--configs', nargs='+', required=True)
+  # parser.add_argument('--configs', nargs='+', required=True)
+  parser.add_argument('--configs', nargs='+', default=['defaults', 'dmc'], required=False)
   args, remaining = parser.parse_known_args()
   configs = yaml.safe_load(
       (pathlib.Path(sys.argv[0]).parent / 'configs.yaml').read_text())
@@ -311,7 +340,8 @@ if __name__ == '__main__':
   for name in args.configs:
     defaults.update(configs[name])
   parser = argparse.ArgumentParser()
-  for key, value in sorted(defaults.items(), key=lambda x: x[0]):
+  for key, value in sorted(defaults.items(), key = lambda x: x[0]):
     arg_type = tools.args_type(value)
     parser.add_argument(f'--{key}', type=arg_type, default=arg_type(value))
+  parser.set_defaults(logdir='~/logdir/dm_control/dreamerv2/1')
   main(parser.parse_args(remaining))
