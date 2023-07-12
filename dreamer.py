@@ -87,7 +87,7 @@ class Dreamer(nn.Module):
         openl = self._wm.video_pred(next(self._dataset))
         self._logger.video('train_openl', to_np(openl))
         self._logger.write(fps=True)
-        wandb.log(self._logger._scalars, step = self._logger.step)
+        # wandb.log(self._logger._scalars, step = self._logger.step)
 
     policy_output, state = self._policy(obs, state, training)
 
@@ -155,6 +155,7 @@ class Dreamer(nn.Module):
         data = {k: v[:, :-1] for k, v in data.items()}
       mets = self._expl_behavior.train(start, context, data)[-1]
       metrics.update({'expl_' + key: value for key, value in mets.items()})
+    #update training metrics for logs
     for name, value in metrics.items():
       if not name in self._metrics.keys():
         self._metrics[name] = [value]
@@ -234,9 +235,10 @@ def process_episode(config, logger, mode, train_eps, eval_eps, episode):
   if mode == 'eval' or config.expl_gifs:
     logger.video(f'{mode}_policy', video[None])
   logger.write()
-  wandb.log(logger._scalars, step = logger.step)
+  # wandb.log(logger._scalars, step = logger.step)
 
 def set_test_paramters(config):
+  # For testing on my mac to prevent high ram usage
   config.debug = True
   config.pretrain =  1
   config.prefill = 1
@@ -313,7 +315,7 @@ def main(config):
   state = None
   while agent._step < config.steps:
     logger.write()
-    wandb.log(logger._scalars, step = logger.step)
+    # wandb.log(logger._scalars, step = logger.step)
     print('Start evaluation.')
     video_pred = agent._wm.video_pred(next(eval_dataset))
     logger.video('eval_openl', to_np(video_pred))

@@ -106,7 +106,7 @@ class DeepMindLabyrinth(object):
 
 class DeepMindControl:
 
-  def __init__(self, name, action_repeat=1, size=(64, 64), camera=None):
+  def __init__(self, name, action_repeat = 1, size=(64, 64), camera=None):
     domain, task = name.split('_', 1)
     if domain == 'cup':  # Only domain with multiple words.
       domain = 'ball_in_cup'
@@ -119,7 +119,7 @@ class DeepMindControl:
     self._action_repeat = action_repeat
     self._size = size
     if camera is None:
-      camera = dict(quadruped=2).get(domain, 0)
+      camera = dict(quadruped = 2).get(domain, 0)
     self._camera = camera
 
   @property

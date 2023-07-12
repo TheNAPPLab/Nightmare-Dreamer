@@ -151,6 +151,7 @@ class ImagBehavior(nn.Module):
         config.num_actions, config.actor_layers, config.units, config.act,
         config.actor_dist, config.actor_init_std, config.actor_min_std,
         config.actor_dist, config.actor_temp, config.actor_outscale)
+    
     self.value = networks.DenseHead(
         feat_size,  # pytorch version
         [], config.value_layers, config.units, config.act,
@@ -170,7 +171,8 @@ class ImagBehavior(nn.Module):
         **kw)
 
   def _train(
-      self, start, objective = None, action = None, reward = None, imagine = None, tape = None, repeats = None):
+        self, start, objective = None, action = None, \
+        reward = None, imagine = None, tape = None, repeats = None):
     objective = objective or self._reward
     self._update_slow_target()
     metrics = {}
@@ -271,19 +273,24 @@ class ImagBehavior(nn.Module):
     target = torch.stack(target, dim=1)
     if self._config.imag_gradient == 'dynamics':
       actor_target = target
+
     elif self._config.imag_gradient == 'reinforce':
       actor_target = policy.log_prob(imag_action)[:-1][:, :, None] * (
           target - self.value(imag_feat[:-1]).mode()).detach()
+      
     elif self._config.imag_gradient == 'both':
       actor_target = policy.log_prob(imag_action)[:-1][:, :, None] * (
           target - self.value(imag_feat[:-1]).mode()).detach()
       mix = self._config.imag_gradient_mix()
       actor_target = mix * target + (1 - mix) * actor_target
       metrics['imag_gradient_mix'] = mix
+
     else:
       raise NotImplementedError(self._config.imag_gradient)
+    
     if not self._config.future_entropy and (self._config.actor_entropy() > 0):
       actor_target += self._config.actor_entropy() * actor_ent[:-1][:,:,None]
+      
     if not self._config.future_entropy and (self._config.actor_state_entropy() > 0):
       actor_target += self._config.actor_state_entropy() * state_ent[:-1]
     actor_loss = -torch.mean(weights[:-1] * actor_target)
