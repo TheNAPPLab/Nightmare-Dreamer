@@ -186,7 +186,8 @@ def make_dataset(episodes, config):
 
 
 def make_env(config, logger, mode, train_eps, eval_eps):
-  env = wrappers.SafetyGym(config.task, config.grayscale, action_repeat = config.action_repeat )
+  env = wrappers.SafetyGym(config.task, config.grayscale, action_repeat = config.action_repeat ) if not config.ontop else \
+    wrappers.SafetyGym(config.task, config.grayscale, action_repeat = config.action_repeat, camera_name = 'fixednear' )
   env = wrappers.NormalizeActions(env)
   env = wrappers.TimeLimit(env, config.time_limit)
   env = wrappers.SelectAction(env, key='action')
@@ -238,6 +239,7 @@ def set_test_paramters(config):
 def main(config):
   config_dict = config.__dict__
   config.task = 'SafetyPointCircle0-v0'
+  config.ontop = True
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
   print(config_dict)
@@ -307,8 +309,8 @@ def main(config):
   while agent._step < config.steps:
     logger.write()
     print('Start evaluation.')
-    # video_pred = agent._wm.video_pred(next(eval_dataset))
-    # logger.video('eval_openl', to_np(video_pred))
+    video_pred = agent._wm.video_pred(next(eval_dataset))
+    logger.video('eval_openl', to_np(video_pred))
     eval_policy = functools.partial(agent, training = False)
     tools.simulate(eval_policy, eval_envs, episodes=1)
     print('Start training.')
@@ -338,4 +340,5 @@ if __name__ == '__main__':
     arg_type = tools.args_type(value)
     parser.add_argument(f'--{key}', type=arg_type, default=arg_type(value))
   parser.set_defaults(logdir='~/logdir/safetgym/dreamerv2/1')
+  # parser.set_defaults(logdir='~/logdir/safetgym/dreamerv2/2')
   main(parser.parse_args(remaining))

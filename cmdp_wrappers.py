@@ -16,11 +16,14 @@ fixednear: The camera used for top-down observation.
 fixedfar: The camera used for top-down observation, but is further than fixednear.
 '''
 class SafetyGym:
-  def __init__(self, name, grayscale, size = (64, 64), action_repeat = 1, render_mode = 'rgb_array', camera_name ='fixednear') -> None:
+  def __init__(self, name, grayscale, size = (64, 64), action_repeat = 1, render_mode = 'rgb_array', camera_name = None) -> None:
     
     self._size = size
     self._grayscale = grayscale
-    self._env = safety_gymnasium.make(name, render_mode = render_mode, width = size[0], height = size[1])
+    if not camera_name:
+      self._env = safety_gymnasium.make(name, render_mode = render_mode, width = size[0], height = size[1])
+    else:
+      self._env = safety_gymnasium.make(name, render_mode = render_mode, width = size[0], height = size[1], camera_name = camera_name )
     self._action_repeat = action_repeat
 
   @property
@@ -58,9 +61,9 @@ class SafetyGym:
         break
     obs = {}
     obs['image'] = self.render()
-    # plt.imshow( obs['image'])
-    # plt.axis('off')
-    # plt.show()
+    plt.imshow( obs['image'])
+    plt.axis('off')
+    plt.show()
     if self._grayscale:
         obs['image'] = obs['image'][..., None]
     return obs, timestep_reward, timestep_cost, terminated, truncated, info
