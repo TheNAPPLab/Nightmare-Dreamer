@@ -118,10 +118,10 @@ defaults:
   disag_units: 400
   disag_action_cond: False
 
-safetygym:
+sgym:
 
   # General
-  task: 'dmc_walker_walk'
+  task: 'SafetyPointCircle0-v0'
   steps: 1e7
   eval_every: 1e4
   log_every: 1e4
@@ -160,7 +160,6 @@ safetygym:
 
   # Training
   reward_scale: 2
-  cost_scale: 2
   weight_decay: 0.0
   model_lr: 3e-4
   value_lr: 8e-5
@@ -172,6 +171,7 @@ safetygym:
   #cmdp
   solve_cmdp: False
   cost_scale: 2
+  clip_costs: 'identity'
   use_cost_value: False
   lagrangian_multiplier_init: 0.001
   cost_limit: 25

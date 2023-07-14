@@ -34,12 +34,15 @@ class WorldModel(nn.Module):
         config.num_actions, embed_size, config.device)
     
     self.heads = nn.ModuleDict()
+
     channels = (1 if config.grayscale else 3)
     shape = (channels,) + config.size
+
     if config.dyn_discrete:
       feat_size = config.dyn_stoch * config.dyn_discrete + config.dyn_deter
     else:
       feat_size = config.dyn_stoch + config.dyn_deter
+
     self.heads['image'] = networks.ConvDecoder(
         feat_size,  # pytorch version
         config.cnn_depth, config.act, shape, config.decoder_kernels,
@@ -47,20 +50,25 @@ class WorldModel(nn.Module):
     self.heads['reward'] = networks.DenseHead(
         feat_size,  # pytorch version
         [], config.reward_layers, config.units, config.act)
-    init_value = max(self._config.lagrangian_multiplier_init, 1e-5)
-
+    
+    self.heads['cost'] = networks.DenseHead( #initalise model to learn cost
+          feat_size,  # pytorch version
+          [], config.cost_layers, config.units, config.act)
     #MOD
     if self._config.solve_cmdp:
       # new Models and paramters include lagrange multiplier and Cost model
-      self.head['cost'] = networks.DenseHead( #initalise model to learn cost
-          feat_size,  # pytorch version
-          [], config.cost_layers, config.units, config.act)
+     
       init_value = max(self._config.lagrangian_multiplier_init, 1e-5)
 
       self._lagrangian_multiplier = torch.nn.Parameter(
             torch.as_tensor(init_value),
             requires_grad=True)
       self._lambda_range_projection = torch.nn.ReLU() #to make sure multiplier is postive
+
+      #MOD
+      torch_opt = getattr(optim, 'Adam')
+      self._lamda_opt = torch_opt([self._lagrangian_multiplier, ],
+                                  lr = config.lambda_lr)
       
     if config.pred_discount:
       self.heads['discount'] = networks.DenseHead(
@@ -75,10 +83,6 @@ class WorldModel(nn.Module):
         config.weight_decay, opt = config.opt,
         use_amp = self._use_amp)
     
-    #MOD
-    torch_opt = getattr(optim, config.opt)
-    self._lamda_lr = torch_opt([self._lagrangian_multiplier, ],
-                                lr = config.lambda_lr)
     
     #MOD
     self._scales = dict(
@@ -109,7 +113,7 @@ class WorldModel(nn.Module):
           losses[name] = -torch.mean(like) * self._scales.get(name, 1.0)
         model_loss = sum(losses.values()) + kl_loss
 
-        lagrangian_loss = 
+        #lagrangian_loss = 
       metrics = self._model_opt(model_loss, self.parameters())
 
     metrics.update({f'{name}_loss': to_np(loss) for name, loss in losses.items()})
@@ -130,12 +134,22 @@ class WorldModel(nn.Module):
     # convert mdps to tensor and normalise image observation
     obs = obs.copy()
     obs['image'] = torch.Tensor(obs['image']) / 255.0 - 0.5
+
     if self._config.clip_rewards == 'tanh':
       obs['reward'] = torch.tanh(torch.Tensor(obs['reward'])).unsqueeze(-1)
     elif self._config.clip_rewards == 'identity':
       obs['reward'] = torch.Tensor(obs['reward']).unsqueeze(-1)
     else:
       raise NotImplemented(f'{self._config.clip_rewards} is not implemented')
+    
+    if self._config.clip_costs == 'tanh':
+      obs['cost'] = torch.tanh(torch.Tensor(obs['cost'])).unsqueeze(-1)
+
+    elif self._config.clip_costs == 'identity':
+      obs['cost'] = torch.Tensor(obs['cost']).unsqueeze(-1)
+    else:
+      raise NotImplemented(f'{self._config.clip_costs} is not implemented')
+    
     if 'discount' in obs:
       obs['discount'] *= self._config.discount
       obs['discount'] = torch.Tensor(obs['discount']).unsqueeze(-1)
@@ -225,21 +239,22 @@ class ImagBehavior(nn.Module):
     
 
   def _train(
-        self, start, objective = None, action = None, \
+        self, start, objective = None, constrain = None, action = None, \
         reward = None, cost = None, imagine = None, tape = None, repeats = None):
     objective = objective or self._reward
     #mod
-    constrain = constrain or self._cost if self._config.solve_cmdp else None
+    constrain = constrain or self._cost
     self._update_slow_target()
     metrics = {}
 
     with tools.RequiresGrad(self.actor):
       with torch.cuda.amp.autocast(self._use_amp): #prcesion
+        #imagination roll out
         imag_feat, imag_state, imag_action = self._imagine(
             start, self.actor, self._config.imag_horizon, repeats)
         
         reward = objective(imag_feat, imag_state, imag_action)
-        cost = constrain(imag_feat, imag_feat, imag_action)
+        cost = constrain(imag_feat, imag_state, imag_action)
         actor_ent = self.actor(imag_feat).entropy()
         state_ent = self._world_model.dynamics.get_dist(
             imag_state).entropy()
@@ -274,9 +289,8 @@ class ImagBehavior(nn.Module):
     metrics['reward_mean'] = to_np(torch.mean(reward))
     metrics['reward_std'] = to_np(torch.std(reward))
     #mod
-    if self._config.solve_cmdp:
-      metrics['cost_mean'] = to_np(torch.mean(cost))
-      metrics['cost_std'] = to_np(torch.std(cost))
+    metrics['cost_mean'] = to_np(torch.mean(cost))
+    metrics['cost_std'] = to_np(torch.std(cost))
     metrics['actor_ent'] = to_np(torch.mean(actor_ent))
     with tools.RequiresGrad(self):
       metrics.update(self._actor_opt(actor_loss, self.actor.parameters()))

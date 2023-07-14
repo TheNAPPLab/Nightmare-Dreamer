@@ -16,9 +16,9 @@ import ruamel.yaml as yaml
 sys.path.append(str(pathlib.Path(__file__).parent))
 
 import exploration as expl
-import models
-import tools
-import wrappers
+import cmdp_models as models
+import cmdp_tools as tools
+import cmdp_wrappers as wrappers
 
 import torch
 from torch import nn
@@ -63,7 +63,7 @@ class Dreamer(nn.Module):
         plan2explore = lambda: expl.Plan2Explore(config, self._wm, reward),
     )[config.expl_behavior]()
 
-  def __call__(self, obs, reset, state = None, reward = None, training = True):
+  def __call__(self, obs, reset, state = None, reward = None, cost = None, training = True):
     step = self._step
     if self._should_reset(step):
       state = None
@@ -86,8 +86,8 @@ class Dreamer(nn.Module):
         for name, values in self._metrics.items():
           self._logger.scalar(name, float(np.mean(values)))
           self._metrics[name] = []
-        openl = self._wm.video_pred(next(self._dataset))
-        self._logger.video('train_openl', to_np(openl))
+        # openl = self._wm.video_pred(next(self._dataset))
+        # self._logger.video('train_openl', to_np(openl))
         self._logger.write(fps=True)
 
     policy_output, state = self._policy(obs, state, training)
@@ -142,6 +142,7 @@ class Dreamer(nn.Module):
 
   def _train(self, data):
     metrics = {}
+    # train world model
     post, context, mets = self._wm._train(data)
     metrics.update(mets)
     start = post
@@ -151,8 +152,9 @@ class Dreamer(nn.Module):
 
     reward = lambda f, s, a: self._wm.heads['reward'](
         self._wm.dynamics.get_feat(s)).mode()
-    
-    metrics.update(self._task_behavior._train(start, reward)[-1])
+    cost = lambda f, s, a: self._wm.heads['cost'](
+        self._wm.dynamics.get_feat(s)).mode()
+    metrics.update(self._task_behavior._train(start, reward, cost)[-1])
 
     if self._config.expl_behavior != 'greedy':
       if self._config.pred_discount:
@@ -184,22 +186,16 @@ def make_dataset(episodes, config):
 
 
 def make_env(config, logger, mode, train_eps, eval_eps):
-  suite, task = config.task.split('_', 1)
-  if suite == 'safetygym':
-    env = wrappers.SafetyGym()
-    # bound between 1 and -1
-    env = wrappers.NormalizeActions()
-  if suite == 'dmc':
-    env = wrappers.DeepMindControl(task, config.action_repeat, config.size)
-    env = wrappers.NormalizeActions(env)
-  # env = wrappers.TimeLimit(env, config.time_limit)
+  env = wrappers.SafetyGym(config.task, config.grayscale, action_repeat = config.action_repeat )
+  env = wrappers.NormalizeActions(env)
+  env = wrappers.TimeLimit(env, config.time_limit)
   env = wrappers.SelectAction(env, key='action')
-
   if (mode == 'train') or (mode == 'eval'):
     callbacks = [functools.partial(
         process_episode, config, logger, mode, train_eps, eval_eps)]
     env = wrappers.CollectDataset(env, callbacks)
   env = wrappers.RewardObs(env)
+  env = wrappers.CostObs(env)
   return env
 
 
@@ -241,6 +237,7 @@ def set_test_paramters(config):
 
 def main(config):
   config_dict = config.__dict__
+  config.task = 'SafetyPointCircle0-v0'
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
   print(config_dict)
@@ -279,7 +276,7 @@ def main(config):
   acts = train_envs[0].action_space
   config.num_actions = acts.n if hasattr(acts, 'n') else acts.shape[0]
 
-  if not config.offline_traindir:
+  if not config.offline_traindir: # ?
     prefill = max(0, config.prefill - count_steps(config.traindir))
     print(f'Prefill dataset ({prefill} steps).')
     if hasattr(acts, 'discrete'):
@@ -288,7 +285,7 @@ def main(config):
       random_actor = torchd.independent.Independent(
           torchd.uniform.Uniform(torch.Tensor(acts.low)[None],
                                 torch.Tensor(acts.high)[None]), 1)
-    def random_agent(o, d, s, r):
+    def random_agent(o, d, s, r, c):
       action = random_actor.sample()
       logprob = random_actor.log_prob(action)
       return {'action': action, 'logprob': logprob}, None
@@ -309,10 +306,9 @@ def main(config):
   state = None
   while agent._step < config.steps:
     logger.write()
-    # wandb.log(logger._scalars, step = logger.step)
     print('Start evaluation.')
-    video_pred = agent._wm.video_pred(next(eval_dataset))
-    logger.video('eval_openl', to_np(video_pred))
+    # video_pred = agent._wm.video_pred(next(eval_dataset))
+    # logger.video('eval_openl', to_np(video_pred))
     eval_policy = functools.partial(agent, training = False)
     tools.simulate(eval_policy, eval_envs, episodes=1)
     print('Start training.')
@@ -330,7 +326,7 @@ def main(config):
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   # parser.add_argument('--configs', nargs='+', required=True)
-  parser.add_argument('--configs', nargs='+', default=['defaults', 'dmc'], required=False)
+  parser.add_argument('--configs', nargs='+', default=['defaults', 'sgym'], required=False)
   args, remaining = parser.parse_known_args()
   configs = yaml.safe_load(
       (pathlib.Path(sys.argv[0]).parent / 'configs.yaml').read_text())
@@ -341,5 +337,5 @@ if __name__ == '__main__':
   for key, value in sorted(defaults.items(), key = lambda x: x[0]):
     arg_type = tools.args_type(value)
     parser.add_argument(f'--{key}', type=arg_type, default=arg_type(value))
-  parser.set_defaults(logdir='~/logdir/dm_control/dreamerv2/1')
+  parser.set_defaults(logdir='~/logdir/safetgym/dreamerv2/1')
   main(parser.parse_args(remaining))
