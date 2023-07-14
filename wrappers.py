@@ -102,12 +102,16 @@ class DeepMindLabyrinth(object):
     self._last_image = image
     return {'image': image}
 
-
+class SafetyGym:
+  def __init__(self) -> None:
+    pass
 
 class DeepMindControl:
 
   def __init__(self, name, action_repeat = 1, size=(64, 64), camera=None):
     domain, task = name.split('_', 1)
+    domain = 'acrobot'
+    task = 'swingup_sparse'
     if domain == 'cup':  # Only domain with multiple words.
       domain = 'ball_in_cup'
     if isinstance(domain, str):

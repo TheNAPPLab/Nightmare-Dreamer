@@ -185,27 +185,16 @@ def make_dataset(episodes, config):
 
 def make_env(config, logger, mode, train_eps, eval_eps):
   suite, task = config.task.split('_', 1)
+  if suite == 'safetygym':
+    env = wrappers.SafetyGym()
+    # bound between 1 and -1
+    env = wrappers.NormalizeActions()
   if suite == 'dmc':
     env = wrappers.DeepMindControl(task, config.action_repeat, config.size)
     env = wrappers.NormalizeActions(env)
-  elif suite == 'atari':
-    env = wrappers.Atari(
-        task, config.action_repeat, config.size,
-        grayscale=config.grayscale,
-        life_done=False and ('train' in mode),
-        sticky_actions=True,
-        all_actions=True)
-    env = wrappers.OneHotAction(env)
-  elif suite == 'dmlab':
-    env = wrappers.DeepMindLabyrinth(
-        task,
-        mode if 'train' in mode else 'test',
-        config.action_repeat)
-    env = wrappers.OneHotAction(env)
-  else:
-    raise NotImplementedError(suite)
-  env = wrappers.TimeLimit(env, config.time_limit)
+  # env = wrappers.TimeLimit(env, config.time_limit)
   env = wrappers.SelectAction(env, key='action')
+
   if (mode == 'train') or (mode == 'eval'):
     callbacks = [functools.partial(
         process_episode, config, logger, mode, train_eps, eval_eps)]
@@ -255,7 +244,6 @@ def main(config):
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
   print(config_dict)
-  config.steps: 4e6
   run =  wandb.init(project='Safe RL via Latent world models Setup mac', config = config_dict) \
     if sys.platform != 'linux' else wandb.init(project='Safe RL via Latent world models Setup', config = config_dict)
   logdir = pathlib.Path(config.logdir).expanduser()

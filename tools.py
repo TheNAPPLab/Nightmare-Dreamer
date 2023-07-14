@@ -62,10 +62,12 @@ class Logger:
     self._scalars[name] = float(value)
 
   def image(self, name, value):
-    self._images[name] = np.array(value)
+    pass
+    # self._images[name] = np.array(value)
 
   def video(self, name, value):
-    self._videos[name] = np.array(value)
+    # self._videos[name] = np.array(value)
+    pass
 
   def write(self, fps=False):
     scalars = list(self._scalars.items())
@@ -75,17 +77,17 @@ class Logger:
     with (self._logdir / 'metrics.jsonl').open('a') as f:
       f.write(json.dumps({'step': self.step, ** dict(scalars)}) + '\n')
     wandb.log(self._scalars, step = self.step)
-    for name, value in scalars:
-      self._writer.add_scalar('scalars/' + name, value, self.step)
-    for name, value in self._images.items():
-      self._writer.add_image(name, value, self.step)
-    for name, value in self._videos.items():
-      name = name if isinstance(name, str) else name.decode('utf-8')
-      if np.issubdtype(value.dtype, np.floating):
-        value = np.clip(255 * value, 0, 255).astype(np.uint8)
-      B, T, H, W, C = value.shape
-      value = value.transpose(1, 4, 2, 0, 3).reshape((1, T, C, H, B*W))
-      self._writer.add_video(name, value, self.step, 16)
+    # for name, value in scalars:
+    #   self._writer.add_scalar('scalars/' + name, value, self.step)
+    # for name, value in self._images.items():
+    #   self._writer.add_image(name, value, self.step)
+    # for name, value in self._videos.items():
+    #   name = name if isinstance(name, str) else name.decode('utf-8')
+    #   if np.issubdtype(value.dtype, np.floating):
+    #     value = np.clip(255 * value, 0, 255).astype(np.uint8)
+    #   B, T, H, W, C = value.shape
+    #   value = value.transpose(1, 4, 2, 0, 3).reshape((1, T, C, H, B*W))
+    #   self._writer.add_video(name, value, self.step, 16)
 
     self._writer.flush()
     self._scalars = {}
