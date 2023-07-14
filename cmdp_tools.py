@@ -159,7 +159,7 @@ def simulate(agent, envs, steps=0, episodes=0, state=None):
     step += (done * length).sum()
     length *= (1 - done)
 
-  return (step - steps, episode - episodes, done, length, obs, agent_state, reward)
+  return (step - steps, episode - episodes, done, length, obs, agent_state, reward, cost)
 
 
 def save_episodes(directory, episodes):

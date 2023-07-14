@@ -61,9 +61,9 @@ class SafetyGym:
         break
     obs = {}
     obs['image'] = self.render()
-    plt.imshow( obs['image'])
-    plt.axis('off')
-    plt.show()
+    # plt.imshow( obs['image'])
+    # plt.axis('off')
+    # plt.show()
     if self._grayscale:
         obs['image'] = obs['image'][..., None]
     return obs, timestep_reward, timestep_cost, terminated, truncated, info

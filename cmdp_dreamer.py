@@ -206,6 +206,7 @@ def process_episode(config, logger, mode, train_eps, eval_eps, episode):
   filename = tools.save_episodes(directory, [episode])[0]
   length = len(episode['reward']) - 1
   score = float(episode['reward'].astype(np.float64).sum())
+  score_cost = float(episode['cost'].astype(np.float64).sum())
   video = episode['image']
   if mode == 'eval':
     cache.clear()
@@ -218,7 +219,8 @@ def process_episode(config, logger, mode, train_eps, eval_eps, episode):
         del cache[key]
     logger.scalar('dataset_size', total + length)
   cache[str(filename)] = episode
-  print(f'{mode.title()} episode has {length} steps and return {score:.1f}.')
+  print(f'{mode.title()} episode has {length} steps, return {score:.1f} and cost {score_cost:.1f}.')
+  logger.scalar(f'{mode}_return', score_cost)
   logger.scalar(f'{mode}_return', score)
   logger.scalar(f'{mode}_length', length)
   logger.scalar(f'{mode}_episodes', len(cache))
