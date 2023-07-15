@@ -207,6 +207,12 @@ class ImagBehavior(nn.Module):
         [], config.value_layers, config.units, config.act,
         config.value_head)
     
+    if config.solve_cmdp:
+      self.cost_value = networks.DenseHead(
+        feat_size,  # pytorch version
+        [], config.value_layers, config.units, config.act,
+        config.value_head)
+      
     #MOD
     self._lagrangian_multiplier = 0.3
     #MOD
@@ -225,12 +231,8 @@ class ImagBehavior(nn.Module):
       # torch_opt = getattr(optim, 'Adam')
       # self._lamda_opt = torch_opt([self._lagrangian_multiplier, ],
       #                             lr = config.lambda_lr )
-    #mod
-    if config.solve_cmdp:
-      self.cost_value = networks.DenseHead(
-        feat_size,  # pytorch version
-        [], config.value_layers, config.units, config.act,
-        config.value_head)
+    #MOD
+
       
     if config.slow_value_target or config.slow_actor_target:
       # target network
