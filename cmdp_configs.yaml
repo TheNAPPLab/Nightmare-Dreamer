@@ -181,6 +181,8 @@ sgym:
   discount_value_cost: False
   discount_value_cost_loss: False
   cost_value_lr: 1e-5
+  learnable_lagrange: False
+  reduce_target_cost: True
 
 debug:
 
