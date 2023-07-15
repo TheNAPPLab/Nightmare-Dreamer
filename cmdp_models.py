@@ -5,7 +5,7 @@ from PIL import ImageColor, Image, ImageDraw, ImageFont
 import torch.optim as optim
 
 import networks
-import tools
+import cmdp_tools as tools
 to_np = lambda x: x.detach().cpu().numpy()
 
 
@@ -54,21 +54,21 @@ class WorldModel(nn.Module):
     self.heads['cost'] = networks.DenseHead( #initalise model to learn cost
           feat_size,  # pytorch version
           [], config.cost_layers, config.units, config.act)
-    #MOD
-    if self._config.solve_cmdp:
-      # new Models and paramters include lagrange multiplier and Cost model
+    # #MOD
+    # if self._config.solve_cmdp:
+    #   # new Models and paramters include lagrange multiplier and Cost model
      
-      init_value = max(self._config.lagrangian_multiplier_init, 1e-5)
+    #   init_value = max(self._config.lagrangian_multiplier_init, 1e-5)
 
-      self._lagrangian_multiplier = torch.nn.Parameter(
-            torch.as_tensor(init_value),
-            requires_grad=True)
-      self._lambda_range_projection = torch.nn.ReLU() #to make sure multiplier is postive
+    #   self._lagrangian_multiplier = torch.nn.Parameter(
+    #         torch.as_tensor(init_value),
+    #         requires_grad=True)
+    #   self._lambda_range_projection = torch.nn.ReLU() #to make sure multiplier is postive
 
-      #MOD
-      torch_opt = getattr(optim, 'Adam')
-      self._lamda_opt = torch_opt([self._lagrangian_multiplier, ],
-                                  lr = config.lambda_lr)
+    #   #MOD
+    #   torch_opt = getattr(optim, 'Adam')
+    #   self._lamda_opt = torch_opt([self._lagrangian_multiplier, ],
+    #                               lr = config.lambda_lr)
       
     if config.pred_discount:
       self.heads['discount'] = networks.DenseHead(
@@ -190,7 +190,7 @@ class ImagBehavior(nn.Module):
     self._world_model = world_model
     self._stop_grad_actor = stop_grad_actor
     self._reward = reward
-    self._cost = cost # what for?
+    self._cost = cost
     if config.dyn_discrete:
       feat_size = config.dyn_stoch * config.dyn_discrete + config.dyn_deter
     else:
@@ -206,24 +206,44 @@ class ImagBehavior(nn.Module):
         feat_size,  # pytorch version
         [], config.value_layers, config.units, config.act,
         config.value_head)
+    
+    #MOD
+    self._lagrangian_multiplier = 0.3
+    #MOD
+    if self._config.solve_cmdp:
+      # new Models and paramters include lagrange multiplier and Cost model
+      pass 
+      
+      # init_value = max(self._config.lagrangian_multiplier_init, 1e-5)
+
+      # self._lagrangian_multiplier = torch.nn.Parameter(
+      #       torch.as_tensor(init_value),
+      #       requires_grad=True)
+      # self._lambda_range_projection = torch.nn.ReLU() #to make sure multiplier is postive
+
+      # #MOD
+      # torch_opt = getattr(optim, 'Adam')
+      # self._lamda_opt = torch_opt([self._lagrangian_multiplier, ],
+      #                             lr = config.lambda_lr )
     #mod
-    if config.solve_cmdp and config.use_cost_value:
+    if config.solve_cmdp:
       self.cost_value = networks.DenseHead(
         feat_size,  # pytorch version
         [], config.value_layers, config.units, config.act,
         config.value_head)
+      
     if config.slow_value_target or config.slow_actor_target:
       # target network
       self._slow_value = networks.DenseHead(
           feat_size,  # pytorch version
           [], config.value_layers, config.units, config.act)
-      self._updates = 0
-      #mod
-      if config.solve_cmdp and config.use_cost_value:
-        self._slow_cost_value = networks.DenseHead(
+      #MOD
+      #Cost Target network
+      self._slow_cost_value = networks.DenseHead(
           feat_size,  # pytorch version
           [], config.value_layers, config.units, config.act)
-        
+      self._updates = 0
+
     kw = dict(wd = config.weight_decay, opt = config.opt, use_amp=self._use_amp) #?
     self._actor_opt = tools.Optimizer(
         'actor', self.actor.parameters(), config.actor_lr, config.opt_eps, config.actor_grad_clip,
@@ -231,10 +251,9 @@ class ImagBehavior(nn.Module):
     self._value_opt = tools.Optimizer(
         'value', self.value.parameters(), config.value_lr, config.opt_eps, config.value_grad_clip,
         **kw)
-    #mod
-    if config.solve_cmdp and config.use_cost_value:
-       self._cost_value_opt = tools.Optimizer(
-        'cost_value', self.cost_value.parameters(), config.value_lr, config.opt_eps, config.value_grad_clip,
+    #MOD
+    self._cost_value_opt = tools.Optimizer(
+        'cost_value', self.cost_value.parameters(), config.cost_value_lr, config.opt_eps, config.value_grad_clip,
         **kw)
     
 
@@ -242,8 +261,10 @@ class ImagBehavior(nn.Module):
         self, start, objective = None, constrain = None, action = None, \
         reward = None, cost = None, imagine = None, tape = None, repeats = None):
     objective = objective or self._reward
-    #mod
+
+    #MOD
     constrain = constrain or self._cost
+
     self._update_slow_target()
     metrics = {}
 
@@ -261,12 +282,14 @@ class ImagBehavior(nn.Module):
         target, weights = self._compute_target(
             imag_feat, imag_state, imag_action, reward, actor_ent, state_ent,
             self._config.slow_actor_target)
-        #mod
-        if self._config.solve_cmdp and self._config.use_cost_value:
-          return NotImplementedError
+        
+        #MOD
+        target_cost = self._compute_target_cost(
+            imag_feat, imag_state, imag_action, cost, actor_ent, state_ent,
+            self._config.slow_actor_target)
         
         actor_loss, mets = self._compute_actor_loss(
-            imag_feat, imag_state, imag_action, target, actor_ent, state_ent,
+            imag_feat, imag_state, imag_action, target, target_cost, actor_ent, state_ent,
             weights)
         
         metrics.update(mets)
@@ -275,7 +298,9 @@ class ImagBehavior(nn.Module):
           target, weights = self._compute_target(
               imag_feat, imag_state, imag_action, reward, actor_ent, state_ent,
               self._config.slow_value_target)
+          
         value_input = imag_feat # inputs to value network
+
 
     with tools.RequiresGrad(self.value):
       with torch.cuda.amp.autocast(self._use_amp):
@@ -286,18 +311,37 @@ class ImagBehavior(nn.Module):
           value_loss += self._config.value_decay * value.mode()
         value_loss = torch.mean(weights[:-1] * value_loss[:,:,None])
 
+    #MOD
+    with tools.RequiresGrad(self.cost_value):
+      with torch.cuda.amp.autocast(self._use_amp):
+        cost_value = self.cost_value(value_input[:-1].detach())
+        target_cost = torch.stack(target_cost, dim=1)
+        cost_value_loss = -cost_value.log_prob(target_cost.detach())
+        # multi[ly by weights only if we wish to dsicount the value function
+        cost_value_loss = torch.mean(weights[:-1] * value_loss[:,:,None]) if self._config.discount_value_cost_loss else \
+            torch.mean( cost_value_loss[:,:,None])
+
     metrics['reward_mean'] = to_np(torch.mean(reward))
     metrics['reward_std'] = to_np(torch.std(reward))
-    #mod
+
+    #MOD
     metrics['cost_mean'] = to_np(torch.mean(cost))
     metrics['cost_std'] = to_np(torch.std(cost))
+
     metrics['actor_ent'] = to_np(torch.mean(actor_ent))
+
+
     with tools.RequiresGrad(self):
       metrics.update(self._actor_opt(actor_loss, self.actor.parameters()))
       metrics.update(self._value_opt(value_loss, self.value.parameters()))
-      #mod
-      if self._config.solve_cmdp and self._config.use_cost_value:
+
+      #MOD
+      if self._config.solve_cmdp:
         metrics.update(self._cost_value_opt(cost_value_loss, self.cost_value.parameters()))
+
+    #MOD
+    metrics['mean_target_cost'] = to_np(torch.mean(target_cost.detach()))
+    metrics['mean_target_target'] = to_np(torch.mean(target.detach()))
 
     return imag_feat, imag_state, imag_action, weights, metrics
 
@@ -327,7 +371,7 @@ class ImagBehavior(nn.Module):
 
   def _compute_target(
       self, imag_feat, imag_state, imag_action, reward, actor_ent, state_ent,
-      slow):
+      slow,):
     if 'discount' in self._world_model.heads:
       inp = self._world_model.dynamics.get_feat(imag_state)
       discount = self._world_model.heads['discount'](inp).mean
@@ -343,19 +387,46 @@ class ImagBehavior(nn.Module):
       value = self.value(imag_feat).mode()
     target = tools.lambda_return(
         reward[:-1], value[:-1], discount[:-1],
-        bootstrap=value[-1], lambda_=self._config.discount_lambda, axis=0)
+        bootstrap = value[-1], lambda_=self._config.discount_lambda, axis=0)
     weights = torch.cumprod(
         torch.cat([torch.ones_like(discount[:1]), discount[:-1]], 0), 0).detach()
     return target, weights
 
+  def _compute_target_cost(
+      self, imag_feat, imag_state, imag_action, cost, actor_ent, state_ent,
+      slow):
+    if 'discount' in self._world_model.heads:
+      inp = self._world_model.dynamics.get_feat(imag_state)
+      discount = self._world_model.heads['discount'](inp).mean
+    else:
+      discount = self._config.discount * torch.ones_like(cost)
+
+    if self._config.perturb_cost_entropy:
+      if self._config.future_entropy and self._config.actor_entropy() > 0:
+        cost += self._config.actor_entropy() * actor_ent
+      if self._config.future_entropy and self._config.actor_state_entropy() > 0:
+        cost += self._config.actor_state_entropy() * state_ent
+    
+    if slow:
+      value_cost = self._slow_cost_value(imag_feat).mode()
+    else:
+      value_cost = self.cost_value(imag_feat).mode()
+
+    target = tools.lambda_return_cost(
+        cost[:-1], value_cost[:-1], discount[:-1],
+        bootstrap = value_cost[-1], lambda_=self._config.discount_lambda, axis = 0, discount_value_cost = self._config.discount_value_cost)
+
+    return target
+
   def _compute_actor_loss(
-      self, imag_feat, imag_state, imag_action, target, actor_ent, state_ent,
+      self, imag_feat, imag_state, imag_action, target, target_cost, actor_ent, state_ent,
       weights):
     metrics = {}
     inp = imag_feat.detach() if self._stop_grad_actor else imag_feat
     policy = self.actor(inp)
     actor_ent = policy.entropy()
     target = torch.stack(target, dim=1)
+    target_cost =  torch.stack(target_cost, dim=1)
     if self._config.imag_gradient == 'dynamics':
       actor_target = target
 
@@ -372,18 +443,20 @@ class ImagBehavior(nn.Module):
 
     else:
       raise NotImplementedError(self._config.imag_gradient)
-    #mod
-    if self._config.solve_cmdp:
-      # Add a loss tp the objective
-      cost_loss = 0
-      actor_target += cost_loss
-      pass
     
     if not self._config.future_entropy and (self._config.actor_entropy() > 0):
       actor_target += self._config.actor_entropy() * actor_ent[:-1][:,:,None]
       
     if not self._config.future_entropy and (self._config.actor_state_entropy() > 0):
       actor_target += self._config.actor_state_entropy() * state_ent[:-1]
+
+    if self._config.solve_cmdp:
+      # Add a loss tp the objectiv
+      penalty = self._lagrangian_multiplier
+      cost_loss_term = penalty  * ( target_cost - self._config.cost_limit )
+      actor_target -= cost_loss_term    # term will be negated and be an addition to the cost, so high target_cost means a higher actor loss
+      actor_target /= penalty
+
     actor_loss = -torch.mean(weights[:-1] * actor_target)
     return actor_loss, metrics
 
@@ -393,11 +466,25 @@ class ImagBehavior(nn.Module):
         mix = self._config.slow_target_fraction
         for s, d in zip(self.value.parameters(), self._slow_value.parameters()):
           d.data = mix * s.data + (1 - mix) * d.data
-      #mod
-      if self._config.solve_cmdp and self._config.use_cost_value:
+      #mMOD
+      if self._config.solve_cmdp:
         if self._updates % self._config.slow_target_update == 0:
           mix = self._config.slow_target_fraction
           for s, d in zip(self.cost_value.parameters(), self._slow_cost_value.parameters()):
             d.data = mix * s.data + (1 - mix) * d.data
       self._updates += 1
+ 
+  def _compute_lamda_loss(self, mean_ep_cost):
+         return -self.lagrangian_multiplier * (mean_ep_cost - self.cost_limit)
+
+  def _update_lagrange_multiplier(self, ep_costs):
+        """ Update Lagrange multiplier (lambda)
+            Note: ep_costs obtained from: self.logger.get_stats('EpCosts')[0]
+            are already averaged across MPI processes.
+        """
+        self._lamda_opt.zero_grad()
+        lambda_loss = self._compute_lamda_loss(ep_costs)
+        lambda_loss.backward()
+        self._lamda_opt.step()
+        self._lagrangian_multiplier.data.clamp_(0)  # enforce: lambda in [0, inf]
 

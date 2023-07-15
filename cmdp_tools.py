@@ -127,7 +127,7 @@ def simulate(agent, envs, steps=0, episodes=0, state=None):
     reward = [0]*len(envs)
     cost = [0]*len(envs)
   else:
-    step, episode, done, length, obs, agent_state, reward = state
+    step, episode, done, length, obs, agent_state, reward, cost = state
   while (steps and step < steps) or (episodes and episode < episodes):
     # Reset envs if necessary.
     if done.any():
@@ -444,6 +444,39 @@ def lambda_return(
   if axis != 0:
     returns = returns.permute(dims)
   return returns
+
+
+
+def lambda_return_cost(
+    cost, value_cost, pcont, bootstrap, lambda_, axis, discount_value_cost = False):
+  # Setting lambda=1 gives a discounted Monte Carlo return.
+  # Setting lambda=0 gives a fixed 1-step return.
+  #assert reward.shape.ndims == value.shape.ndims, (reward.shape, value.shape)
+  assert len(cost.shape) == len(value_cost.shape), (cost.shape, value_cost.shape)
+  if isinstance(pcont, (int, float)):
+    pcont = pcont * torch.ones_like(cost)
+  pcont = pcont if discount_value_cost else  torch.ones_like(cost)  # if not discount value cost then we just use 1 
+  dims = list(range(len(cost.shape)))
+  dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]
+  if axis != 0:
+    cost = cost.permute(dims)
+    value_cost = value_cost.permute(dims)
+    pcont = pcont.permute(dims)
+  if bootstrap is None:
+    bootstrap = torch.zeros_like(value_cost[-1])
+  next_values = torch.cat([value_cost[1:], bootstrap[None]], 0)
+  inputs = cost + pcont * next_values * (1 - lambda_)
+  #returns = static_scan(
+  #    lambda agg, cur0, cur1: cur0 + cur1 * lambda_ * agg,
+  #    (inputs, pcont), bootstrap, reverse=True)
+  # reimplement to optimize performance
+  returns = static_scan_for_lambda_return(
+      lambda agg, cur0, cur1: cur0 + cur1 * lambda_ * agg,
+      (inputs, pcont), bootstrap)
+  if axis != 0:
+    returns = returns.permute(dims)
+  return returns
+
 
 
 class Optimizer():

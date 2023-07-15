@@ -240,8 +240,10 @@ def set_test_paramters(config):
 
 def main(config):
   config_dict = config.__dict__
+
   config.task = 'SafetyPointCircle0-v0'
-  config.ontop = True
+
+
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
   print(config_dict)
@@ -333,7 +335,7 @@ if __name__ == '__main__':
   parser.add_argument('--configs', nargs='+', default=['defaults', 'sgym'], required=False)
   args, remaining = parser.parse_known_args()
   configs = yaml.safe_load(
-      (pathlib.Path(sys.argv[0]).parent / 'configs.yaml').read_text())
+      (pathlib.Path(sys.argv[0]).parent / 'cmdp_configs.yaml').read_text())
   defaults = {}
   for name in args.configs:
     defaults.update(configs[name])

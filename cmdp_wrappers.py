@@ -24,6 +24,7 @@ class SafetyGym:
       self._env = safety_gymnasium.make(name, render_mode = render_mode, width = size[0], height = size[1])
     else:
       self._env = safety_gymnasium.make(name, render_mode = render_mode, width = size[0], height = size[1], camera_name = camera_name )
+    # self._env.set_seed(0)
     self._action_repeat = action_repeat
 
   @property
