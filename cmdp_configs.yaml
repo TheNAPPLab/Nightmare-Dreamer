@@ -173,7 +173,7 @@ sgym:
   cost_scale: 2
   clip_costs: 'identity'
   use_cost_value: False
-  lagrangian_multiplier_init: 0.001
+  lagrangian_multiplier_init: 0.001 # 0.3
   cost_limit: 25
   lambda_lr: 0.035
   ontop: False
@@ -182,7 +182,10 @@ sgym:
   discount_value_cost_loss: False
   cost_value_lr: 1e-5
   learnable_lagrange: False
-  reduce_target_cost: True
+  reduce_target_cost: True  #subtract target cost from a base line in actor loss
+  lagrangian_multiplier_fixed: 0.1 # 0.3
+
+
 
 debug:
 

@@ -63,7 +63,7 @@ class WorldModel(nn.Module):
 
       self._lagrangian_multiplier = torch.nn.Parameter(
             torch.as_tensor( init_value ),
-            requires_grad = True) if config.learnable_lagrange else 0.3
+            requires_grad = True) if config.learnable_lagrange else self._config.lagrangian_multiplier_fixed 
       self._lambda_range_projection = torch.nn.ReLU() #to make sure multiplier is postive
 
       #MOD
@@ -116,6 +116,7 @@ class WorldModel(nn.Module):
 
         if self._config.learnable_lagrange:
           self._update_lagrange_multiplier(torch.mean(torch.sum(data['cost'], dim = 1)))
+          self._update_lagrange_multiplier(torch.max(torch.sum(data['cost'], dim = 1)))
 
         #lagrangian_loss = 
       metrics = self._model_opt(model_loss, self.parameters())
@@ -256,7 +257,6 @@ class ImagBehavior(nn.Module):
         'cost_value', self.cost_value.parameters(), config.cost_value_lr, config.opt_eps, config.value_grad_clip,
         **kw)
     
-
   def _train(
         self, start, objective = None, constrain = None, action = None, \
         reward = None, cost = None, imagine = None, tape = None, repeats = None):
@@ -276,6 +276,7 @@ class ImagBehavior(nn.Module):
         
         reward = objective(imag_feat, imag_state, imag_action)
         cost = constrain(imag_feat, imag_state, imag_action)
+
         actor_ent = self.actor(imag_feat).entropy()
         state_ent = self._world_model.dynamics.get_dist(
             imag_state).entropy()
