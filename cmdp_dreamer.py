@@ -229,7 +229,7 @@ def process_episode(config, logger, mode, train_eps, eval_eps, episode):
     if len(train_cost_lagrange) > 100:
         train_cost_lagrange.pop(0)
     mean_eps_cost = np.mean(train_cost_lagrange)
-    print("Mean epsidode cost"  ,mean_eps_cost)
+    # print("Mean epsidode cost"  ,mean_eps_cost)
   logger.scalar(f'{mode}_cost_return', score_cost)
   logger.scalar(f'{mode}_return', score)
   logger.scalar(f'{mode}_length', length)

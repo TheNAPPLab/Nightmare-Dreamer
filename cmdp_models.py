@@ -57,21 +57,21 @@ class WorldModel(nn.Module):
           feat_size,  # pytorch version
           [], config.cost_layers, config.units, config.act)
 
-    #MOD
-    if self._config.solve_cmdp:
-      # new Models and paramters include lagrange multiplier and Cost model 
+    # #MOD
+    # if self._config.solve_cmdp:
+    #   # new Models and paramters include lagrange multiplier and Cost model 
       
-      init_value = max(self._config.lagrangian_multiplier_init, 1e-5)
+    #   init_value = max(self._config.lagrangian_multiplier_init, 1e-5)
 
-      self._lagrangian_multiplier = torch.nn.Parameter(
-            torch.as_tensor( init_value ),
-            requires_grad = True) if config.learnable_lagrange else self._config.lagrangian_multiplier_fixed 
-      self._lambda_range_projection = torch.nn.ReLU() #to make sure multiplier is postive
+    #   self._lagrangian_multiplier = torch.nn.Parameter(
+    #         torch.as_tensor( init_value ),
+    #         requires_grad = True) if config.learnable_lagrange else self._config.lagrangian_multiplier_fixed 
+    #   self._lambda_range_projection = torch.nn.ReLU() #to make sure multiplier is postive
 
-      #MOD
-      torch_opt = getattr(optim, 'Adam')
-      self._lamda_optimizer = torch_opt([self._lagrangian_multiplier, ],
-                                  lr = config.lambda_lr )  if config.learnable_lagrange else None
+    #   #MOD
+    #   torch_opt = getattr(optim, 'Adam')
+    #   self._lamda_optimizer = torch_opt([self._lagrangian_multiplier, ],
+    #                               lr = config.lambda_lr )  if config.learnable_lagrange else None
       
     if config.pred_discount:
       self.heads['discount'] = networks.DenseHead(
@@ -132,8 +132,8 @@ class WorldModel(nn.Module):
     metrics['kl_scale'] = kl_scale
     metrics['cost_limit'] = self._cost_limit
     metrics['kl'] = to_np(torch.mean(kl_value))
-    if self._config.learnable_lagrange:
-      metrics['lagrangian_multiplier'] = to_np(self._lagrangian_multiplier)
+    # if self._config.learnable_lagrange:
+    #   metrics['lagrangian_multiplier'] = to_np(self._lagrangian_multiplier)
     with torch.cuda.amp.autocast(self._use_amp):
       metrics['prior_ent'] = to_np(torch.mean(self.dynamics.get_dist(prior).entropy()))
       metrics['post_ent'] = to_np(torch.mean(self.dynamics.get_dist(post).entropy()))
@@ -190,23 +190,23 @@ class WorldModel(nn.Module):
 
     return torch.cat([truth, model, error], 2)
 
-  def _compute_lamda_loss(self, mean_ep_cost):
-    if self._config.update_lagrange_method == 4:
-      diff =  mean_ep_cost -  target_ratio(self._cost_limit)
-    else:
-      diff = mean_ep_cost - self._cost_limit
-    return -self._lagrangian_multiplier *  diff
+  # def _compute_lamda_loss(self, mean_ep_cost):
+  #   if self._config.update_lagrange_method == 4:
+  #     diff =  mean_ep_cost -  target_ratio(self._cost_limit)
+  #   else:
+  #     diff = mean_ep_cost - self._cost_limit
+  #   return -self._lagrangian_multiplier *  diff
 
-  def _update_lagrange_multiplier(self, ep_costs):
-        """ Update Lagrange multiplier (lambda)
-            Note: ep_costs obtained from: self.logger.get_stats('EpCosts')[0]
-            are already averaged across MPI processes.
-        """
-        self._lamda_optimizer.zero_grad()
-        lambda_loss = self._compute_lamda_loss(ep_costs)
-        lambda_loss.backward()
-        self._lamda_optimizer.step()
-        self._lagrangian_multiplier.data.clamp_(0)  # enforce: lambda in [0, inf]
+  # def _update_lagrange_multiplier(self, ep_costs):
+  #       """ Update Lagrange multiplier (lambda)
+  #           Note: ep_costs obtained from: self.logger.get_stats('EpCosts')[0]
+  #           are already averaged across MPI processes.
+  #       """
+  #       self._lamda_optimizer.zero_grad()
+  #       lambda_loss = self._compute_lamda_loss(ep_costs)
+  #       lambda_loss.backward()
+  #       self._lamda_optimizer.step()
+  #       self._lagrangian_multiplier.data.clamp_(0)  # enforce: lambda in [0, inf]
 
 class ImagBehavior(nn.Module):
 
@@ -264,7 +264,22 @@ class ImagBehavior(nn.Module):
     self._cost_value_opt = tools.Optimizer(
         'cost_value', self.cost_value.parameters(), config.cost_value_lr, config.opt_eps, config.value_grad_clip,
         **kw)
-    
+        #MOD
+    if self._config.solve_cmdp:
+      # new Models and paramters include lagrange multiplier and Cost model 
+      
+      init_value = max(self._config.lagrangian_multiplier_init, 1e-5)
+
+      self._lagrangian_multiplier = torch.nn.Parameter(
+            torch.as_tensor( init_value ),
+            requires_grad = True) if config.learnable_lagrange else self._config.lagrangian_multiplier_fixed 
+      self._lambda_range_projection = torch.nn.ReLU() #to make sure multiplier is postive
+
+      #MOD
+      torch_opt = getattr(optim, 'Adam')
+      self._lamda_optimizer = torch_opt([self._lagrangian_multiplier, ],
+                                  lr = config.lambda_lr )  if config.learnable_lagrange else None
+  
   def _train(
         self, start, objective = None, constrain = None, action = None, \
         reward = None, cost = None, imagine = None, tape = None, repeats = None):
@@ -356,15 +371,16 @@ class ImagBehavior(nn.Module):
     metrics['std_target_cost'] = to_np(torch.std(target_cost.detach()))
     metrics['min_target_cost'] = to_np(torch.min(target_cost.detach()))
     metrics['mean_target'] = to_np(torch.mean(target.detach()))
-
+    if self._config.learnable_lagrange:
+      metrics['lagrangian_multiplier'] = self._lagrangian_multiplier.item() if self._config.learnable_lagrange else self._lagrangian_multiplier
 
     if self._config.learnable_lagrange:
 
       if self._config.update_lagrange_method == 2:
-        self._update_lagrange_multiplier(torch.max(target_cost.detach()))
+        self._world_model._update_lagrange_multiplier(torch.max(target_cost.detach()))
 
       elif self._config.update_lagrange_method == 3:
-        self._update_lagrange_multiplier(torch.mean(target_cost.detach()))
+        self._world_model._update_lagrange_multiplier(torch.mean(target_cost.detach()))
 
       elif self._config.update_lagrange_method == 4:
         self._update_lagrange_multiplier(torch.max(target_cost.detach()))
@@ -480,7 +496,7 @@ class ImagBehavior(nn.Module):
 
     if self._config.solve_cmdp:
       # Add a loss tp the objectiv
-      penalty = self._world_model._lagrangian_multiplier.detach() if self._config.learnable_lagrange else  self._world_model._lagrangian_multiplier
+      penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item() if self._config.learnable_lagrange else self._lagrangian_multiplier
       if self._config.cost_imag_gradient =='dynamics':
         cost_loss_term = penalty  * ( target_cost - self._config.cost_limit ) if self._config.reduce_target_cost else penalty * target_cost
         actor_target -= cost_loss_term    # term will be negated and be an addition to the cost, so high target_cost means a higher actor loss
@@ -488,7 +504,7 @@ class ImagBehavior(nn.Module):
       elif self._config.cost_imag_gradient =='reinforce':
         cost_loss_term = policy.log_prob(imag_action)[:-1][:, :, None] * ( \
             target_cost - self.cost_value(imag_feat[:-1]).mode()).detach()
-        cost_loss_term = penalty *cost_loss_term
+        cost_loss_term = penalty * cost_loss_term
         actor_target -= cost_loss_term    # term will be negated and be an addition to the cost, so high target_cost means a higher actor loss
         actor_target /= penalty
 
@@ -508,6 +524,28 @@ class ImagBehavior(nn.Module):
           for s, d in zip(self.cost_value.parameters(), self._slow_cost_value.parameters()):
             d.data = mix * s.data + (1 - mix) * d.data
       self._updates += 1
+
+  def _compute_lamda_loss(self, mean_ep_cost):
+    if self._config.update_lagrange_method == 4:
+      diff =  mean_ep_cost -  target_ratio(self._config.cost_limit)
+    else:
+      mean_ep_cost - self._config.cost_limit
+
+    self._lagrangian_multiplier.requires_grad = True
+    loss = self._lagrangian_multiplier * diff
+    return loss
+
+  def _update_lagrange_multiplier(self, ep_costs):
+        """ Update Lagrange multiplier (lambda)
+            Note: ep_costs obtained from: self.logger.get_stats('EpCosts')[0]
+            are already averaged across MPI processes.
+        """
+        self._lamda_optimizer.zero_grad()
+        lambda_loss = self._compute_lamda_loss(ep_costs)
+        lambda_loss.backward()
+        self._lamda_optimizer.step()
+        self._lagrangian_multiplier.data.clamp_(0)  # enforce: lambda in [0, inf]
+
  
 
 
