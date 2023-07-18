@@ -8,6 +8,8 @@ import networks
 import cmdp_tools as tools
 to_np = lambda x: x.detach().cpu().numpy()
 
+def target_ratio(b, max_target = 99.3429516957585 , max_cost = 500):
+  return b * max_target / max_cost
 
 class WorldModel(nn.Module):
 
@@ -117,6 +119,7 @@ class WorldModel(nn.Module):
         if self._config.learnable_lagrange:
           if self._config.update_lagrange_method == 0:
             self._update_lagrange_multiplier(torch.mean(torch.sum(data['cost'], dim = 1)))
+
           elif self._config.update_lagrange_method == 1:
             self._update_lagrange_multiplier(torch.max(torch.sum(data['cost'], dim = 1)))
 
@@ -188,8 +191,11 @@ class WorldModel(nn.Module):
     return torch.cat([truth, model, error], 2)
 
   def _compute_lamda_loss(self, mean_ep_cost):
-         diff = mean_ep_cost - self._cost_limit
-         return -self._lagrangian_multiplier *  diff
+    if self._config.update_lagrange_method == 4:
+      diff =  mean_ep_cost -  target_ratio(self._cost_limit)
+    else:
+      diff = mean_ep_cost - self._cost_limit
+    return -self._lagrangian_multiplier *  diff
 
   def _update_lagrange_multiplier(self, ep_costs):
         """ Update Lagrange multiplier (lambda)
@@ -359,6 +365,9 @@ class ImagBehavior(nn.Module):
 
       elif self._config.update_lagrange_method == 3:
         self._update_lagrange_multiplier(torch.mean(target_cost.detach()))
+
+      elif self._config.update_lagrange_method == 4:
+        self._update_lagrange_multiplier(torch.max(target_cost.detach()))
 
 
     return imag_feat, imag_state, imag_action, weights, metrics

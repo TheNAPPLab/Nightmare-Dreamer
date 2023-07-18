@@ -20,7 +20,7 @@ defaults:
   task: 'dmc_walker_walk'
   size: [64, 64]
   envs: 1
-  action_repeat: 2
+  action_repeat: 2 #2
   time_limit: 1000
   grayscale: False
   prefill: 2500
@@ -181,10 +181,10 @@ sgym:
   discount_value_cost: True
   discount_value_cost_loss: True
   cost_value_lr: 1e-5
-  learnable_lagrange: False
+  learnable_lagrange: True
   reduce_target_cost: False  #subtract target cost from a base line in actor loss
   lagrangian_multiplier_fixed: 0.1 # 0.3
-  update_lagrange_method: 1 #0,1 ,2,3
+  update_lagrange_method: 4 #0,1 ,2,3
   cost_imag_gradient: 'dynamics'
 
 

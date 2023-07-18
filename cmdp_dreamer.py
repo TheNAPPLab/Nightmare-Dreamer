@@ -9,7 +9,8 @@ import wandb
 if sys.platform == 'linux':
   os.environ['MUJOCO_GL'] = 'egl'
 
-
+train_cost_lagrange = []
+mean_eps_cost = 0
 import numpy as np
 import ruamel.yaml as yaml
 
@@ -201,6 +202,8 @@ def make_env(config, logger, mode, train_eps, eval_eps):
 
 
 def process_episode(config, logger, mode, train_eps, eval_eps, episode):
+  global train_cost_lagrange
+  global mean_eps_cost
   directory = dict(train = config.traindir, eval = config.evaldir)[mode]
   cache = dict(train = train_eps, eval = eval_eps)[mode]
   filename = tools.save_episodes(directory, [episode])[0]
@@ -211,6 +214,7 @@ def process_episode(config, logger, mode, train_eps, eval_eps, episode):
   if mode == 'eval':
     cache.clear()
   if mode == 'train' and config.dataset_size:
+    
     total = 0
     for key, ep in reversed(sorted(cache.items(), key=lambda x: x[0])):
       if total <= config.dataset_size - length:
@@ -220,6 +224,12 @@ def process_episode(config, logger, mode, train_eps, eval_eps, episode):
     logger.scalar('dataset_size', total + length)
   cache[str(filename)] = episode
   print(f'{mode.title()} episode has {length} steps, return {score:.1f} and cost {score_cost:.1f}.')
+  if mode == 'train':
+    train_cost_lagrange.append(score_cost)
+    if len(train_cost_lagrange) > 100:
+        train_cost_lagrange.pop(0)
+    mean_eps_cost = np.mean(train_cost_lagrange)
+    print("Mean epsidode cost"  ,mean_eps_cost)
   logger.scalar(f'{mode}_cost_return', score_cost)
   logger.scalar(f'{mode}_return', score)
   logger.scalar(f'{mode}_length', length)
@@ -275,7 +285,7 @@ def main(config):
     directory = config.offline_evaldir.format(**vars(config))
   else:
     directory = config.evaldir
-    
+
   eval_eps = tools.load_episodes(directory, limit=1)
   make = lambda mode: make_env(config, logger, mode, train_eps, eval_eps)
   train_envs = [make('train') for _ in range(config.envs)]
@@ -317,7 +327,7 @@ def main(config):
     video_pred = agent._wm.video_pred(next(eval_dataset))
     logger.video('eval_openl', to_np(video_pred))
     eval_policy = functools.partial(agent, training = False)
-    tools.simulate(eval_policy, eval_envs, episodes=1)
+    tools.simulate(eval_policy, eval_envs, episodes = 1)
     print('Start training.')
     # this rolls out mdps, and adds state to the buffer inside the 
     # agent as well as get the action through the states
