@@ -115,8 +115,10 @@ class WorldModel(nn.Module):
         model_loss = sum(losses.values()) + kl_loss
 
         if self._config.learnable_lagrange:
-          self._update_lagrange_multiplier(torch.mean(torch.sum(data['cost'], dim = 1)))
-          self._update_lagrange_multiplier(torch.max(torch.sum(data['cost'], dim = 1)))
+          if self._config.update_lagrange_method == 0:
+            self._update_lagrange_multiplier(torch.mean(torch.sum(data['cost'], dim = 1)))
+          elif self._config.update_lagrange_method == 1:
+            self._update_lagrange_multiplier(torch.max(torch.sum(data['cost'], dim = 1)))
 
         #lagrangian_loss = 
       metrics = self._model_opt(model_loss, self.parameters())
@@ -278,8 +280,10 @@ class ImagBehavior(nn.Module):
         cost = constrain(imag_feat, imag_state, imag_action)
 
         actor_ent = self.actor(imag_feat).entropy()
+
         state_ent = self._world_model.dynamics.get_dist(
             imag_state).entropy()
+        
         target, weights = self._compute_target(
             imag_feat, imag_state, imag_action, reward, actor_ent, state_ent,
             self._config.slow_actor_target)
@@ -319,8 +323,7 @@ class ImagBehavior(nn.Module):
         target_cost = torch.stack(target_cost, dim=1)
         cost_value_loss = -cost_value.log_prob(target_cost.detach())
         # multi[ly by weights only if we wish to dsicount the value function
-        cost_value_loss = torch.mean(weights[:-1] * value_loss[:,:,None]) if self._config.discount_value_cost_loss else \
-            torch.mean( cost_value_loss[:,:,None])
+        cost_value_loss = torch.mean(weights[:-1] * cost_value_loss[:,:,None])
 
     metrics['reward_mean'] = to_np(torch.mean(reward))
     metrics['reward_std'] = to_np(torch.std(reward))
@@ -343,7 +346,20 @@ class ImagBehavior(nn.Module):
 
     #MOD
     metrics['mean_target_cost'] = to_np(torch.mean(target_cost.detach()))
-    metrics['mean_target_target'] = to_np(torch.mean(target.detach()))
+    metrics['max_target_cost'] = to_np(torch.max(target_cost.detach()))
+    metrics['std_target_cost'] = to_np(torch.std(target_cost.detach()))
+    metrics['min_target_cost'] = to_np(torch.min(target_cost.detach()))
+    metrics['mean_target'] = to_np(torch.mean(target.detach()))
+
+
+    if self._config.learnable_lagrange:
+
+      if self._config.update_lagrange_method == 2:
+        self._update_lagrange_multiplier(torch.max(target_cost.detach()))
+
+      elif self._config.update_lagrange_method == 3:
+        self._update_lagrange_multiplier(torch.mean(target_cost.detach()))
+
 
     return imag_feat, imag_state, imag_action, weights, metrics
 
@@ -406,6 +422,7 @@ class ImagBehavior(nn.Module):
     if self._config.perturb_cost_entropy:
       if self._config.future_entropy and self._config.actor_entropy() > 0:
         cost += self._config.actor_entropy() * actor_ent
+
       if self._config.future_entropy and self._config.actor_state_entropy() > 0:
         cost += self._config.actor_state_entropy() * state_ent
     
@@ -455,9 +472,16 @@ class ImagBehavior(nn.Module):
     if self._config.solve_cmdp:
       # Add a loss tp the objectiv
       penalty = self._world_model._lagrangian_multiplier.detach() if self._config.learnable_lagrange else  self._world_model._lagrangian_multiplier
-      cost_loss_term = penalty  * ( target_cost - self._config.cost_limit ) if self._config.reduce_target_cost else penalty * target_cost
-      actor_target -= cost_loss_term    # term will be negated and be an addition to the cost, so high target_cost means a higher actor loss
-      actor_target /= penalty
+      if self._config.cost_imag_gradient =='dynamics':
+        cost_loss_term = penalty  * ( target_cost - self._config.cost_limit ) if self._config.reduce_target_cost else penalty * target_cost
+        actor_target -= cost_loss_term    # term will be negated and be an addition to the cost, so high target_cost means a higher actor loss
+        actor_target /= penalty
+      elif self._config.cost_imag_gradient =='reinforce':
+        cost_loss_term = policy.log_prob(imag_action)[:-1][:, :, None] * ( \
+            target_cost - self.cost_value(imag_feat[:-1]).mode()).detach()
+        cost_loss_term = penalty *cost_loss_term
+        actor_target -= cost_loss_term    # term will be negated and be an addition to the cost, so high target_cost means a higher actor loss
+        actor_target /= penalty
 
     actor_loss = -torch.mean(weights[:-1] * actor_target)
     return actor_loss, metrics

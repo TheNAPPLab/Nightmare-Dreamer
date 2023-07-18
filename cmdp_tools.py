@@ -139,7 +139,7 @@ def simulate(agent, envs, steps=0, episodes=0, state=None):
       cost = [cost[i]*(1-done[i]) for i in range(len(envs))]
     # Step agents.
     obs = {k: np.stack([o[k] for o in obs]) for k in obs[0]}
-    action, agent_state = agent(obs, done, agent_state, reward,cost)
+    action, agent_state = agent(obs, done, agent_state, reward, cost)
     if isinstance(action, dict):
       action = [
           {k: np.array(action[k][i].detach().cpu()) for k in action}
@@ -455,7 +455,7 @@ def lambda_return_cost(
   assert len(cost.shape) == len(value_cost.shape), (cost.shape, value_cost.shape)
   if isinstance(pcont, (int, float)):
     pcont = pcont * torch.ones_like(cost)
-  pcont = pcont if discount_value_cost else  torch.ones_like(cost)  # if not discount value cost then we just use 1 
+  # pcont = pcont if discount_value_cost else  torch.ones_like(cost)  # if not discount value cost then we just use 1 
   dims = list(range(len(cost.shape)))
   dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]
   if axis != 0:

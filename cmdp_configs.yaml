@@ -178,12 +178,14 @@ sgym:
   lambda_lr: 0.035
   ontop: False
   perturb_cost_entropy: True # to include uncertainty in the computation of cost
-  discount_value_cost: False
-  discount_value_cost_loss: False
+  discount_value_cost: True
+  discount_value_cost_loss: True
   cost_value_lr: 1e-5
   learnable_lagrange: False
-  reduce_target_cost: True  #subtract target cost from a base line in actor loss
+  reduce_target_cost: False  #subtract target cost from a base line in actor loss
   lagrangian_multiplier_fixed: 0.1 # 0.3
+  update_lagrange_method: 1 #0,1 ,2,3
+  cost_imag_gradient: 'dynamics'
 
 
 

@@ -220,7 +220,7 @@ def process_episode(config, logger, mode, train_eps, eval_eps, episode):
     logger.scalar('dataset_size', total + length)
   cache[str(filename)] = episode
   print(f'{mode.title()} episode has {length} steps, return {score:.1f} and cost {score_cost:.1f}.')
-  logger.scalar(f'{mode}_return', score_cost)
+  logger.scalar(f'{mode}_cost_return', score_cost)
   logger.scalar(f'{mode}_return', score)
   logger.scalar(f'{mode}_length', length)
   logger.scalar(f'{mode}_episodes', len(cache))
@@ -270,10 +270,12 @@ def main(config):
   else:
     directory = config.traindir
   train_eps = tools.load_episodes(directory, limit=config.dataset_size)
+
   if config.offline_evaldir:
     directory = config.offline_evaldir.format(**vars(config))
   else:
     directory = config.evaldir
+    
   eval_eps = tools.load_episodes(directory, limit=1)
   make = lambda mode: make_env(config, logger, mode, train_eps, eval_eps)
   train_envs = [make('train') for _ in range(config.envs)]
