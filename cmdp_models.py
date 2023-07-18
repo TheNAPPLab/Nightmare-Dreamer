@@ -272,8 +272,11 @@ class ImagBehavior(nn.Module):
 
       self._lagrangian_multiplier = torch.nn.Parameter(
             torch.as_tensor( init_value ),
-            requires_grad = True) if config.learnable_lagrange else self._config.lagrangian_multiplier_fixed 
-      self._lambda_range_projection = torch.nn.ReLU() #to make sure multiplier is postive
+            requires_grad = True) if config.learnable_lagrange else self._config.lagrangian_multiplier_fixed
+      if self.config.lamda_projection == 'relu':
+        self._lambda_range_projection = torch.nn.ReLU() #to make sure multiplier is postive
+      elif self.config.lamda_projection == 'sigmoid':
+        self._lambda_range_projection = torch.nn.Sigmoid()
 
       #MOD
       torch_opt = getattr(optim, 'Adam')
