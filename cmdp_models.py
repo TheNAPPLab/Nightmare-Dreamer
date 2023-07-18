@@ -532,7 +532,7 @@ class ImagBehavior(nn.Module):
       mean_ep_cost - self._config.cost_limit
 
     self._lagrangian_multiplier.requires_grad = True
-    loss = self._lagrangian_multiplier * diff
+    loss = -self._lagrangian_multiplier * diff
     return loss
 
   def _update_lagrange_multiplier(self, ep_costs):
