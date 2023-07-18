@@ -498,7 +498,7 @@ class ImagBehavior(nn.Module):
       # Add a loss tp the objectiv
       penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item() if self._config.learnable_lagrange else self._lagrangian_multiplier
       if self._config.cost_imag_gradient =='dynamics':
-        cost_loss_term = penalty  * ( target_cost - self._config.cost_limit ) if self._config.reduce_target_cost else penalty * target_cost
+        cost_loss_term = penalty  * ( target_cost -  target_ratio(self._config.cost_limit) ) if self._config.reduce_target_cost else penalty * target_cost
         actor_target -= cost_loss_term    # term will be negated and be an addition to the cost, so high target_cost means a higher actor loss
         actor_target /= penalty
       elif self._config.cost_imag_gradient =='reinforce':
