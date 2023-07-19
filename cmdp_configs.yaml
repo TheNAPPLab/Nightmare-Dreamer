@@ -169,7 +169,7 @@ sgym:
   kl_scale: '1.0'
 
   #cmdp
-  solve_cmdp: True
+  solve_cmdp: False
   cost_scale: 2
   clip_costs: 'identity'
   use_cost_value: False
@@ -177,6 +177,7 @@ sgym:
   cost_limit: 25
   lambda_lr: 0.035
   ontop: False
+  camera_name: 'fixednear' # fixedfar fixednear
   perturb_cost_entropy: True # to include uncertainty in the computation of cost
   discount_value_cost: True
   discount_value_cost_loss: True

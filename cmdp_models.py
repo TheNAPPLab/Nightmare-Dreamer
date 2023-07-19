@@ -248,9 +248,10 @@ class ImagBehavior(nn.Module):
           [], config.value_layers, config.units, config.act)
       #MOD
       #Cost Target network
-      self._slow_cost_value = networks.DenseHead(
-          feat_size,  # pytorch version
-          [], config.value_layers, config.units, config.act)
+      if config.solve_cmdp:
+        self._slow_cost_value = networks.DenseHead(
+            feat_size,  # pytorch version
+            [], config.value_layers, config.units, config.act)
       self._updates = 0
 
     kw = dict(wd = config.weight_decay, opt = config.opt, use_amp=self._use_amp) #?
@@ -261,10 +262,11 @@ class ImagBehavior(nn.Module):
         'value', self.value.parameters(), config.value_lr, config.opt_eps, config.value_grad_clip,
         **kw)
     #MOD
-    self._cost_value_opt = tools.Optimizer(
-        'cost_value', self.cost_value.parameters(), config.cost_value_lr, config.opt_eps, config.value_grad_clip,
-        **kw)
-        #MOD
+    if config.solve_cmdp:
+      self._cost_value_opt = tools.Optimizer(
+          'cost_value', self.cost_value.parameters(), config.cost_value_lr, config.opt_eps, config.value_grad_clip,
+          **kw)
+          #MOD
     if self._config.solve_cmdp:
       # new Models and paramters include lagrange multiplier and Cost model 
       
@@ -273,9 +275,9 @@ class ImagBehavior(nn.Module):
       self._lagrangian_multiplier = torch.nn.Parameter(
             torch.as_tensor( init_value ),
             requires_grad = True) if config.learnable_lagrange else self._config.lagrangian_multiplier_fixed
-      if self.config.lamda_projection == 'relu':
+      if config.lamda_projection == 'relu':
         self._lambda_range_projection = torch.nn.ReLU() #to make sure multiplier is postive
-      elif self.config.lamda_projection == 'sigmoid':
+      elif config.lamda_projection == 'sigmoid':
         self._lambda_range_projection = torch.nn.Sigmoid()
 
       #MOD
@@ -301,6 +303,7 @@ class ImagBehavior(nn.Module):
             start, self.actor, self._config.imag_horizon, repeats)
         
         reward = objective(imag_feat, imag_state, imag_action)
+
         cost = constrain(imag_feat, imag_state, imag_action)
 
         actor_ent = self.actor(imag_feat).entropy()
@@ -313,9 +316,10 @@ class ImagBehavior(nn.Module):
             self._config.slow_actor_target)
         
         #MOD
-        target_cost = self._compute_target_cost(
-            imag_feat, imag_state, imag_action, cost, actor_ent, state_ent,
-            self._config.slow_actor_target)
+        if self._config.solve_cmdp:
+          target_cost = self._compute_target_cost(
+              imag_feat, imag_state, imag_action, cost, actor_ent, state_ent,
+              self._config.slow_actor_target)
         
         actor_loss, mets = self._compute_actor_loss(
             imag_feat, imag_state, imag_action, target, target_cost, actor_ent, state_ent,
@@ -341,13 +345,14 @@ class ImagBehavior(nn.Module):
         value_loss = torch.mean(weights[:-1] * value_loss[:,:,None])
 
     #MOD
-    with tools.RequiresGrad(self.cost_value):
-      with torch.cuda.amp.autocast(self._use_amp):
-        cost_value = self.cost_value(value_input[:-1].detach())
-        target_cost = torch.stack(target_cost, dim=1)
-        cost_value_loss = -cost_value.log_prob(target_cost.detach())
-        # multi[ly by weights only if we wish to dsicount the value function
-        cost_value_loss = torch.mean(weights[:-1] * cost_value_loss[:,:,None])
+    if self._config.solve_cmdp:
+      with tools.RequiresGrad(self.cost_value):
+        with torch.cuda.amp.autocast(self._use_amp):
+          cost_value = self.cost_value(value_input[:-1].detach())
+          target_cost = torch.stack(target_cost, dim=1)
+          cost_value_loss = -cost_value.log_prob(target_cost.detach())
+          # multi[ly by weights only if we wish to dsicount the value function
+          cost_value_loss = torch.mean(weights[:-1] * cost_value_loss[:,:,None])
 
     metrics['reward_mean'] = to_np(torch.mean(reward))
     metrics['reward_std'] = to_np(torch.std(reward))
@@ -358,7 +363,7 @@ class ImagBehavior(nn.Module):
 
 
     metrics['actor_ent'] = to_np(torch.mean(actor_ent))
-
+    metrics['mean_target'] = to_np(torch.mean(target.detach()))
 
     with tools.RequiresGrad(self):
       metrics.update(self._actor_opt(actor_loss, self.actor.parameters()))
@@ -369,15 +374,16 @@ class ImagBehavior(nn.Module):
         metrics.update(self._cost_value_opt(cost_value_loss, self.cost_value.parameters()))
 
     #MOD
-    metrics['mean_target_cost'] = to_np(torch.mean(target_cost.detach()))
-    metrics['max_target_cost'] = to_np(torch.max(target_cost.detach()))
-    metrics['std_target_cost'] = to_np(torch.std(target_cost.detach()))
-    metrics['min_target_cost'] = to_np(torch.min(target_cost.detach()))
-    metrics['mean_target'] = to_np(torch.mean(target.detach()))
-    if self._config.learnable_lagrange:
+    if self._config.solve_cmdp:
+      metrics['mean_target_cost'] = to_np(torch.mean(target_cost.detach()))
+      metrics['max_target_cost'] = to_np(torch.max(target_cost.detach()))
+      metrics['std_target_cost'] = to_np(torch.std(target_cost.detach()))
+      metrics['min_target_cost'] = to_np(torch.min(target_cost.detach()))
+  
+    if self._config.learnable_lagrange and  self._config.solve_cmdp:
       metrics['lagrangian_multiplier'] = self._lagrangian_multiplier.item() if self._config.learnable_lagrange else self._lagrangian_multiplier
 
-    if self._config.learnable_lagrange:
+    if self._config.learnable_lagrange and self._config.solve_cmdp:
 
       if self._config.update_lagrange_method == 2:
         self._world_model._update_lagrange_multiplier(torch.max(target_cost.detach()))
@@ -386,7 +392,7 @@ class ImagBehavior(nn.Module):
         self._world_model._update_lagrange_multiplier(torch.mean(target_cost.detach()))
 
       elif self._config.update_lagrange_method == 4:
-        self._update_lagrange_multiplier(torch.max(target_cost.detach()))
+        self._update_lagrange_multiplier(torch.mean(target_cost.detach()))
 
 
     return imag_feat, imag_state, imag_action, weights, metrics

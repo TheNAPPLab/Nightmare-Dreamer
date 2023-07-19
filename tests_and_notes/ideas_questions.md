@@ -4,7 +4,7 @@
 2. Should we clip rewards? Some env use `tanh` some use `Identity`: But since Costs tends to be scarse and   we should probably just use `Identity`.
 3. solve Safety DexterousHands
 4. solve safe cheetah
-
+5. Use Pernouli distribution for cost as its mostly sparse no need for range
 
 
 

@@ -189,6 +189,7 @@ def make_dataset(episodes, config):
 def make_env(config, logger, mode, train_eps, eval_eps):
   env = wrappers.SafetyGym(config.task, config.grayscale, action_repeat = config.action_repeat ) if not config.ontop else \
     wrappers.SafetyGym(config.task, config.grayscale, action_repeat = config.action_repeat, camera_name = 'fixednear' )
+  
   env = wrappers.NormalizeActions(env)
   env = wrappers.TimeLimit(env, config.time_limit)
   env = wrappers.SelectAction(env, key='action')
@@ -251,7 +252,7 @@ def set_test_paramters(config):
 def main(config):
   config_dict = config.__dict__
 
-  config.task = 'SafetyPointCircle1-v0'
+  config.task = 'SafetyPointGoal1-v0'
 
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
