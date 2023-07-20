@@ -169,7 +169,7 @@ sgym:
   kl_scale: '1.0'
 
   #cmdp
-  solve_cmdp: False
+  solve_cmdp: True
   cost_scale: 2
   clip_costs: 'identity'
   use_cost_value: False

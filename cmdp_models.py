@@ -8,7 +8,7 @@ import networks
 import cmdp_tools as tools
 to_np = lambda x: x.detach().cpu().numpy()
 
-def target_ratio(b, max_target = 99.3429516957585 , max_cost = 500):
+def target_ratio(b, max_target = 99.3429516957585 , max_cost = 1000):
   return b * max_target / max_cost
 
 class WorldModel(nn.Module):
@@ -322,8 +322,8 @@ class ImagBehavior(nn.Module):
               self._config.slow_actor_target)
         
         actor_loss, mets = self._compute_actor_loss(
-            imag_feat, imag_state, imag_action, target, target_cost, actor_ent, state_ent,
-            weights)
+            imag_feat, imag_state, imag_action, target, actor_ent, state_ent,
+            weights, target_cost = target_cost if self._config.solve_cmdp  else None )
         
         metrics.update(mets)
 
@@ -472,14 +472,14 @@ class ImagBehavior(nn.Module):
     return target
 
   def _compute_actor_loss(
-      self, imag_feat, imag_state, imag_action, target, target_cost, actor_ent, state_ent,
-      weights):
+      self, imag_feat, imag_state, imag_action, target, actor_ent, state_ent,
+      weights, target_cost = None):
     metrics = {}
     inp = imag_feat.detach() if self._stop_grad_actor else imag_feat
     policy = self.actor(inp)
     actor_ent = policy.entropy()
     target = torch.stack(target, dim=1)
-    target_cost =  torch.stack(target_cost, dim=1)
+    target_cost =  torch.stack(target_cost, dim=1) if target_cost else None
     if self._config.imag_gradient == 'dynamics':
       actor_target = target
 

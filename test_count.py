@@ -25,3 +25,9 @@ print(step, sum_cost)
 
 # x = 25*100/1000
 # print(x)
+
+
+def target_ratio(b, max_target = 99.3429516957585 , max_cost = 1000):
+  return b * max_target / max_cost
+
+print(target_ratio(25))
