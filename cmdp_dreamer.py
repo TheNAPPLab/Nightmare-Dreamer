@@ -355,6 +355,8 @@ if __name__ == '__main__':
   for key, value in sorted(defaults.items(), key = lambda x: x[0]):
     arg_type = tools.args_type(value)
     parser.add_argument(f'--{key}', type=arg_type, default=arg_type(value))
-  parser.set_defaults(logdir='~/logdir/safetgym/dreamerv2/1')
-  # parser.set_defaults(logdir='~/logdir/safetgym/dreamerv2/2')
+  current_dir = os.path.dirname(os.path.abspath(__file__))
+  logdir = os.path.join(current_dir, 'logdir', 'safetgym', 'dreamerv2', '1')
+  # parser.set_defaults(logdir='~/logdir/safetgym/dreamerv2/1')
+  parser.set_defaults(logdir=logdir)
   main(parser.parse_args(remaining))
