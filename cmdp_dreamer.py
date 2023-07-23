@@ -257,8 +257,12 @@ def main(config):
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
   print(config_dict)
-  run =  wandb.init(project='Safe RL via Latent world models Setup mac', config = config_dict) \
-    if sys.platform != 'linux' else wandb.init(project='Safe RL via Latent world models Setup', config = config_dict)
+  if sys.platform == 'linux': #not debugging on mac but running experiment
+    
+    # run =  wandb.init(project='Safe RL via Latent world models Setup mac', config = config_dict) \
+    # if sys.platform != 'linux' else wandb.init(project='Safe RL via Latent world models Setup', config = config_dict)
+
+    run = wandb.init(project='Safe RL via Latent world models Setup', config = config_dict)
   logdir = pathlib.Path(config.logdir).expanduser()
   config.traindir = config.traindir or logdir / 'train_eps'
   config.evaldir = config.evaldir or logdir / 'eval_eps'

@@ -8,6 +8,7 @@ import time
 import uuid
 import wandb
 import numpy as np
+import sys
 
 import torch
 from torch import nn
@@ -76,7 +77,9 @@ class Logger:
     print(f'[{self.step}]', ' / '.join(f'{k} {v:.1f}' for k, v in scalars))
     with (self._logdir / 'metrics.jsonl').open('a') as f:
       f.write(json.dumps({'step': self.step, ** dict(scalars)}) + '\n')
-    wandb.log(self._scalars, step = self.step)
+    if sys.platform == 'linux': wandb.log(self._scalars, step = self.step)
+
+
     # for name, value in scalars:
     #   self._writer.add_scalar('scalars/' + name, value, self.step)
     # for name, value in self._images.items():

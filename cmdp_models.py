@@ -520,19 +520,21 @@ class ImagBehavior(nn.Module):
 
     if self._config.solve_cmdp:
       # Add a loss tp the objectiv
-      # penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item() if self._config.learnable_lagrange else self._lagrangian_multiplier
-      penalty = 0.1
+      penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item() if self._config.learnable_lagrange else self._lagrangian_multiplier
+      # penalty = 0.01
       if self._config.cost_imag_gradient =='dynamics':
         # cost_loss_term = penalty  * ( target_cost -  target_ratio(self._config.cost_limit) ) if self._config.reduce_target_cost else penalty * target_cost
         cost_loss_term = penalty * target_cost
         actor_target -= cost_loss_term    # term will be negated and be an addition to the cost, so high target_cost means a higher actor loss
-        actor_target /= penalty
+        if penalty > 1.0:
+          actor_target /= penalty
+
       elif self._config.cost_imag_gradient =='reinforce':
         cost_loss_term = policy.log_prob(imag_action)[:-1][:, :, None] * ( \
             target_cost - self.cost_value(imag_feat[:-1]).mode()).detach()
         cost_loss_term = penalty * cost_loss_term
         actor_target -= cost_loss_term    # term will be negated and be an addition to the cost, so high target_cost means a higher actor loss
-        actor_target /= penalty
+        # actor_target /= penalty
 
       elif self._config.cost_imag_gradient =='z':
         c = torch.where(z < 0, torch.tensor(self._config.c), torch.tensor(0.0))
@@ -577,8 +579,9 @@ class ImagBehavior(nn.Module):
   def _compute_lamda_loss(self, mean_ep_cost):
     if self._config.update_lagrange_method == 4:
       diff =  mean_ep_cost -  target_ratio(self._config.cost_limit)
-    if self._config.update_lagrange_method == 5:
-      diff =  mean_ep_cost -  12
+
+    elif self._config.update_lagrange_method == 5:
+      diff =  mean_ep_cost -  25
     
     else:
       mean_ep_cost - self._config.cost_limit
