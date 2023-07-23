@@ -6,7 +6,7 @@ defaults:
   offline_traindir: ''
   offline_evaldir: ''
   seed: 0
-  steps: 1e7
+  steps: 1e7  
   eval_every: 1e4
   log_every: 1e4
   reset_every: 0
@@ -186,8 +186,9 @@ sgym:
   reduce_target_cost: False  #subtract target cost from a base line in actor loss
   lagrangian_multiplier_fixed: 0.1 # 0.3
   update_lagrange_method: 4 #0,1 ,2,3
-  cost_imag_gradient: 'dynamics'
+  cost_imag_gradient: 'z' #dynamics
   lamda_projection: 'sigmoid'
+  c: 5.0
 
 
 
