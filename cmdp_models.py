@@ -540,7 +540,9 @@ class ImagBehavior(nn.Module):
         # actor_target /= penalty
 
       elif self._config.cost_imag_gradient =='z':
-        c = torch.where(z < 0, torch.tensor(self._config.c), torch.tensor(0.0))
+        c_tensor = torch.tensor(self._config.c, device=self._config.device)
+        zero_tensor = torch.tensor(0.0, device = self._config.device)
+        c = torch.where(z < 0, c_tensor, zero_tensor)
         actor_target -= c
     actor_loss = -torch.mean(weights[:-1] * actor_target)
     return actor_loss, metrics
