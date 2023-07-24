@@ -187,7 +187,7 @@ sgym:
   update_lagrange_method: 5 #0,1 ,2,3
   cost_imag_gradient: 'z' #dynamics
   lamda_projection: 'relu'
-  c: 15.0
+  c: 30.0
 
 
 
