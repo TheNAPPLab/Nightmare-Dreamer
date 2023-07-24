@@ -522,8 +522,11 @@ class ImagBehavior(nn.Module):
       # Add a loss tp the objectiv
       penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item() if self._config.learnable_lagrange else self._lagrangian_multiplier
       # penalty = 0.01
+      penalty = 128
       if self._config.cost_imag_gradient =='dynamics':
         # cost_loss_term = penalty  * ( target_cost -  target_ratio(self._config.cost_limit) ) if self._config.reduce_target_cost else penalty * target_cost
+        # cost_loss_term = min(penalty, 0.8) * target_cost
+          
         cost_loss_term = penalty * target_cost
         actor_target -= cost_loss_term    # term will be negated and be an addition to the cost, so high target_cost means a higher actor loss
         if penalty > 1.0:
@@ -539,7 +542,6 @@ class ImagBehavior(nn.Module):
       elif self._config.cost_imag_gradient =='z':
         c = torch.where(z < 0, torch.tensor(self._config.c), torch.tensor(0.0))
         actor_target -= c
-
     actor_loss = -torch.mean(weights[:-1] * actor_target)
     return actor_loss, metrics
 

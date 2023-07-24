@@ -258,7 +258,7 @@ def main(config):
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
   print(config_dict)
   if sys.platform == 'linux': #not debugging on mac but running experiment
-    
+
     # run =  wandb.init(project='Safe RL via Latent world models Setup mac', config = config_dict) \
     # if sys.platform != 'linux' else wandb.init(project='Safe RL via Latent world models Setup', config = config_dict)
 
@@ -360,7 +360,7 @@ if __name__ == '__main__':
     arg_type = tools.args_type(value)
     parser.add_argument(f'--{key}', type=arg_type, default=arg_type(value))
   current_dir = os.path.dirname(os.path.abspath(__file__))
-  logdir = os.path.join(current_dir, 'logdir', 'safetgym', 'dreamerv2', '1')
+  logdir = os.path.join(current_dir, 'logdir', 'safecircle1', '1')
   # parser.set_defaults(logdir='~/logdir/safetgym/dreamerv2/1')
   parser.set_defaults(logdir=logdir)
   main(parser.parse_args(remaining))

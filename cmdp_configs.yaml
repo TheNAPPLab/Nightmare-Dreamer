@@ -173,7 +173,7 @@ sgym:
   clip_costs: 'identity'
   use_cost_value: False
   lagrangian_multiplier_init: 0.001 # 0.3
-  cost_limit: 9
+  cost_limit: 6
   lambda_lr: 0.035
   ontop: False
   camera_name: 'fixednear' # fixedfar fixednear
@@ -185,9 +185,9 @@ sgym:
   reduce_target_cost: False  #subtract target cost from a base line in actor loss
   lagrangian_multiplier_fixed: 0.1 # 0.3
   update_lagrange_method: 5 #0,1 ,2,3
-  cost_imag_gradient: 'dynamics' #dynamics
+  cost_imag_gradient: 'z' #dynamics
   lamda_projection: 'relu'
-  c: 5.0
+  c: 15.0
 
 
 
