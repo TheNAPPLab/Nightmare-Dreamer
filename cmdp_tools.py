@@ -448,11 +448,6 @@ def lambda_return(
     returns = returns.permute(dims)
   return returns
 
-def calculate_z(budget, costs : np.array, gamma, horizon):
-  time_horizon = torch.arange(horizon).unsqueeze(0).unsqueeze(1).float()
-  discount_factor = torch.pow(gamma, time_horizon)
-
-  
 
 
 # def lambda_return_cost(

@@ -259,8 +259,9 @@ class ImagBehavior(nn.Module):
       self._lagrangian_multiplier = torch.nn.Parameter(
             torch.as_tensor( init_value ),
             requires_grad = True) if config.learnable_lagrange else self._config.lagrangian_multiplier_fixed
+      
       if config.lamda_projection == 'relu':
-        self._lambda_range_projection = torch.nn.ReLU() #to make sure multiplier is postive
+        self._lambda_range_projection = torch.nn.ReLU()
       elif config.lamda_projection == 'sigmoid':
         self._lambda_range_projection = torch.nn.Sigmoid()
 
@@ -372,16 +373,9 @@ class ImagBehavior(nn.Module):
 
     if self._config.learnable_lagrange and self._config.solve_cmdp:
 
-      if self._config.update_lagrange_method == 2:
-        self._world_model._update_lagrange_multiplier(torch.max(target_cost.detach()))
-
-      elif self._config.update_lagrange_method == 3:
-        self._world_model._update_lagrange_multiplier(torch.mean(target_cost.detach()))
-
-      elif self._config.update_lagrange_method == 4:
+      if self._config.update_lagrange_metric == 'target_mean':
         self._update_lagrange_multiplier(torch.mean(target_cost.detach()))
-
-      elif self._config.update_lagrange_method == 5:
+      elif self._config.update_lagrange_metric == 'target_max':
         self._update_lagrange_multiplier(torch.max(target_cost.detach()))
 
 
@@ -522,15 +516,13 @@ class ImagBehavior(nn.Module):
       # Add a loss tp the objectiv
       penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item() if self._config.learnable_lagrange else self._lagrangian_multiplier
       # penalty = 0.01
-      penalty = 128
       if self._config.cost_imag_gradient =='dynamics':
         # cost_loss_term = penalty  * ( target_cost -  target_ratio(self._config.cost_limit) ) if self._config.reduce_target_cost else penalty * target_cost
         # cost_loss_term = min(penalty, 0.8) * target_cost
-          
         cost_loss_term = penalty * target_cost
         actor_target -= cost_loss_term    # term will be negated and be an addition to the cost, so high target_cost means a higher actor loss
-        if penalty > 1.0:
-          actor_target /= penalty
+        # if penalty > 1.0:
+        #   actor_target /= penalty
 
       elif self._config.cost_imag_gradient =='reinforce':
         cost_loss_term = policy.log_prob(imag_action)[:-1][:, :, None] * ( \
@@ -538,6 +530,12 @@ class ImagBehavior(nn.Module):
         cost_loss_term = penalty * cost_loss_term
         actor_target -= cost_loss_term    # term will be negated and be an addition to the cost, so high target_cost means a higher actor loss
         # actor_target /= penalty
+
+      elif self._config.cost_imag_gradient =='z':
+        c_tensor = torch.tensor(self._config.c, device=self._config.device)
+        zero_tensor = torch.tensor(0.0, device = self._config.device)
+        c = torch.where(z < 0, c_tensor, zero_tensor)
+        actor_target -= c
 
       elif self._config.cost_imag_gradient =='z':
         c_tensor = torch.tensor(self._config.c, device=self._config.device)
@@ -581,15 +579,8 @@ class ImagBehavior(nn.Module):
       self._updates += 1
 
   def _compute_lamda_loss(self, mean_ep_cost):
-    if self._config.update_lagrange_method == 4:
-      diff =  mean_ep_cost -  target_ratio(self._config.cost_limit)
-
-    elif self._config.update_lagrange_method == 5:
-      diff =  mean_ep_cost -  25
-    
-    else:
-      mean_ep_cost - self._config.cost_limit
-
+    # diff =  mean_ep_cost -  target_ratio(self._config.cost_limit)
+    diff = mean_ep_cost - self._config.cost_limit
     self._lagrangian_multiplier.requires_grad = True
     loss = -self._lagrangian_multiplier * diff
     return loss
@@ -603,7 +594,8 @@ class ImagBehavior(nn.Module):
         lambda_loss = self._compute_lamda_loss(ep_costs)
         lambda_loss.backward()
         self._lamda_optimizer.step()
-        self._lagrangian_multiplier.data.clamp_(0)  # enforce: lambda in [0, inf]
+        if self._config.lamda_projection != 'sigmoid':
+          self._lagrangian_multiplier.data.clamp_(0)  # enforce: lambda in [0, inf]
 
  
 

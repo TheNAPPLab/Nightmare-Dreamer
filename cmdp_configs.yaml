@@ -169,24 +169,30 @@ sgym:
 
   #cmdp
   solve_cmdp: True
+
+  #Cost model parameter
+  cost_value_lr: 8e-5
   cost_scale: 2
   clip_costs: 'identity'
-  use_cost_value: False
-  lagrangian_multiplier_init: 0.001 # 0.3
+
+  #lagrange multipler  parameters
   cost_limit: 6
+  lamda_projection: 'relu'
+  update_lagrange_metric: 'target_max' # target_mean
+  lagrangian_multiplier_init: 0.001 # 0.3
   lambda_lr: 0.035
+  learnable_lagrange: True
+  lagrangian_multiplier_fixed: 0.1 # 0.3
+  reduce_target_cost: False
+
+  #Observation setting
   ontop: False
   camera_name: 'fixednear' # fixedfar fixednear
+
   perturb_cost_entropy: True # to include uncertainty in the computation of cost
-  discount_value_cost: True
-  discount_value_cost_loss: True
-  cost_value_lr: 1e-5
-  learnable_lagrange: True
   reduce_target_cost: False  #subtract target cost from a base line in actor loss
-  lagrangian_multiplier_fixed: 0.1 # 0.3
-  update_lagrange_method: 5 #0,1 ,2,3
-  cost_imag_gradient: 'z' #dynamics
-  lamda_projection: 'relu'
+
+  cost_imag_gradient: 'z' #dynamics , reinforce, z, z_reinforce
   c: 30.0
 
 
