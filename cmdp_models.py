@@ -8,6 +8,7 @@ import networks
 import cmdp_tools as tools
 to_np = lambda x: x.detach().cpu().numpy()
 
+
 def target_ratio(b, max_target = 99.3429516957585 , max_cost = 1000):
   return b * max_target / max_cost
 
@@ -264,6 +265,9 @@ class ImagBehavior(nn.Module):
         self._lambda_range_projection = torch.nn.ReLU()
       elif config.lamda_projection == 'sigmoid':
         self._lambda_range_projection = torch.nn.Sigmoid()
+      elif config.lamda_projection == 'stretched_sigmoid':
+        self._lambda_range_projection = tools.StretchedSigmoid(self._config.sigmoid_a)
+
 
       #MOD
       torch_opt = getattr(optim, 'Adam')
@@ -277,6 +281,7 @@ class ImagBehavior(nn.Module):
 
     #MOD
     constrain = constrain or self._cost
+    get_value_or_none = lambda x: x if self._config.solve_cmdp else None
 
     self._update_slow_target()
     metrics = {}
@@ -310,7 +315,7 @@ class ImagBehavior(nn.Module):
         actor_loss, mets = self._compute_actor_loss(
             imag_feat = imag_feat, imag_state = imag_state, imag_action = imag_action, \
             target = target, target_cost = target_cost if self._config.solve_cmdp  else None ,\
-            actor_ent = actor_ent, state_ent = state_ent, weights = weights, z = z )
+            actor_ent = actor_ent, state_ent = state_ent, weights = weights, z = z if self._config.solve_cmdp else None )
         
         metrics.update(mets)
 
@@ -352,6 +357,7 @@ class ImagBehavior(nn.Module):
     metrics['actor_ent'] = to_np(torch.mean(actor_ent))
     metrics['mean_target'] = to_np(torch.mean(target.detach()))
     metrics['max_target'] = to_np(torch.max(target.detach()))
+    metrics['std_target'] = to_np(torch.std(target.detach()))
 
     with tools.RequiresGrad(self):
       metrics.update(self._actor_opt(actor_loss, self.actor.parameters()))
@@ -367,11 +373,13 @@ class ImagBehavior(nn.Module):
       metrics['max_target_cost'] = to_np(torch.max(target_cost.detach()))
       metrics['std_target_cost'] = to_np(torch.std(target_cost.detach()))
       metrics['min_target_cost'] = to_np(torch.min(target_cost.detach()))
-  
-    if self._config.learnable_lagrange and  self._config.solve_cmdp:
+
+    #log lagranian multipler
+    if self._config.solve_cmdp and self._config.learnable_lagrange :
       metrics['lagrangian_multiplier'] = self._lagrangian_multiplier.item() if self._config.learnable_lagrange else self._lagrangian_multiplier
 
-    if self._config.learnable_lagrange and self._config.solve_cmdp:
+    #update lagrane multiplier if needed
+    if self._config.solve_cmdp and self._config.learnable_lagrange:
 
       if self._config.update_lagrange_metric == 'target_mean':
         self._update_lagrange_multiplier(torch.mean(target_cost.detach()))

@@ -400,6 +400,15 @@ class TanhBijector(torchd.Transform):
     log2 = torch.math.log(2.0)
     return 2.0 * (log2 - x - torch.softplus(-2.0 * x))
 
+class StretchedSigmoid(nn.Module):
+    def __init__(self, a = 0, b = 0):
+        super(StretchedSigmoid, self).__init__()
+        self.a = a
+        self.b = b
+
+    def forward(self, x):
+        return 1 / (1 + torch.exp(-self.a * (x - self.b)))
+    
 
 def static_scan_for_lambda_return(fn, inputs, start):
   last = start

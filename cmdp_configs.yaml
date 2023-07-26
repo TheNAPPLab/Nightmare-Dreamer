@@ -168,7 +168,7 @@ sgym:
   kl_scale: '1.0'
 
   #cmdp
-  solve_cmdp: True
+  solve_cmdp: False
 
   #Cost model parameter
   cost_value_lr: 8e-5
@@ -176,8 +176,9 @@ sgym:
   clip_costs: 'identity'
 
   #lagrange multipler  parameters
-  cost_limit: 25
-  lamda_projection: 'sigmoid'
+  cost_limit: 5
+  sigmoid_a: 0.08
+  lamda_projection: 'sigmoid' #sigmoid_a stretched_sigmoid
   update_lagrange_metric: 'target_max' # target_mean target_max
   lagrangian_multiplier_init: 0.001 # 0.3
   lambda_lr: 0.035
