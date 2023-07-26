@@ -360,7 +360,7 @@ if __name__ == '__main__':
     arg_type = tools.args_type(value)
     parser.add_argument(f'--{key}', type=arg_type, default=arg_type(value))
   current_dir = os.path.dirname(os.path.abspath(__file__))
-  logdir = os.path.join(current_dir, 'logdir', 'safecircle1', '4')
+  logdir = os.path.join(current_dir, 'logdir', 'safecircle1', '3')
   # parser.set_defaults(logdir='~/logdir/safetgym/dreamerv2/1')
   parser.set_defaults(logdir=logdir)
   main(parser.parse_args(remaining))

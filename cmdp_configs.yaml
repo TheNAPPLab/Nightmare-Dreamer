@@ -176,7 +176,7 @@ sgym:
   clip_costs: 'identity'
 
   #lagrange multipler  parameters
-  cost_limit: 6
+  cost_limit: 25
   lamda_projection: 'relu'
   update_lagrange_metric: 'target_max' # target_mean
   lagrangian_multiplier_init: 0.001 # 0.3
@@ -191,7 +191,7 @@ sgym:
 
   perturb_cost_entropy: True # to include uncertainty in the computation of cost
 
-  cost_imag_gradient: 'z' #dynamics , reinforce, z, z_reinforce
+  cost_imag_gradient: 'dynamics' #dynamics , reinforce, z, z_reinforce
   c: 30.0
 
 

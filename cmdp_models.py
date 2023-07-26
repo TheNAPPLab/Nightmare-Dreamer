@@ -518,8 +518,8 @@ class ImagBehavior(nn.Module):
       # penalty = 0.01
       if self._config.cost_imag_gradient =='dynamics':
         # cost_loss_term = penalty  * ( target_cost -  target_ratio(self._config.cost_limit) ) if self._config.reduce_target_cost else penalty * target_cost
-        cost_loss_term = min(penalty, 0.8) * target_cost
-        # cost_loss_term = penalty * target_cost
+        # cost_loss_term = min(penalty, 0.8) * target_cost
+        cost_loss_term = penalty * target_cost
         actor_target -= cost_loss_term    # term will be negated and be an addition to the cost, so high target_cost means a higher actor loss
         # if penalty > 1.0:
         #   actor_target /= penalty
