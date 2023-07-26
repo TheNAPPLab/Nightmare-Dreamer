@@ -100,12 +100,12 @@ class WorldModel(nn.Module):
           losses[name] = -torch.mean(like) * self._scales.get(name, 1.0)
         model_loss = sum(losses.values()) + kl_loss
 
-        if self._config.learnable_lagrange:
-          if self._config.update_lagrange_method == 0:
-            self._update_lagrange_multiplier(torch.mean(torch.sum(data['cost'], dim = 1)))
+        # if self._config.learnable_lagrange:
+        #   if self._config.update_lagrange_method == 0:
+        #     self._update_lagrange_multiplier(torch.mean(torch.sum(data['cost'], dim = 1)))
 
-          elif self._config.update_lagrange_method == 1:
-            self._update_lagrange_multiplier(torch.max(torch.sum(data['cost'], dim = 1)))
+        #   elif self._config.update_lagrange_method == 1:
+        #     self._update_lagrange_multiplier(torch.max(torch.sum(data['cost'], dim = 1)))
 
         #lagrangian_loss = 
       metrics = self._model_opt(model_loss, self.parameters())

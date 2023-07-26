@@ -190,7 +190,6 @@ sgym:
   camera_name: 'fixednear' # fixedfar fixednear
 
   perturb_cost_entropy: True # to include uncertainty in the computation of cost
-  reduce_target_cost: False  #subtract target cost from a base line in actor loss
 
   cost_imag_gradient: 'z' #dynamics , reinforce, z, z_reinforce
   c: 30.0
