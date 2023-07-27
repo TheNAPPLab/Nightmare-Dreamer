@@ -176,10 +176,10 @@ sgym:
   clip_costs: 'identity'
 
   #lagrange multipler  parameters
-  cost_limit: 5
+  cost_limit: 0
   sigmoid_a: 0.08
   lamda_projection: 'sigmoid' #sigmoid_a stretched_sigmoid
-  update_lagrange_metric: 'target_max' # target_mean target_max
+  update_lagrange_metric: 'target_mean' # target_mean target_max
   lagrangian_multiplier_init: 0.001 # 0.3
   lambda_lr: 0.035
   learnable_lagrange: True

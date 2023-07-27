@@ -18,7 +18,7 @@ sys.path.append(str(pathlib.Path(__file__).parent))
 import exploration as expl
 import models
 import tools
-import wrappers
+import OldFiles.wrappers as wrappers
 
 import torch
 from torch import nn
