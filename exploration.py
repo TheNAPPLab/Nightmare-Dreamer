@@ -4,7 +4,7 @@ from torch import distributions as torchd
 
 import models
 import networks
-import tools
+import cmdp_tools as tools
 
 
 class Random(nn.Module):

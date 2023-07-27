@@ -9,9 +9,6 @@ import cmdp_tools as tools
 to_np = lambda x: x.detach().cpu().numpy()
 
 
-def target_ratio(b, max_target = 99.3429516957585 , max_cost = 1000):
-  return b * max_target / max_cost
-
 class WorldModel(nn.Module):
 
   def __init__(self, step, config):
@@ -587,7 +584,6 @@ class ImagBehavior(nn.Module):
       self._updates += 1
 
   def _compute_lamda_loss(self, mean_ep_cost):
-    # diff =  mean_ep_cost -  target_ratio(self._config.cost_limit)
     diff = mean_ep_cost - self._config.cost_limit
     self._lagrangian_multiplier.requires_grad = True
     loss = -self._lagrangian_multiplier * diff
