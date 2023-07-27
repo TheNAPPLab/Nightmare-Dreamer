@@ -252,10 +252,10 @@ class ImagBehavior(nn.Module):
     if self._config.solve_cmdp:
       # new Models and paramters include lagrange multiplier and Cost model 
       
-      init_value = max(self._config.lagrangian_multiplier_init, 1e-5)
+      init_value = min(self._config.lagrangian_multiplier_init, -300.0)
 
       self._lagrangian_multiplier = torch.nn.Parameter(
-            torch.as_tensor( init_value ),
+            torch.as_tensor( init_value),
             requires_grad = True) if config.learnable_lagrange else self._config.lagrangian_multiplier_fixed
       
       if config.lamda_projection == 'relu':
@@ -278,7 +278,6 @@ class ImagBehavior(nn.Module):
 
     #MOD
     constrain = constrain or self._cost
-    get_value_or_none = lambda x: x if self._config.solve_cmdp else None
 
     self._update_slow_target()
     metrics = {}
@@ -598,9 +597,10 @@ class ImagBehavior(nn.Module):
         lambda_loss = self._compute_lamda_loss(ep_costs)
         lambda_loss.backward()
         self._lamda_optimizer.step()
-        if self._config.lamda_projection != 'sigmoid':
+        if self._config.lamda_projection == 'relu':
           self._lagrangian_multiplier.data.clamp_(0)  # enforce: lambda in [0, inf]
-
+        else:
+          self._lagrangian_multiplier.data.clamp_max_(30.0)
  
 
 
