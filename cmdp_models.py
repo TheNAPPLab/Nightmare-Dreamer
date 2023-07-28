@@ -600,7 +600,7 @@ class ImagBehavior(nn.Module):
         if self._config.lamda_projection == 'relu':
           self._lagrangian_multiplier.data.clamp_(0)  # enforce: lambda in [0, inf]
         else:
-          self._lagrangian_multiplier.data.clamp_max_(10.0)
+          self._lagrangian_multiplier.data.clamp_max_(-25.0)
  
 
 
