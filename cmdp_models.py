@@ -252,7 +252,7 @@ class ImagBehavior(nn.Module):
     if self._config.solve_cmdp:
       # new Models and paramters include lagrange multiplier and Cost model 
       
-      init_value = min(self._config.lagrangian_multiplier_init, -100)
+      init_value = min(self._config.lagrangian_multiplier_init, -100.0)
 
       self._lagrangian_multiplier = torch.nn.Parameter(
             torch.as_tensor( init_value),
