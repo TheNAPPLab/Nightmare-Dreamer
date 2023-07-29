@@ -176,7 +176,7 @@ sgym:
   clip_costs: 'identity'
 
   #lagrange multipler  parameters
-  cost_limit: 12
+  cost_limit: 20
   sigmoid_a: 0.06
   lamda_projection: 'stretched_sigmoid' # stretched_sigmoid
   update_lagrange_metric: 'target_max' # target_mean target_max
