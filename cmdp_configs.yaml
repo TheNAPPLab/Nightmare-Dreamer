@@ -185,7 +185,7 @@ sgym:
   learnable_lagrange: True
   lagrangian_multiplier_fixed: 0.1 # 0.3
   reduce_target_cost: False
-  max_lagrangian : -25.0 # 10
+  max_lagrangian : 10.0 # 10
 
   #Observation setting
   ontop: False
