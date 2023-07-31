@@ -175,18 +175,11 @@ sgym:
   cost_scale: 2
   clip_costs: 'identity'
 
+  #Multi agent paramters
+  use_single_roll_out: False
+  safety_look_ahead_steps: 7
+  cost_threshold: 3
 
-  #lagrange multipler  parameters
-  cost_limit: 12
-  sigmoid_a: 0.06
-  lamda_projection: 'stretched_sigmoid' # stretched_sigmoid
-  update_lagrange_metric: 'target_max' # target_mean target_max
-  lagrangian_multiplier_init: -60 # 0.3
-  lambda_lr: 0.0035 # 0.035
-  learnable_lagrange: True
-  lagrangian_multiplier_fixed: 0.1 # 0.3
-  reduce_target_cost: False
-  max_lagrangian : 10.0 # 10
 
   #Observation setting
   ontop: False

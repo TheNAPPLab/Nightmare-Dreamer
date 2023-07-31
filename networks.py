@@ -5,7 +5,7 @@ from torch import nn
 import torch.nn.functional as F
 from torch import distributions as torchd
 
-import cmdp_tools as tools
+import ma_tools as tools
 
 
 class RSSM(nn.Module):
@@ -140,6 +140,9 @@ class RSSM(nn.Module):
     return dist
 
   def obs_step(self, prev_state, prev_action, embed, sample=True):
+    '''
+    retruns posterior and prior 
+    '''
     prior = self.img_step(prev_state, prev_action, None, sample)
     if self._shared:
       post = self.img_step(prev_state, prev_action, embed, sample)

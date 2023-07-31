@@ -295,7 +295,6 @@ class OneHotDist(torchd.one_hot_categorical.OneHotCategorical):
     sample += probs - probs.detach()
     return sample
 
-
 class ContDist:
 
   def __init__(self, dist=None):
@@ -313,11 +312,14 @@ class ContDist:
     return self._dist.mean
 
   def sample(self, sample_shape=()):
-    return self._dist.rsample(sample_shape)
+    #return self._dist.rsample(sample_shape)
+    return self._dist.sample(sample_shape)
 
   def log_prob(self, x):
     return self._dist.log_prob(x)
-
+  
+  def get_dist(self):
+    return self._dist
 
 class Bernoulli:
 
@@ -371,7 +373,8 @@ class SafeTruncatedNormal(torchd.normal.Normal):
     self._mult = mult
 
   def sample(self, sample_shape):
-    event = super().sample(sample_shape)
+    # event = super().rsample(sample_shape)
+    event = super().rsample(sample_shape)
     if self._clip:
       clipped = torch.clip(event, self._low + self._clip,
           self._high - self._clip)
