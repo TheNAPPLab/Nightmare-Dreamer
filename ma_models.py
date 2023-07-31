@@ -448,15 +448,15 @@ class ImagBehavior(nn.Module):
       self, imag_feat, imag_state, imag_action, target_cost, weights):
     metrics = {}
     inp = imag_feat.detach() if self._stop_grad_actor else imag_feat
-    safe_policy = self.safe_actor(inp)
-    control_policy = self.actor(inp)
+    safe_policy = self.safe_actor(inp[:-1])
+    control_policy = self.actor(inp[:-1])
     target_cost =  torch.stack(target_cost, dim=1)
     #penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item() if self._config.learnable_lagrange else self._lagrangian_multiplier
     if self._config.imag_gradient == 'dynamics':
       kl_loss = self._action_kl_loss(control_policy, safe_policy)
-      safe_actor_target = 0.2 * target_cost + kl_loss
+      safe_actor_target = self._config.zeta * target_cost + kl_loss
 
-    metrics['action_kl_loss'] = kl_loss.item()
+    metrics['action_kl_loss'] = to_np(torch.mean(kl_loss))
     safe_actor_loss = torch.mean(weights[:-1] * safe_actor_target)
     return safe_actor_loss, metrics
 
@@ -479,7 +479,7 @@ class ImagBehavior(nn.Module):
             d.data = mix * s.data + (1 - mix) * d.data
       self._updates += 1
 
-  def _action_kl_loss(self, control_policy, safe_policy, scale = 1, free = None):
+  def _action_kl_loss(self, control_policy, safe_policy, scale = 2, free = None):
     kld = torchd.kl.kl_divergence
     control_dist = control_policy._dist
     safe_dist = safe_policy._dist
@@ -487,8 +487,8 @@ class ImagBehavior(nn.Module):
     # value = kld(dist(lhs) if self._discrete else dist(lhs)._dist,
     #               dist(rhs) if self._discrete else dist(rhs)._dist)
     
-    kl_value = kld(control_dist, safe_dist )
+    kl_value = kld(control_dist, safe_dist ).unsqueeze(-1)
     # loss = torch.mean(torch.maximum(kl_value, free))
-    loss = torch.mean(kl_value)
-    loss *= scale
-    return loss
+    # loss = torch.mean(kl_value)
+    kl_value *= scale
+    return kl_value
