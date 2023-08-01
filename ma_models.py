@@ -456,7 +456,8 @@ class ImagBehavior(nn.Module):
       kl_loss = self._action_kl_loss(control_policy, safe_policy)
       safe_actor_target = self._config.zeta * target_cost + kl_loss
 
-    metrics['action_kl_loss'] = to_np(torch.mean(kl_loss))
+    metrics['action_kl_loss_mean'] = to_np(torch.mean(kl_loss))
+    metrics['action_kl_loss_max'] = to_np(torch.max(kl_loss))
     safe_actor_loss = torch.mean(weights[:-1] * safe_actor_target)
     return safe_actor_loss, metrics
 
