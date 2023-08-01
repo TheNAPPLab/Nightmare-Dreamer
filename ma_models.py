@@ -227,7 +227,7 @@ class ImagBehavior(nn.Module):
         'actor', self.actor.parameters(), config.actor_lr, config.opt_eps, config.actor_grad_clip,
         **kw)
     self._safe_actor_opt = tools.Optimizer(
-        'safe_actor', self.safe_actor.parameters(), config.actor_lr, config.opt_eps, config.actor_grad_clip,
+        'safe_actor', self.safe_actor.parameters(), config.safe_actor_lr, config.opt_eps, config.actor_grad_clip,
         **kw)
     
     # Values Optimisers
