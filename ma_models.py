@@ -454,7 +454,9 @@ class ImagBehavior(nn.Module):
     #penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item() if self._config.learnable_lagrange else self._lagrangian_multiplier
     if self._config.imag_gradient == 'dynamics':
       kl_loss = self._action_kl_loss(control_policy, safe_policy)
-      safe_actor_target = self._config.zeta * target_cost + kl_loss
+      rhs = self._config.actor_kl_scale * kl_loss
+      lhs = self._config.zeta * target_cost
+      safe_actor_target = lhs + rhs
 
     metrics['action_kl_loss_mean'] = to_np(torch.mean(kl_loss))
     metrics['action_kl_loss_max'] = to_np(torch.max(kl_loss))
@@ -480,7 +482,7 @@ class ImagBehavior(nn.Module):
             d.data = mix * s.data + (1 - mix) * d.data
       self._updates += 1
 
-  def _action_kl_loss(self, control_policy, safe_policy, scale = 2, free = None):
+  def _action_kl_loss(self, control_policy, safe_policy):
     kld = torchd.kl.kl_divergence
     control_dist = control_policy._dist
     safe_dist = safe_policy._dist
@@ -491,5 +493,4 @@ class ImagBehavior(nn.Module):
     kl_value = kld(control_dist, safe_dist ).unsqueeze(-1)
     # loss = torch.mean(torch.maximum(kl_value, free))
     # loss = torch.mean(kl_value)
-    kl_value *= scale
     return kl_value

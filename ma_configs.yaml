@@ -179,7 +179,8 @@ sgym:
   use_single_roll_out: False
   safety_look_ahead_steps: 7
   cost_threshold: 3
-  zeta: 0.5
+  zeta: 0.2
+  actor_kl_scale: 100
 
 
   #Observation setting
