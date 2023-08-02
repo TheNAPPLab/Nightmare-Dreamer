@@ -9,8 +9,7 @@ import wandb
 if sys.platform == 'linux':
   os.environ['MUJOCO_GL'] = 'egl'
 
-train_cost_lagrange = []
-mean_eps_cost = 0
+num_safe_policy = 0
 import numpy as np
 import ruamel.yaml as yaml
 
@@ -118,6 +117,7 @@ class Dreamer(nn.Module):
     return total_cost > self._config.cost_threshold
 
   def _policy(self, obs, state, training):
+    global num_safe_policy
     if state is None:
       batch_size = len(obs['image'])
       latent = self._wm.dynamics.initial(len(obs['image']))
@@ -126,7 +126,7 @@ class Dreamer(nn.Module):
       latent, action = state
     # check with actor to use
     embed = self._wm.encoder(self._wm.preprocess(obs))
-    #latent_t = input( embed_t, action_{t-1}, latent_{t-1}
+    # latent_t = input( embed_t, action_{t-1}, latent_{t-1}
     latent, _ = self._wm.dynamics.obs_step(
         latent, action, embed, self._config.collect_dyn_sample)
 
@@ -134,8 +134,22 @@ class Dreamer(nn.Module):
     if self._config.eval_state_mean:
       latent['stoch'] = latent['mean']
     feat = self._wm.dynamics.get_feat(latent)
-
-    constraint_violated = self._is_future_safety_violated(latent)
+  
+    
+    if self._logger.step <= self._config.safe_decay_start:
+        expl_amount = self._config.safe_signal_prob
+    else:
+        expl_amount =  self._config.safe_signal_prob
+        ir = self._logger.step  - self._config.safe_decay_start + 1
+        expl_amount = expl_amount - ir/self._config.safe_signal_prob_decay
+        expl_amount = max(self._config.safe_signal_prob_decay_min, expl_amount)
+    self._logger._scalars['Safe_policy_switch_prob'] =  expl_amount
+    if np.random.uniform(0, 1) < expl_amount:
+      constraint_violated = False
+    else:
+      constraint_violated = self._is_future_safety_violated(latent)
+    
+    # num_safe_policy += 1 if constraint_violated else 0
     if not training:
       actor =  self._task_behavior.safe_actor(feat) if constraint_violated \
               else self._task_behavior.actor(feat)
@@ -233,8 +247,7 @@ def make_env(config, logger, mode, train_eps, eval_eps):
 
 
 def process_episode(config, logger, mode, train_eps, eval_eps, episode):
-  global train_cost_lagrange
-  global mean_eps_cost
+  global num_safe_policy
   directory = dict(train = config.traindir, eval = config.evaldir)[mode]
   cache = dict(train = train_eps, eval = eval_eps)[mode]
   filename = tools.save_episodes(directory, [episode])[0]
@@ -254,16 +267,11 @@ def process_episode(config, logger, mode, train_eps, eval_eps, episode):
     logger.scalar('dataset_size', total + length)
   cache[str(filename)] = episode
   print(f'{mode.title()} episode has {length} steps, return {score:.1f} and cost {score_cost:.1f}.')
-  if mode == 'train':
-    train_cost_lagrange.append(score_cost)
-    if len(train_cost_lagrange) > 100:
-        train_cost_lagrange.pop(0)
-    mean_eps_cost = np.mean(train_cost_lagrange)
-    # print("Mean epsidode cost"  ,mean_eps_cost)
   logger.scalar(f'{mode}_cost_return', score_cost)
   logger.scalar(f'{mode}_return', score)
   logger.scalar(f'{mode}_length', length)
   logger.scalar(f'{mode}_episodes', len(cache))
+  # logger.scaler(f'{mode}_num_safe_policy_flag', num_safe_policy)
   if mode == 'eval' or config.expl_gifs:
     logger.video(f'{mode}_policy', video[None])
   logger.write()
@@ -389,9 +397,9 @@ if __name__ == '__main__':
     parser.add_argument(f'--{key}', type=arg_type, default=arg_type(value))
   current_dir = os.path.dirname(os.path.abspath(__file__))
   logdir = os.path.join(current_dir, 'logdir', 'safecircle1', '0')  
-  existed_ns = [int(v) for v in os.listdir(os.path.join(current_dir, 'logdir', 'safecircle1'))]
-  if len(existed_ns) > 0:
-    new_n = max(existed_ns)+1
-    logdir = os.path.join(current_dir, 'logdir', 'safecircle1', str(new_n))
+  # existed_ns = [int(v) for v in os.listdir(os.path.join(current_dir, 'logdir', 'safecircle1'))]
+  # if len(existed_ns) > 0:
+  #   new_n = max(existed_ns)+1
+  #   logdir = os.path.join(current_dir, 'logdir', 'safecircle1', str(new_n))
   parser.set_defaults(logdir = logdir)
   main(parser.parse_args(remaining))

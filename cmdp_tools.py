@@ -313,7 +313,7 @@ class ContDist:
     return self._dist.mean
 
   def sample(self, sample_shape=()):
-    return self._dist.sample(sample_shape)
+    return self._dist.rsample(sample_shape)
 
   def log_prob(self, x):
     return self._dist.log_prob(x)
@@ -371,7 +371,7 @@ class SafeTruncatedNormal(torchd.normal.Normal):
     self._mult = mult
 
   def sample(self, sample_shape):
-    event = super().rsample(sample_shape)
+    event = super().sample(sample_shape)
     if self._clip:
       clipped = torch.clip(event, self._low + self._clip,
           self._high - self._clip)

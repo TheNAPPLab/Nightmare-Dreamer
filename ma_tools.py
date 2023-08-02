@@ -196,7 +196,6 @@ def from_generator(generator, batch_size):
       data[key] = np.stack(data[key], 0)
     yield data
 
-
 def sample_episodes(episodes, length=None, balance=False, seed=0):
   random = np.random.RandomState(seed)
   while True:
@@ -213,7 +212,6 @@ def sample_episodes(episodes, length=None, balance=False, seed=0):
         index = int(random.randint(0, available + 1))
       episode = {k: v[index: index + length] for k, v in episode.items()}
     yield episode
-
 
 def load_episodes(directory, limit=None, reverse=True):
   directory = pathlib.Path(directory).expanduser()
@@ -312,8 +310,8 @@ class ContDist:
     return self._dist.mean
 
   def sample(self, sample_shape=()):
-    #return self._dist.rsample(sample_shape)
-    return self._dist.sample(sample_shape)
+    return self._dist.rsample(sample_shape)
+    # return self._dist.sample(sample_shape)
 
   def log_prob(self, x):
     return self._dist.log_prob(x)
@@ -373,8 +371,8 @@ class SafeTruncatedNormal(torchd.normal.Normal):
     self._mult = mult
 
   def sample(self, sample_shape):
+    event = super().sample(sample_shape)
     # event = super().rsample(sample_shape)
-    event = super().rsample(sample_shape)
     if self._clip:
       clipped = torch.clip(event, self._low + self._clip,
           self._high - self._clip)
