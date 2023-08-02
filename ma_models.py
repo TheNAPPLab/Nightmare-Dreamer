@@ -462,6 +462,13 @@ class ImagBehavior(nn.Module):
       safe_actor_target += self._config.zeta  * safe_policy.log_prob(imag_action)[:-1][:, :, None] * (
           target_cost - self.cost_value(imag_feat[:-1]).mode()).detach()
       
+    elif self._config.cost_imag_gradient == 'mix':
+      reinforce = safe_policy.log_prob(imag_action)[:-1][:, :, None] * (
+          target_cost - self.cost_value(imag_feat[:-1]).mode()).detach()
+      
+      mix = self._config.cost_imag_gradient_mix
+      safe_actor_target += (1 - mix) * reinforce +  mix * target_cost
+
     safe_actor_target += policy_diffrence
 
 
