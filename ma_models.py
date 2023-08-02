@@ -472,8 +472,9 @@ class ImagBehavior(nn.Module):
 
     elif self._config.behavior_cloning == 'log_prob':
       inp_ = imag_feat.detach() if self._stop_grad_actor else imag_feat
+      action_inp_ = imag_action.detach() if self._stop_grad_actor else imag_action
       safe_policy_ = self.safe_actor(inp_) # safe policy under control state
-      behavior_loss =  safe_policy_.log_prob(imag_action)[:-1][:, :, None]
+      behavior_loss =  safe_policy_.log_prob(action_inp_)[:-1][:, :, None]
       safe_actor_target -= self._config.actor_kl_scale * behavior_loss
 
 
@@ -483,10 +484,6 @@ class ImagBehavior(nn.Module):
     safe_actor_loss = torch.mean(weights[:-1] * safe_actor_target)
     return safe_actor_loss, metrics
 
-    # elif self._config.imag_gradient == 'reinforce':
-    #   kl_loss = self._action_kl_loss()
-    #   safe_actor_target = safe_policy.log_prob(imag_action)[:-1][:, :, None] * (
-    #       target_cost - self.cost_value(imag_feat[:-1]).mode()).detach()  + kl_loss
 
   def _update_slow_target(self):
     if self._config.slow_value_target or self._config.slow_actor_target:
