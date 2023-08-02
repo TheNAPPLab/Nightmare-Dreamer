@@ -281,7 +281,7 @@ def set_test_paramters(config):
 def main(config):
   config_dict = config.__dict__
   config.task = 'SafetyPointCircle1-v0'
-  config.steps = 300_000
+  config.steps = 450_000
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
   # print(config_dict)
@@ -390,7 +390,7 @@ if __name__ == '__main__':
   current_dir = os.path.dirname(os.path.abspath(__file__))
   logdir = os.path.join(current_dir, 'logdir', 'safecircle1', '0')
   existed_ns = [int(v) for v in os.listdir(os.path.join(current_dir, 'logdir', 'safecircle1'))]
-  if len(existed_ns)>0:
+  if len(existed_ns) > 0:
     new_n = max(existed_ns)+1
     logdir = os.path.join(current_dir, 'logdir', 'safecircle1', str(new_n))
   parser.set_defaults(logdir = logdir)
