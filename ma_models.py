@@ -448,10 +448,9 @@ class ImagBehavior(nn.Module):
       self, imag_feat, imag_state, imag_action, target_cost, weights):
     metrics = {}
     inp = imag_feat.detach() if self._stop_grad_actor else imag_feat
-    safe_policy = self.safe_actor(inp[:-1])
-    control_policy = self.actor(inp[:-1])
+    safe_policy = self.safe_actor(inp)
     target_cost =  torch.stack(target_cost, dim=1)
-    kl_loss = self._action_kl_loss(control_policy, safe_policy)
+    kl_loss = self._action_kl_loss(self.actor(inp[:-1]), self.safe_actor(inp[:-1]))
     policy_diffrence = self._config.actor_kl_scale * kl_loss
     safe_actor_target = 0
     if self._config.cost_imag_gradient == 'dynamics':
