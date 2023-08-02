@@ -451,12 +451,19 @@ class ImagBehavior(nn.Module):
     safe_policy = self.safe_actor(inp[:-1])
     control_policy = self.actor(inp[:-1])
     target_cost =  torch.stack(target_cost, dim=1)
-    #penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item() if self._config.learnable_lagrange else self._lagrangian_multiplier
-    if self._config.imag_gradient == 'dynamics':
-      kl_loss = self._action_kl_loss(control_policy, safe_policy)
-      rhs = self._config.actor_kl_scale * kl_loss
-      lhs = self._config.zeta * target_cost
-      safe_actor_target = lhs + rhs
+    kl_loss = self._action_kl_loss(control_policy, safe_policy)
+    policy_diffrence = self._config.actor_kl_scale * kl_loss
+    safe_actor_target = 0
+    if self._config.cost_imag_gradient == 'dynamics':
+      safe_actor_target += self._config.zeta * target_cost
+
+    
+    elif self._config.cost_imag_gradient == 'reinforce':
+      safe_actor_target += self._config.zeta  * safe_policy.log_prob(imag_action)[:-1][:, :, None] * (
+          target_cost - self.cost_value(imag_feat[:-1]).mode()).detach()
+      
+    safe_actor_target += policy_diffrence
+
 
     metrics['action_kl_loss_mean'] = to_np(torch.mean(kl_loss))
     metrics['action_kl_loss_max'] = to_np(torch.max(kl_loss))
