@@ -181,7 +181,7 @@ sgym:
   safety_look_ahead_steps: 7
   cost_threshold: 3
   zeta: 0.2
-  actor_kl_scale: 100
+  actor_kl_scale: 2 # 100
 
 
   #Observation setting
