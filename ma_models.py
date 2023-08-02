@@ -474,8 +474,8 @@ class ImagBehavior(nn.Module):
       inp_ = imag_feat.detach() if self._stop_grad_actor else imag_feat
       action_inp_ = imag_action.detach() if self._stop_grad_actor else imag_action
       safe_policy_ = self.safe_actor(inp_) # safe policy under control state
-      behavior_loss =  safe_policy_.log_prob(action_inp_)[:-1][:, :, None]
-      safe_actor_target -= self._config.actor_behavior_scale * behavior_loss
+      behavior_loss =  -safe_policy_.log_prob(action_inp_)[:-1][:, :, None]
+      safe_actor_target += self._config.actor_behavior_scale * behavior_loss
 
 
 
