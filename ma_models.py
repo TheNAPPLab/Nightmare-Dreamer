@@ -468,14 +468,14 @@ class ImagBehavior(nn.Module):
 
     if self._config.behavior_cloning == 'kl':
       behavior_loss = self._action_kl_loss(self.actor(inp[:-1]), self.safe_actor(inp[:-1]))
-      safe_actor_target += self._config.actor_kl_scale * behavior_loss
+      safe_actor_target += self._config.actor_behavior_scale * behavior_loss
 
     elif self._config.behavior_cloning == 'log_prob':
       inp_ = imag_feat.detach() if self._stop_grad_actor else imag_feat
       action_inp_ = imag_action.detach() if self._stop_grad_actor else imag_action
       safe_policy_ = self.safe_actor(inp_) # safe policy under control state
       behavior_loss =  safe_policy_.log_prob(action_inp_)[:-1][:, :, None]
-      safe_actor_target -= self._config.actor_kl_scale * behavior_loss
+      safe_actor_target -= self._config.actor_behavior_scale * behavior_loss
 
 
 
