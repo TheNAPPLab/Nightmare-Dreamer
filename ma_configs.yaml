@@ -163,7 +163,7 @@ sgym:
   model_lr: 3e-4
   value_lr: 8e-5
   actor_lr: 8e-5
-  safe_actor_lr: 8e-5
+  safe_actor_lr: 1e-3 #8e-5
   opt_eps: 1e-5
   kl_free: '1.0'
   kl_scale: '1.0'
@@ -190,7 +190,7 @@ sgym:
 
   perturb_cost_entropy: True # to include uncertainty in the computation of cost
 
-  cost_imag_gradient: 'dynamics' #dynamics , reinforce, z, z_reinforce
+  cost_imag_gradient: 'kl' #dynamics , reinforce, kl
   c: 30.0
 
 
