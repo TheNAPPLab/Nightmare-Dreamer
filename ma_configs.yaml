@@ -181,8 +181,8 @@ sgym:
   safety_look_ahead_steps: 7
   cost_threshold: 3
   zeta: 1
-  actor_kl_scale: 1.2 # 100
-
+  actor_kl_scale: 2 # 100
+  behavior_cloning: 'log_prob' #kl, log_prob
 
   #Observation setting
   ontop: False
@@ -190,7 +190,7 @@ sgym:
 
   perturb_cost_entropy: True # to include uncertainty in the computation of cost
 
-  cost_imag_gradient: 'mix' #dynamics , reinforce, kl, mix
+  cost_imag_gradient: '' #dynamics , reinforce, kl, mix
   cost_imag_gradient_mix: 0.05
   c: 30.0
 

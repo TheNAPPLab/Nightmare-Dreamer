@@ -301,7 +301,7 @@ class ImagBehavior(nn.Module):
                 safe_imag_feat, safe_imag_state, safe_imag_action, cost, self._config.slow_actor_target)
 
         safe_actor_loss, mets = self._compute_safe_actor_loss(
-              safe_imag_feat, safe_imag_state, safe_imag_action, target_cost, weights)
+              safe_imag_feat, safe_imag_state, safe_imag_action, target_cost, weights , imag_feat, imag_action)
         
         metrics.update(mets)
         safe_value_input = safe_imag_feat
@@ -445,34 +445,41 @@ class ImagBehavior(nn.Module):
     return actor_loss, metrics
 
   def _compute_safe_actor_loss(
-      self, imag_feat, imag_state, imag_action, target_cost, weights):
+      self, safe_imag_feat, safe_imag_state, safe_imag_action, target_cost, weights, imag_feat, imag_action):
     metrics = {}
-    inp = imag_feat.detach() if self._stop_grad_actor else imag_feat
+    inp = safe_imag_feat.detach() if self._stop_grad_actor else safe_imag_feat
     safe_policy = self.safe_actor(inp)
     target_cost =  torch.stack(target_cost, dim=1)
-    kl_loss = self._action_kl_loss(self.actor(inp[:-1]), self.safe_actor(inp[:-1]))
-    policy_diffrence = self._config.actor_kl_scale * kl_loss
     safe_actor_target = 0
+
     if self._config.cost_imag_gradient == 'dynamics':
       safe_actor_target += self._config.zeta * target_cost
 
-    
     elif self._config.cost_imag_gradient == 'reinforce':
-      safe_actor_target += self._config.zeta  * safe_policy.log_prob(imag_action)[:-1][:, :, None] * (
-          target_cost - self.cost_value(imag_feat[:-1]).mode()).detach()
+      safe_actor_target += self._config.zeta  * safe_policy.log_prob(safe_imag_action)[:-1][:, :, None] * (
+          target_cost - self.cost_value(safe_imag_feat[:-1]).mode()).detach()
       
     elif self._config.cost_imag_gradient == 'mix':
-      reinforce = safe_policy.log_prob(imag_action)[:-1][:, :, None] * (
-          target_cost - self.cost_value(imag_feat[:-1]).mode()).detach()
+      reinforce = safe_policy.log_prob(safe_imag_action)[:-1][:, :, None] * (
+          target_cost - self.cost_value(safe_imag_feat[:-1]).mode()).detach()
       
       mix = self._config.cost_imag_gradient_mix
       safe_actor_target += (1 - mix) * reinforce +  mix * target_cost
 
-    safe_actor_target += policy_diffrence
+    if self._config.behavior_cloning == 'kl':
+      behavior_loss = self._action_kl_loss(self.actor(inp[:-1]), self.safe_actor(inp[:-1]))
+      safe_actor_target += self._config.actor_kl_scale * behavior_loss
+
+    elif self._config.behavior_cloning == 'log_prob':
+      inp_ = imag_feat.detach() if self._stop_grad_actor else imag_feat
+      safe_policy_ = self.safe_actor(inp_) # safe policy under control state
+      behavior_loss =  safe_policy_.log_prob(imag_action)[:-1][:, :, None]
+      safe_actor_target -= self._config.actor_kl_scale * behavior_loss
 
 
-    metrics['action_kl_loss_mean'] = to_np(torch.mean(kl_loss))
-    metrics['action_kl_loss_max'] = to_np(torch.max(kl_loss))
+
+    metrics['behavior_cloning_loss_mean'] = to_np(torch.mean(behavior_loss))
+    metrics['behavior_cloning__loss_max'] = to_np(torch.max(behavior_loss))
     safe_actor_loss = torch.mean(weights[:-1] * safe_actor_target)
     return safe_actor_loss, metrics
 
