@@ -255,9 +255,8 @@ class ImagBehavior(nn.Module):
         imag_feat, imag_state, imag_action = self._imagine(
             start, self.actor, self._config.imag_horizon, repeats)
 
-        
         reward = objective(imag_feat, imag_state, imag_action)
-        
+
         actor_ent = self.actor(imag_feat).entropy()
 
         state_ent = self._world_model.dynamics.get_dist(
@@ -298,11 +297,18 @@ class ImagBehavior(nn.Module):
         
         cost = constrain(safe_imag_feat, safe_imag_state, safe_imag_action)
 
+        safe_actor_ent = self.safe_actor(safe_imag_feat).entropy()
+
+        safe_state_ent = self._world_model.dynamics.get_dist(
+            safe_imag_state).entropy()
+
         target_cost = self._compute_target_cost(
                 safe_imag_feat, safe_imag_state, safe_imag_action, cost, self._config.slow_actor_target)
 
-        safe_actor_loss, mets = self._compute_safe_actor_loss(
-              safe_imag_feat, safe_imag_state, safe_imag_action, target_cost, weights , imag_feat, imag_action)
+        safe_actor_loss, mets = self._compute_safe_actor_loss( \
+              safe_imag_feat, safe_imag_state, safe_imag_action, \
+              target_cost, safe_actor_ent, safe_state_ent, weights,\
+              imag_feat, imag_action)
         
         metrics.update(mets)
         safe_value_input = safe_imag_feat
@@ -446,7 +452,9 @@ class ImagBehavior(nn.Module):
     return actor_loss, metrics
 
   def _compute_safe_actor_loss(
-      self, safe_imag_feat, safe_imag_state, safe_imag_action, target_cost, weights, imag_feat, imag_action):
+      self, safe_imag_feat, safe_imag_state, safe_imag_action,
+      target_cost, safe_actor_ent, safe_state_ent, weights, 
+      imag_feat, imag_action):
     metrics = {}
     inp = safe_imag_feat.detach() if self._stop_grad_actor else safe_imag_feat
     safe_policy = self.safe_actor(inp)
@@ -457,7 +465,7 @@ class ImagBehavior(nn.Module):
       safe_actor_target += self._config.zeta * target_cost
 
     elif self._config.cost_imag_gradient == 'reinforce':
-      safe_actor_target += self._config.zeta  * safe_policy.log_prob(safe_imag_action)[:-1][:, :, None] * (
+      safe_actor_target += self._config.zeta  * safe_policy.log_prob(safe_imag_action.detach())[:-1][:, :, None] * (
           target_cost - self.cost_value(safe_imag_feat[:-1]).mode()).detach()
       
     elif self._config.cost_imag_gradient == 'mix':
@@ -467,6 +475,14 @@ class ImagBehavior(nn.Module):
       mix = self._config.cost_imag_gradient_mix
       safe_actor_target += (1 - mix) * reinforce +  mix * target_cost
 
+    #entropy term loss
+    if not self._config.future_entropy and (self._config.actor_entropy() > 0):
+      safe_actor_target -= self._config.actor_entropy() * safe_actor_ent[:-1][:,:,None]
+      
+    if not self._config.future_entropy and (self._config.actor_state_entropy() > 0):
+      safe_actor_target -= self._config.actor_state_entropy() * safe_state_ent[:-1]
+
+    #behavior cloning loss
     if self._config.behavior_cloning == 'kl':
       behavior_loss = self._action_kl_loss(self.actor(inp[:-1]), self.safe_actor(inp[:-1]))
       safe_actor_target += self._config.actor_behavior_scale * behavior_loss
