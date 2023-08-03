@@ -149,8 +149,6 @@ class Dreamer(nn.Module):
     else:
       constraint_violated = self._is_future_safety_violated(latent)
 
-    
-    # num_safe_policy += 1 if constraint_violated else 0
     if not training:
       actor =  self._task_behavior.safe_actor(feat) if constraint_violated \
               else self._task_behavior.actor(feat)

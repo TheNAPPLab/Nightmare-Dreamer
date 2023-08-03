@@ -182,7 +182,7 @@ sgym:
   cost_threshold: 3
   zeta: 1
   actor_behavior_scale: 1 # 100
-  behavior_cloning: 'log_prob' #kl, log_prob
+  behavior_cloning: 'kl' #kl, log_prob
 
   #Observation setting
   ontop: False
@@ -197,7 +197,7 @@ sgym:
   #explore task switching
   safe_decay_start: 10_000 #10_000
   safe_signal_prob: 1.0
-  safe_signal_prob_decay: 90_000 # 90_000
+  safe_signal_prob_decay: 50_000 # 90_000
   safe_signal_prob_decay_min: 0.01
 
 
