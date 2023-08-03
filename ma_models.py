@@ -4,7 +4,7 @@ import numpy as np
 from PIL import ImageColor, Image, ImageDraw, ImageFont
 import torch.optim as optim
 from torch import distributions as torchd
-import networks
+import ma_networks as networks
 import ma_tools as tools
 to_np = lambda x: x.detach().cpu().numpy()
 

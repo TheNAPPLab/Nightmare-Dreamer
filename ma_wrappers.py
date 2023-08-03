@@ -158,6 +158,7 @@ class CollectDataset:
     transition = obs.copy()
     if isinstance(action, dict):
       transition.update(action)
+      transition['task_switch'] = action["task_switch"].item()
     else:
       transition['action'] = action
     transition['reward'] = reward
@@ -181,6 +182,7 @@ class CollectDataset:
     # Missing keys will be filled with a zeroed out version of the first
     # transition, because we do not know what action information the agent will
     # pass yet.
+    transition['task_switch'] = 0.0
     transition['reward'] = 0.0
     transition['cost'] = 0.0
     transition['discount'] = 1.0

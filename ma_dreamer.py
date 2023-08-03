@@ -9,16 +9,15 @@ import wandb
 if sys.platform == 'linux':
   os.environ['MUJOCO_GL'] = 'egl'
 
-num_safe_policy = 0
 import numpy as np
 import ruamel.yaml as yaml
 
 sys.path.append(str(pathlib.Path(__file__).parent))
 
-import exploration as expl
+import ma_exploration as expl
 import ma_models as models
 import ma_tools as tools
-import cmdp_wrappers as wrappers
+import ma_wrappers as wrappers
 
 import torch
 from torch import nn
@@ -116,8 +115,18 @@ class Dreamer(nn.Module):
 
     return total_cost > self._config.cost_threshold
 
+  def _task_switch_prob(self):
+    if self._logger.step <= self._config.safe_decay_start:
+        expl_amount = self._config.safe_signal_prob
+    else:
+        expl_amount =  self._config.safe_signal_prob
+        ir = self._logger.step  - self._config.safe_decay_start + 1
+        expl_amount = expl_amount - ir/self._config.safe_signal_prob_decay
+        expl_amount = max(self._config.safe_signal_prob_decay_min, expl_amount)
+    self._logger._scalars['Safe_policy_switch_prob'] =  expl_amount
+    return expl_amount
+  
   def _policy(self, obs, state, training):
-    global num_safe_policy
     if state is None:
       batch_size = len(obs['image'])
       latent = self._wm.dynamics.initial(len(obs['image']))
@@ -136,15 +145,7 @@ class Dreamer(nn.Module):
     feat = self._wm.dynamics.get_feat(latent)
   
     
-    if self._logger.step <= self._config.safe_decay_start:
-        expl_amount = self._config.safe_signal_prob
-    else:
-        expl_amount =  self._config.safe_signal_prob
-        ir = self._logger.step  - self._config.safe_decay_start + 1
-        expl_amount = expl_amount - ir/self._config.safe_signal_prob_decay
-        expl_amount = max(self._config.safe_signal_prob_decay_min, expl_amount)
-    self._logger._scalars['Safe_policy_switch_prob'] =  expl_amount
-    if np.random.uniform(0, 1) < expl_amount:
+    if np.random.uniform(0, 1) < self._task_switch_prob():
       constraint_violated = False
     else:
       constraint_violated = self._is_future_safety_violated(latent)
@@ -170,7 +171,8 @@ class Dreamer(nn.Module):
     if self._config.actor_dist == 'onehot_gumble':
       action = torch.one_hot(torch.argmax(action, dim=-1), self._config.num_actions)
     action = self._exploration(action, training)
-    policy_output = {'action': action, 'logprob': logprob}
+    num_task_switch = 1 if constraint_violated else 0
+    policy_output = {'action': action, 'logprob': logprob, 'task_switch' : torch.tensor([num_task_switch])}
     state = (latent, action)
     return policy_output, state
 
@@ -247,13 +249,13 @@ def make_env(config, logger, mode, train_eps, eval_eps):
 
 
 def process_episode(config, logger, mode, train_eps, eval_eps, episode):
-  global num_safe_policy
   directory = dict(train = config.traindir, eval = config.evaldir)[mode]
   cache = dict(train = train_eps, eval = eval_eps)[mode]
   filename = tools.save_episodes(directory, [episode])[0]
   length = len(episode['reward']) - 1
   score = float(episode['reward'].astype(np.float64).sum())
   score_cost = float(episode['cost'].astype(np.float64).sum())
+  num_task_switch = float(episode['task_switch'].astype(np.float64).sum())
   video = episode['image']
   if mode == 'eval':
     cache.clear()
@@ -266,8 +268,9 @@ def process_episode(config, logger, mode, train_eps, eval_eps, episode):
         del cache[key]
     logger.scalar('dataset_size', total + length)
   cache[str(filename)] = episode
-  print(f'{mode.title()} episode has {length} steps, return {score:.1f} and cost {score_cost:.1f}.')
+  print(f'{mode.title()} episode has {length} steps, return {score:.1f}, cost {score_cost:.1f} and algorithm switched task {num_task_switch:.1f} times to safe agent.')
   logger.scalar(f'{mode}_cost_return', score_cost)
+  logger.scalar(f'{mode}_num_task_switch', num_task_switch)
   logger.scalar(f'{mode}_return', score)
   logger.scalar(f'{mode}_length', length)
   logger.scalar(f'{mode}_episodes', len(cache))
@@ -346,7 +349,7 @@ def main(config):
     def random_agent(o, d, s, r, c):
       action = random_actor.sample()
       logprob = random_actor.log_prob(action)
-      return {'action': action, 'logprob': logprob}, None
+      return {'action': action, 'logprob': logprob, 'task_switch' : torch.tensor([0])}, None
     tools.simulate(random_agent, train_envs, prefill)
     tools.simulate(random_agent, eval_envs, episodes=1)
     logger.step = config.action_repeat * count_steps(config.traindir)
