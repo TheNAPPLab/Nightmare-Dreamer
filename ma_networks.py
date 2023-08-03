@@ -5,7 +5,7 @@ from torch import nn
 import torch.nn.functional as F
 from torch import distributions as torchd
 
-import cmdp_tools as tools
+import ma_tools as tools
 
 
 class RSSM(nn.Module):
