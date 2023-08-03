@@ -150,7 +150,8 @@ class Dreamer(nn.Module):
       constraint_violated = self._is_future_safety_violated(latent)
 
     if not training:
-      actor =  self._task_behavior.safe_actor(feat) if constraint_violated \
+      #in this case no need for epsilon greedy
+      actor =  self._task_behavior.safe_actor(feat) if self._is_future_safety_violated(latent) \
               else self._task_behavior.actor(feat)
       action = actor.mode()
 
