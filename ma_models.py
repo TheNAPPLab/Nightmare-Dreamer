@@ -257,6 +257,7 @@ class ImagBehavior(nn.Module):
 
         
         reward = objective(imag_feat, imag_state, imag_action)
+        
         actor_ent = self.actor(imag_feat).entropy()
 
         state_ent = self._world_model.dynamics.get_dist(

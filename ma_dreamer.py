@@ -152,8 +152,9 @@ class Dreamer(nn.Module):
 
     if not training:
       #in this case no need for epsilon greedy
-      actor =  self._task_behavior.safe_actor(feat) if self._is_future_safety_violated(latent) \
-              else self._task_behavior.actor(feat)
+      # actor =  self._task_behavior.safe_actor(feat) if self._is_future_safety_violated(latent) \
+      #         else self._task_behavior.actor(feat)
+      actor =  self._task_behavior.safe_actor(feat)
       action = actor.mode()
 
     elif self._should_expl(self._step):
