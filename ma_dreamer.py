@@ -136,18 +136,19 @@ class Dreamer(nn.Module):
     feat = self._wm.dynamics.get_feat(latent)
   
     
-    if self._logger.step <= self._config.safe_decay_start:
-        expl_amount = self._config.safe_signal_prob
-    else:
-        expl_amount =  self._config.safe_signal_prob
-        ir = self._logger.step  - self._config.safe_decay_start + 1
-        expl_amount = expl_amount - ir/self._config.safe_signal_prob_decay
-        expl_amount = max(self._config.safe_signal_prob_decay_min, expl_amount)
-    self._logger._scalars['Safe_policy_switch_prob'] =  expl_amount
-    if np.random.uniform(0, 1) < expl_amount:
-      constraint_violated = False
-    else:
-      constraint_violated = self._is_future_safety_violated(latent)
+    # if self._logger.step <= self._config.safe_decay_start:
+    #     expl_amount = self._config.safe_signal_prob
+    # else:
+    #     expl_amount =  self._config.safe_signal_prob
+    #     ir = self._logger.step  - self._config.safe_decay_start + 1
+    #     expl_amount = expl_amount - ir/self._config.safe_signal_prob_decay
+    #     expl_amount = max(self._config.safe_signal_prob_decay_min, expl_amount)
+    # self._logger._scalars['Safe_policy_switch_prob'] =  expl_amount
+    # if np.random.uniform(0, 1) < expl_amount:
+    #   constraint_violated = False
+    # else:
+    #   constraint_violated = self._is_future_safety_violated(latent)
+    constraint_violated = False
     
     # num_safe_policy += 1 if constraint_violated else 0
     if not training:

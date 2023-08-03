@@ -311,7 +311,6 @@ class ContDist:
 
   def sample(self, sample_shape=()):
     return self._dist.rsample(sample_shape)
-    # return self._dist.sample(sample_shape)
 
   def log_prob(self, x):
     return self._dist.log_prob(x)
