@@ -16,7 +16,7 @@ x = np.linspace(-100, 100, 1000)
 y_sigmoid = sigmoid(x)
 
 # Stretched sigmoid values with a=2 and b=0
-y_stretched = stretched_sigmoid(x, a=0.06, b=0)
+y_stretched = stretched_sigmoid(x, a=0.09, b=0)
 
 # Plot the sigmoid functions
 plt.figure(figsize=(10, 6))

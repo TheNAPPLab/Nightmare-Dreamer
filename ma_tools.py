@@ -401,6 +401,7 @@ class TanhBijector(torchd.Transform):
     return 2.0 * (log2 - x - torch.softplus(-2.0 * x))
 
 class StretchedSigmoid(nn.Module):
+    
     def __init__(self, a = 0, b = 0):
         super(StretchedSigmoid, self).__init__()
         self.a = a

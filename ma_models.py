@@ -237,7 +237,25 @@ class ImagBehavior(nn.Module):
     self._cost_value_opt = tools.Optimizer(
           'cost_value', self.cost_value.parameters(), config.cost_value_lr, config.opt_eps, config.value_grad_clip,
           **kw)
-  
+    # lagrange parameters and initalisation
+    init_value = max(config.lagrangian_multiplier_init, 1e-5)
+
+
+    self._lagrangian_multiplier = torch.nn.Parameter(
+            torch.as_tensor( init_value ),
+            requires_grad = True) if config.learnable_lagrange else config.lagrangian_multiplier_fixed
+      
+    if config.lamda_projection == 'relu':
+        self._lambda_range_projection = torch.nn.ReLU()
+    elif config.lamda_projection == 'sigmoid':
+        self._lambda_range_projection = torch.nn.Sigmoid()
+    elif config.lamda_projection == 'stretched_sigmoid':
+        self._lambda_range_projection = tools.StretchedSigmoid(config.sigmoid_a)
+
+    torch_opt = getattr(optim, 'Adam')
+    self._lamda_optimizer = torch_opt([self._lagrangian_multiplier, ],
+                                  lr = config.lambda_lr )  if config.learnable_lagrange else None
+
   def _train(
         self, start, objective = None, constrain = None, action = None, \
         reward = None, cost = None, imagine = None, tape = None, repeats = None):
@@ -347,6 +365,15 @@ class ImagBehavior(nn.Module):
     metrics['std_target_cost'] = to_np(torch.std(target_cost.detach()))
     metrics['min_target_cost'] = to_np(torch.min(target_cost.detach()))
 
+    metrics['lagrangian_multiplier'] = self._lagrangian_multiplier.detach().item() if self._config.learnable_lagrange else self._lagrangian_multiplier
+
+    metrics['lagrangian_multiplier_projected'] = self._lambda_range_projection(self._lagrangian_multiplier).detach().item() if self._config.learnable_lagrange else self._lagrangian_multiplier
+
+    if self._config.learnable_lagrange:
+      if self._config.update_lagrange_metric == 'target_mean':
+        self._update_lagrange_multiplier(torch.mean(target_cost.detach()))
+      elif self._config.update_lagrange_metric == 'target_max':
+        self._update_lagrange_multiplier(torch.max(target_cost.detach()))
 
     return imag_feat, imag_state, imag_action, weights, metrics
 
@@ -461,12 +488,14 @@ class ImagBehavior(nn.Module):
     safe_policy = self.safe_actor(inp)
     target_cost =  torch.stack(target_cost, dim=1)
     safe_actor_target = 0
-
+    penalty = 0
     if self._config.cost_imag_gradient == 'dynamics':
-      safe_actor_target += self._config.zeta * target_cost
+      penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item() if self._config.learnable_lagrange else self._lagrangian_multiplier
+      safe_actor_target += penalty * target_cost
 
     elif self._config.cost_imag_gradient == 'reinforce':
-      safe_actor_target += self._config.zeta  * safe_policy.log_prob(safe_imag_action.detach())[:-1][:, :, None] * (
+      penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item() if self._config.learnable_lagrange else self._lagrangian_multiplier
+      safe_actor_target += penalty  * safe_policy.log_prob(safe_imag_action.detach())[:-1][:, :, None] * (
           target_cost - self.cost_value(safe_imag_feat[:-1]).mode()).detach()
       
     elif self._config.cost_imag_gradient == 'mix':
@@ -494,6 +523,9 @@ class ImagBehavior(nn.Module):
       safe_policy_ = self.safe_actor(inp_) # safe policy under control state
       behavior_loss =  -safe_policy_.log_prob(action_inp_)[:-1][:, :, None]
       safe_actor_target += self._config.actor_behavior_scale * behavior_loss
+
+    if penalty > 1.0:
+      safe_actor_target /= penalty
 
 
     if self._config.behavior_cloning != '':
@@ -532,3 +564,21 @@ class ImagBehavior(nn.Module):
     # loss = torch.mean(torch.maximum(kl_value, free))
     # loss = torch.mean(kl_value)
     return kl_value
+  
+  def _compute_lamda_loss(self, mean_cost):
+    self._lagrangian_multiplier.requires_grad = True
+    diff = mean_cost - self._config.cost_limit
+    loss = -self._lagrangian_multiplier * diff
+    return loss
+  
+  def _update_lagrange_multiplier(self, ep_costs):
+    self._lamda_optimizer.zero_grad()
+    lambda_loss = self._compute_lamda_loss(ep_costs)
+    lambda_loss.backward()
+    self._lamda_optimizer.step()
+    if self._config.lamda_projection == 'relu':
+      self._lagrangian_multiplier.data.clamp_(0)  # enforce: lambda in [0, inf]
+    else:
+      self._lagrangian_multiplier.data.clamp_max_(self._config.max_lagrangian)
+ 
+
