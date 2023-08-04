@@ -330,6 +330,7 @@ class ImagBehavior(nn.Module):
 
 
     metrics['actor_ent'] = to_np(torch.mean(actor_ent))
+    metrics['safe_actor_ent'] = to_np(torch.mean(safe_actor_ent))
     metrics['mean_target'] = to_np(torch.mean(target.detach()))
     metrics['max_target'] = to_np(torch.max(target.detach()))
     metrics['std_target'] = to_np(torch.std(target.detach()))
@@ -495,9 +496,12 @@ class ImagBehavior(nn.Module):
       safe_actor_target += self._config.actor_behavior_scale * behavior_loss
 
 
-
-    metrics['behavior_cloning_loss_mean'] = to_np(torch.mean(behavior_loss))
-    metrics['behavior_cloning__loss_max'] = to_np(torch.max(behavior_loss))
+    if self._config.behavior_cloning != '':
+      metrics['behavior_cloning_loss_mean'] = to_np(torch.mean(behavior_loss))
+      metrics['behavior_cloning__loss_max'] = to_np(torch.max(behavior_loss))
+    else:
+      metrics['behavior_cloning_loss_mean'] = 0
+      metrics['behavior_cloning__loss_max'] = 0
     safe_actor_loss = torch.mean(weights[:-1] * safe_actor_target)
     return safe_actor_loss, metrics
 

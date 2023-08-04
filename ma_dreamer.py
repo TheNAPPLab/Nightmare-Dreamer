@@ -44,6 +44,8 @@ class Dreamer(nn.Module):
     config.actor_entropy = (
         lambda x = config.actor_entropy: tools.schedule(x, self._step))
     
+        # Schedules.
+    
     config.actor_state_entropy = (
         lambda x = config.actor_state_entropy: tools.schedule(x, self._step))
     
@@ -110,7 +112,6 @@ class Dreamer(nn.Module):
             feat = self._wm.dynamics.get_feat(latent_state)
             c_t = cost_fn(feat,_,_).item()
             total_cost += c_t
-            if total_cost >= self._config.cost_threshold: return True
             actor = self._task_behavior.actor(feat)
             action = actor.sample() if not is_eval  else actor.mode()
             latent_state = self._wm.dynamics.img_step(latent_state, action, sample = self._config.imag_sample)
@@ -150,12 +151,12 @@ class Dreamer(nn.Module):
       latent['stoch'] = latent['mean']
     feat = self._wm.dynamics.get_feat(latent)
     
-    # if np.random.uniform(0, 1) < self._task_switch_prob():
-    #   constraint_violated = False
-    # else:
-    #   constraint_violated = self._is_future_safety_violated(latent)
-    constraint_violated = False if np.random.uniform(0, 1) < self._task_switch_prob() \
-                                  else self._is_future_safety_violated(latent)
+    if np.random.uniform(0, 1) < self._task_switch_prob():
+      constraint_violated = False
+    else:
+      constraint_violated = self._is_future_safety_violated(latent)
+    # constraint_violated = False if np.random.uniform(0, 1) < self._task_switch_prob() \
+    #                               else self._is_future_safety_violated(latent)
 
     if not training:
       #in this case no need for epsilon greedy
