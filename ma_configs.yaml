@@ -180,8 +180,8 @@ sgym:
   use_single_roll_out: False
   safety_look_ahead_steps: 7
   cost_threshold: 3
-  zeta: 1
-  actor_behavior_scale: 1 # 100
+  zeta: 0.5 #0.5
+  actor_behavior_scale: 1 # 100, 1.5
   behavior_cloning: 'kl' #kl, log_prob
 
   #Observation setting
@@ -190,14 +190,14 @@ sgym:
 
   perturb_cost_entropy: True # to include uncertainty in the computation of cost
 
-  cost_imag_gradient: 'reinforce' #dynamics , reinforce, mix
+  cost_imag_gradient: 'dynamics' #dynamics , reinforce, mix
   cost_imag_gradient_mix: 0.05
   c: 30.0
 
   #explore task switching
   safe_decay_start: 10_000 #10_000
   safe_signal_prob: 1.0
-  safe_signal_prob_decay: 60_000 # 90_000
+  safe_signal_prob_decay: 70_000 # 90_000
   safe_signal_prob_decay_min: 0.01
 
 

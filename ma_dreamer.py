@@ -96,26 +96,32 @@ class Dreamer(nn.Module):
       self._logger.step = self._config.action_repeat * self._step
     return policy_output, state
 
-  def _is_future_safety_violated(self, posterior_t):
+  def _is_future_safety_violated(self, posterior_t, is_eval = False):
     '''
     Starting from current state we roll out using learned model
-    to see potential
+    to forcast constraint violation under control policy
     '''
     total_cost = 0
-    cost_fn = lambda f, s, a: self._wm.heads['cost'](s).mode()
+    cost_fn = lambda f, s, a: self._wm.heads['cost'](f).mode()
         # self._wm.dynamics.get_feat(s)  ).mode()
     with torch.no_grad():
         latent_state = posterior_t
         for _ in range(self._config.safety_look_ahead_steps):
             feat = self._wm.dynamics.get_feat(latent_state)
-            total_cost += cost_fn(_, feat, _).item()
+            c_t = cost_fn(feat,_,_).item()
+            total_cost += c_t
+            if total_cost >= self._config.cost_threshold: return True
             actor = self._task_behavior.actor(feat)
-            action = actor.sample()
+            action = actor.sample() if not is_eval  else actor.mode()
             latent_state = self._wm.dynamics.img_step(latent_state, action, sample = self._config.imag_sample)
 
-    return total_cost > self._config.cost_threshold
+    return total_cost >= self._config.cost_threshold
 
   def _task_switch_prob(self):
+    '''
+    returns the probability of selecting the control policy or forcasting ahead
+    to make to check for constarint violation and decide which to policy to use
+    '''
     if self._logger.step <= self._config.safe_decay_start:
         expl_amount = self._config.safe_signal_prob
     else:
@@ -143,16 +149,17 @@ class Dreamer(nn.Module):
     if self._config.eval_state_mean:
       latent['stoch'] = latent['mean']
     feat = self._wm.dynamics.get_feat(latent)
-  
     
-    if np.random.uniform(0, 1) < self._task_switch_prob():
-      constraint_violated = False
-    else:
-      constraint_violated = self._is_future_safety_violated(latent)
+    # if np.random.uniform(0, 1) < self._task_switch_prob():
+    #   constraint_violated = False
+    # else:
+    #   constraint_violated = self._is_future_safety_violated(latent)
+    constraint_violated = False if np.random.uniform(0, 1) < self._task_switch_prob() \
+                                  else self._is_future_safety_violated(latent)
 
     if not training:
       #in this case no need for epsilon greedy
-      actor =  self._task_behavior.safe_actor(feat) if self._is_future_safety_violated(latent) \
+      actor =  self._task_behavior.safe_actor(feat) if self._is_future_safety_violated(latent, is_eval = True) \
               else self._task_behavior.actor(feat)
       action = actor.mode()
 
