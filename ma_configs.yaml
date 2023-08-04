@@ -181,7 +181,7 @@ sgym:
   safety_look_ahead_steps: 7
   cost_threshold: 3
   zeta: 0.5 #0.5
-  actor_behavior_scale: 1 # 100, 1.5
+  actor_behavior_scale: 1.5 # 100, 1.5
   behavior_cloning: 'kl' #kl, log_prob
 
   #Observation setting
