@@ -24,6 +24,7 @@ from torch import nn
 from torch import distributions as torchd
 to_np = lambda x: x.detach().cpu().numpy()
 
+online_mean_cost_calc = tools.OnlineMeanCalculator()
 
 class Dreamer(nn.Module):
 
@@ -209,7 +210,7 @@ class Dreamer(nn.Module):
         self._wm.dynamics.get_feat(s)).mode()
     cost = lambda f, s, a: self._wm.heads['cost'](
         self._wm.dynamics.get_feat(s)).mode()
-    metrics.update(self._task_behavior._train(start, reward, cost)[-1])
+    metrics.update(self._task_behavior._train(start, reward, cost, mean_ep_cost = online_mean_cost_calc.get_mean())[-1])
 
     if self._config.expl_behavior != 'greedy':
       if self._config.pred_discount:
@@ -277,6 +278,9 @@ def process_episode(config, logger, mode, train_eps, eval_eps, episode):
     logger.scalar('dataset_size', total + length)
   cache[str(filename)] = episode
   print(f'{mode.title()} episode has {length} steps, return {score:.1f}, cost {score_cost:.1f} and algorithm switched task {num_task_switch:.1f} times to safe agent.')
+  if mode == 'train':
+    online_mean_cost_calc.update(score_cost)
+  logger.scalar('Online Mean Cost', online_mean_cost_calc.get_mean())
   logger.scalar(f'{mode}_cost_return', score_cost)
   logger.scalar(f'{mode}_num_task_switch', num_task_switch)
   logger.scalar(f'{mode}_return', score)

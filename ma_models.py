@@ -258,7 +258,7 @@ class ImagBehavior(nn.Module):
 
   def _train(
         self, start, objective = None, constrain = None, action = None, \
-        reward = None, cost = None, imagine = None, tape = None, repeats = None):
+        reward = None, cost = None, imagine = None, tape = None, repeats = None, mean_ep_cost = None):
     objective = objective or self._reward
 
     #MOD
@@ -374,6 +374,9 @@ class ImagBehavior(nn.Module):
         self._update_lagrange_multiplier(torch.mean(target_cost.detach()))
       elif self._config.update_lagrange_metric == 'target_max':
         self._update_lagrange_multiplier(torch.max(target_cost.detach()))
+      elif self._config.update_lagrange_metric == 'mean_ep_cost':
+        self._update_lagrange_multiplier(mean_ep_cost)
+
 
     return imag_feat, imag_state, imag_action, weights, metrics
 

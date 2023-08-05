@@ -17,6 +17,18 @@ from torch import distributions as torchd
 from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
 
+class OnlineMeanCalculator:
+    def __init__(self):
+        self.count = 0
+        self.mean = 0.0
+
+    def update(self, value):
+        self.count += 1
+        delta = value - self.mean
+        self.mean += delta / self.count
+
+    def get_mean(self):
+        return self.mean
 
 class RequiresGrad:
 
