@@ -30,6 +30,24 @@ class OnlineMeanCalculator:
     def get_mean(self):
         return self.mean
 
+from collections import deque
+
+class RollingMeanCalculator:
+    def __init__(self, window_size):
+        self.window_size = window_size
+        self.values = deque(maxlen=window_size)
+        self.mean = 0.0
+
+    def update(self, value):
+        if len(self.values) == self.window_size:
+            self.mean -= self.values.popleft() / self.window_size
+        self.values.append(value)
+        self.mean += value / self.window_size
+
+    def get_mean(self):
+        return self.mean
+
+
 class RequiresGrad:
 
   def __init__(self, model):

@@ -540,7 +540,6 @@ class ImagBehavior(nn.Module):
     safe_actor_loss = torch.mean(weights[:-1] * safe_actor_target)
     return safe_actor_loss, metrics
 
-
   def _update_slow_target(self):
     if self._config.slow_value_target or self._config.slow_actor_target:
       if self._updates % self._config.slow_target_update == 0:

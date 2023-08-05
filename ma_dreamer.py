@@ -24,7 +24,8 @@ from torch import nn
 from torch import distributions as torchd
 to_np = lambda x: x.detach().cpu().numpy()
 
-online_mean_cost_calc = tools.OnlineMeanCalculator()
+# online_mean_cost_calc = tools.OnlineMeanCalculator()
+online_mean_cost_calc = tools.RollingMeanCalculator(100)
 
 class Dreamer(nn.Module):
 
