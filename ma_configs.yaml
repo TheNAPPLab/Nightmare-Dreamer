@@ -200,9 +200,9 @@ sgym:
   safe_signal_prob_decay_min: 0.01
 
   #lagrange multipler  parameters
-  cost_limit: 12
+  cost_limit: 15
   sigmoid_a: 0.09
-  lamda_projection: 'relu' # stretched_sigmoid
+  lamda_projection: 'stretched_sigmoid' # stretched_sigmoid relu
   update_lagrange_metric: 'target_mean' # target_mean target_max
   lagrangian_multiplier_init: 0.001 # 0.3
   lambda_lr: 0.007  # 0.035 0.0035
