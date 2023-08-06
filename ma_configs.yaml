@@ -202,7 +202,7 @@ sgym:
   # cost curriculum learning parmaters
   limit_decay_start: 20_000 # 30_000
   limit_signal_prob: 150
-  limit_signal_prob_decay: 200_000
+  limit_signal_prob_decay: 150_000
   limit_signal_prob_decay_min:  12
 
   #lagrange multipler  parameters
