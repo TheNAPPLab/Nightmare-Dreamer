@@ -182,7 +182,7 @@ sgym:
   cost_threshold: 3
   actor_behavior_scale: 1 # 100, 1.5 0.8
   behavior_cloning: 'log_prob' #kl, log_prob
-  imag_horizon: 5
+  cost_imag_horizon: 5
 
   #Observation setting
   ontop: False
