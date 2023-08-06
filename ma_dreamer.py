@@ -412,10 +412,10 @@ if __name__ == '__main__':
     arg_type = tools.args_type(value)
     parser.add_argument(f'--{key}', type=arg_type, default=arg_type(value))
   current_dir = os.path.dirname(os.path.abspath(__file__))
-  logdir = os.path.join(current_dir, 'logdir', 'safecircle1', '12')  
-  # existed_ns = [int(v) for v in os.listdir(os.path.join(current_dir, 'logdir', 'safecircle1'))]
-  # if len(existed_ns) > 0:
-  #   new_n = max(existed_ns)+1
-  #   logdir = os.path.join(current_dir, 'logdir', 'safecircle1', str(new_n))
+  logdir = os.path.join(current_dir, 'logdir', 'safecircle1', '0')  
+  existed_ns = [int(v) for v in os.listdir(os.path.join(current_dir, 'logdir', 'safecircle1'))]
+  if len(existed_ns) > 0:
+    new_n = max(existed_ns)+1
+    logdir = os.path.join(current_dir, 'logdir', 'safecircle1', str(new_n))
   parser.set_defaults(logdir = logdir)
   main(parser.parse_args(remaining))
