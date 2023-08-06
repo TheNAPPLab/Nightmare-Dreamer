@@ -178,10 +178,11 @@ sgym:
 
   #Multi agent paramters
   use_single_roll_out: False
-  safety_look_ahead_steps: 5
+  safety_look_ahead_steps: 7
   cost_threshold: 3
   actor_behavior_scale: 1 # 100, 1.5 0.8
   behavior_cloning: 'log_prob' #kl, log_prob
+  imag_horizon: 5
 
   #Observation setting
   ontop: False
@@ -206,7 +207,7 @@ sgym:
   lagrangian_multiplier_init: 0.001 # 0.3
   lambda_lr: 0.0035  # 0.035 0.0035
   learnable_lagrange: True
-  lagrangian_multiplier_fixed: 0.6 # 0.3
+  lagrangian_multiplier_fixed: 1 # 0.3
   max_lagrangian : 100.0 # 10 important if using stretched sigmoid
 
 
