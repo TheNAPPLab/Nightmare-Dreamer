@@ -211,7 +211,7 @@ class Dreamer(nn.Module):
         self._wm.dynamics.get_feat(s)).mode()
     cost = lambda f, s, a: self._wm.heads['cost'](
         self._wm.dynamics.get_feat(s)).mode()
-    metrics.update(self._task_behavior._train(start, reward, cost, mean_ep_cost = online_mean_cost_calc.get_mean())[-1])
+    metrics.update(self._task_behavior._train(start, reward, cost, mean_ep_cost = online_mean_cost_calc.get_mean(), training_step = self._logger.step )[-1])
 
     if self._config.expl_behavior != 'greedy':
       if self._config.pred_discount:
@@ -412,10 +412,10 @@ if __name__ == '__main__':
     arg_type = tools.args_type(value)
     parser.add_argument(f'--{key}', type=arg_type, default=arg_type(value))
   current_dir = os.path.dirname(os.path.abspath(__file__))
-  logdir = os.path.join(current_dir, 'logdir', 'safecircle1', '0')  
-  existed_ns = [int(v) for v in os.listdir(os.path.join(current_dir, 'logdir', 'safecircle1'))]
-  if len(existed_ns) > 0:
-    new_n = max(existed_ns)+1
-    logdir = os.path.join(current_dir, 'logdir', 'safecircle1', str(new_n))
+  logdir = os.path.join(current_dir, 'logdir', 'safecircle1', '12')  
+  # existed_ns = [int(v) for v in os.listdir(os.path.join(current_dir, 'logdir', 'safecircle1'))]
+  # if len(existed_ns) > 0:
+  #   new_n = max(existed_ns)+1
+  #   logdir = os.path.join(current_dir, 'logdir', 'safecircle1', str(new_n))
   parser.set_defaults(logdir = logdir)
   main(parser.parse_args(remaining))

@@ -258,7 +258,7 @@ class ImagBehavior(nn.Module):
 
   def _train(
         self, start, objective = None, constrain = None, action = None, \
-        reward = None, cost = None, imagine = None, tape = None, repeats = None, mean_ep_cost = None):
+        reward = None, cost = None, imagine = None, tape = None, repeats = None, mean_ep_cost = None, training_step = 0):
     objective = objective or self._reward
 
     #MOD
@@ -314,7 +314,7 @@ class ImagBehavior(nn.Module):
               start, self.safe_actor, self._config.imag_horizon, repeats)
         
         cost = constrain(safe_imag_feat, safe_imag_state, safe_imag_action)
-        reward_safe_policy = objective(safe_imag_feat, safe_imag_state, safe_imag_action)
+        # reward_safe_policy = objective(safe_imag_feat, safe_imag_state, imag_action)
         safe_actor_ent = self.safe_actor(safe_imag_feat).entropy()
 
         safe_state_ent = self._world_model.dynamics.get_dist(
@@ -368,14 +368,15 @@ class ImagBehavior(nn.Module):
     metrics['lagrangian_multiplier'] = self._lagrangian_multiplier.detach().item() if self._config.learnable_lagrange else self._lagrangian_multiplier
 
     metrics['lagrangian_multiplier_projected'] = self._lambda_range_projection(self._lagrangian_multiplier).detach().item() if self._config.learnable_lagrange else self._lagrangian_multiplier
-
+    cost_limit = self._cost_limit(training_step)
+    metrics["cost_limit"] = cost_limit
     if self._config.learnable_lagrange:
       if self._config.update_lagrange_metric == 'target_mean':
-        self._update_lagrange_multiplier(torch.mean(target_cost.detach()))
+        self._update_lagrange_multiplier(torch.mean(target_cost.detach()), cost_limit)
       elif self._config.update_lagrange_metric == 'target_max':
-        self._update_lagrange_multiplier(torch.max(target_cost.detach()))
+        self._update_lagrange_multiplier(torch.max(target_cost.detach()), cost_limit)
       elif self._config.update_lagrange_metric == 'mean_ep_cost':
-        self._update_lagrange_multiplier(mean_ep_cost)
+        self._update_lagrange_multiplier(mean_ep_cost, cost_limit)
 
 
     return imag_feat, imag_state, imag_action, weights, metrics
@@ -567,20 +568,30 @@ class ImagBehavior(nn.Module):
     # loss = torch.mean(kl_value)
     return kl_value
   
-  def _compute_lamda_loss(self, mean_cost):
+  def _compute_lamda_loss(self, mean_cost, cost_limit):
     self._lagrangian_multiplier.requires_grad = True
-    diff = mean_cost - self._config.cost_limit
+    diff = mean_cost - cost_limit
     loss = -self._lagrangian_multiplier * diff
     return loss
   
-  def _update_lagrange_multiplier(self, ep_costs):
+  def _update_lagrange_multiplier(self, ep_costs, cost_limit):
     self._lamda_optimizer.zero_grad()
-    lambda_loss = self._compute_lamda_loss(ep_costs)
+    lambda_loss = self._compute_lamda_loss(ep_costs, cost_limit)
     lambda_loss.backward()
     self._lamda_optimizer.step()
     if self._config.lamda_projection == 'relu':
       self._lagrangian_multiplier.data.clamp_(0)  # enforce: lambda in [0, inf]
     else:
       self._lagrangian_multiplier.data.clamp_max_(self._config.max_lagrangian)
- 
+
+
+  def _cost_limit(self, step):
+    if step <= self._config.limit_decay_start:
+        expl_amount = self._config.limit_signal_prob
+    else:
+        expl_amount =  self._config.limit_signal_prob
+        ir = step  - self._config.limit_decay_start + 1
+        expl_amount = expl_amount - ir/self._config.limit_signal_prob_decay
+        expl_amount = max(self._config.limit_signal_prob_decay_min, expl_amount)
+    return expl_amount
 

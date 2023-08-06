@@ -178,11 +178,11 @@ sgym:
 
   #Multi agent paramters
   use_single_roll_out: False
-  safety_look_ahead_steps: 7
-  cost_threshold: 3
+  safety_look_ahead_steps: 7 #2
+  cost_threshold: 3 #1
   actor_behavior_scale: 1 # 100, 1.5 0.8
   behavior_cloning: 'log_prob' #kl, log_prob
-  cost_imag_horizon: 5
+  # cost_imag_horizon: 5 
 
   #Observation setting
   ontop: False
@@ -198,6 +198,12 @@ sgym:
   safe_signal_prob: 1.0
   safe_signal_prob_decay: 3_000 # 90_000
   safe_signal_prob_decay_min: 0.01
+
+  # cost curriculum learning parmaters
+  limit_decay_start: 20_000 # 30_000
+  limit_signal_prob: 150
+  limit_signal_prob_decay: 200_000
+  limit_signal_prob_decay_min:  12
 
   #lagrange multipler  parameters
   cost_limit: 50
