@@ -182,6 +182,7 @@ sgym:
   cost_threshold: 3 #1
   actor_behavior_scale: 1 # 100, 1.5 0.8
   behavior_cloning: 'log_prob' #kl, log_prob
+  min_behavior_loss: 0.0  # Adjust this value as needed
   # cost_imag_horizon: 5 
 
   #Observation setting
@@ -215,6 +216,7 @@ sgym:
   learnable_lagrange: True
   lagrangian_multiplier_fixed: 1 # 0.3
   max_lagrangian : 100.0 # 10 important if using stretched sigmoid
+  min_lagrangian: 0.01
 
 
 

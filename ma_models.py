@@ -526,6 +526,7 @@ class ImagBehavior(nn.Module):
       action_inp_ = imag_action.detach() if self._stop_grad_actor else imag_action
       safe_policy_ = self.safe_actor(inp_) # safe policy under control state
       behavior_loss =  -safe_policy_.log_prob(action_inp_)[:-1][:, :, None]
+      behavior_loss = torch.clamp(behavior_loss, min=self._config.min_behavior_loss)
       safe_actor_target += self._config.actor_behavior_scale * behavior_loss
 
     if penalty > 1.0:
@@ -580,7 +581,7 @@ class ImagBehavior(nn.Module):
     lambda_loss.backward()
     self._lamda_optimizer.step()
     if self._config.lamda_projection == 'relu':
-      self._lagrangian_multiplier.data.clamp_(0)  # enforce: lambda in [0, inf]
+      self._lagrangian_multiplier.data.clamp_(self._config.min_lagrangian)  # enforce: lambda in [0, inf]
     else:
       self._lagrangian_multiplier.data.clamp_max_(self._config.max_lagrangian)
 

@@ -287,7 +287,6 @@ def process_episode(config, logger, mode, train_eps, eval_eps, episode):
   logger.scalar(f'{mode}_return', score)
   logger.scalar(f'{mode}_length', length)
   logger.scalar(f'{mode}_episodes', len(cache))
-  # logger.scaler(f'{mode}_num_safe_policy_flag', num_safe_policy)
   if mode == 'eval' or config.expl_gifs:
     logger.video(f'{mode}_policy', video[None])
   logger.write()
