@@ -25,7 +25,7 @@ from torch import distributions as torchd
 to_np = lambda x: x.detach().cpu().numpy()
 
 # online_mean_cost_calc = tools.OnlineMeanCalculator()
-online_mean_cost_calc = tools.RollingMeanCalculator(100)
+online_mean_cost_calc = tools.RollingMeanCalculator(50)
 
 class Dreamer(nn.Module):
 
@@ -305,7 +305,7 @@ def set_test_paramters(config):
 def main(config):
   config_dict = config.__dict__
   config.task = 'SafetyPointCircle1-v0'
-  config.steps = 450_000
+  config.steps = 600_000
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
   # print(config_dict)

@@ -163,7 +163,7 @@ sgym:
   model_lr: 3e-4
   value_lr: 8e-5
   actor_lr: 8e-5
-  safe_actor_lr: 4e-5 #8e-5
+  safe_actor_lr: 8e-5 #8e-5
   opt_eps: 1e-5
   kl_free: '1.0'
   kl_scale: '1.0'
@@ -178,7 +178,7 @@ sgym:
 
   #Multi agent paramters
   use_single_roll_out: False
-  safety_look_ahead_steps: 7
+  safety_look_ahead_steps: 5
   cost_threshold: 3
   actor_behavior_scale: 1 # 100, 1.5 0.8
   behavior_cloning: 'log_prob' #kl, log_prob
@@ -191,12 +191,11 @@ sgym:
 
   cost_imag_gradient: 'dynamics' #dynamics , reinforce, mix
   cost_imag_gradient_mix: 0.05
-  c: 30.0
 
   #explore task switching
-  safe_decay_start: 10_000 #10_000
+  safe_decay_start: 1_000 #10_000
   safe_signal_prob: 1.0
-  safe_signal_prob_decay: 50_000 # 90_000
+  safe_signal_prob_decay: 3_000 # 90_000
   safe_signal_prob_decay_min: 0.01
 
   #lagrange multipler  parameters
@@ -205,7 +204,7 @@ sgym:
   lamda_projection: 'relu' # stretched_sigmoid relu
   update_lagrange_metric: 'mean_ep_cost' # target_mean target_max mean_ep_cost
   lagrangian_multiplier_init: 0.001 # 0.3
-  lambda_lr: 0.007  # 0.035 0.0035
+  lambda_lr: 0.0035  # 0.035 0.0035
   learnable_lagrange: True
   lagrangian_multiplier_fixed: 0.6 # 0.3
   max_lagrangian : 100.0 # 10 important if using stretched sigmoid

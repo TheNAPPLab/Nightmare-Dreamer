@@ -314,7 +314,7 @@ class ImagBehavior(nn.Module):
               start, self.safe_actor, self._config.imag_horizon, repeats)
         
         cost = constrain(safe_imag_feat, safe_imag_state, safe_imag_action)
-
+        reward_safe_policy = objective(safe_imag_feat, safe_imag_state, safe_imag_action)
         safe_actor_ent = self.safe_actor(safe_imag_feat).entropy()
 
         safe_state_ent = self._world_model.dynamics.get_dist(
