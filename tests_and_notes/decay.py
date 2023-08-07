@@ -1,7 +1,7 @@
-step = 100_000
+step = 140_000
 limit_decay_start = 5_000
-limit_signal_prob = 70
-limit_signal_prob_decay = 2500   #1450
+limit_signal_prob = 100
+limit_signal_prob_decay = 1450   #1450
 limit_signal_prob_decay_min = 12
 if step <= limit_decay_start:
         expl_amount = limit_signal_prob
