@@ -180,6 +180,7 @@ class ImagBehavior(nn.Module):
     self._stop_grad_actor = stop_grad_actor
     self._reward = reward
     self._cost = cost
+    self.cost_limit = self._config.limit_signal_prob
     if config.dyn_discrete:
       feat_size = config.dyn_stoch * config.dyn_discrete + config.dyn_deter
     else:
@@ -368,15 +369,17 @@ class ImagBehavior(nn.Module):
     metrics['lagrangian_multiplier'] = self._lagrangian_multiplier.detach().item() if self._config.learnable_lagrange else self._lagrangian_multiplier
 
     metrics['lagrangian_multiplier_projected'] = self._lambda_range_projection(self._lagrangian_multiplier).detach().item() if self._config.learnable_lagrange else self._lagrangian_multiplier
-    cost_limit = self._cost_limit(training_step)
-    metrics["cost_limit"] = cost_limit
+    if training_step % 20_000 == 0 and (abs(self.cost_limit - mean_ep_cost) == 5 or mean_ep_cost<=self.cost_limit):
+      self.cost_limit = self._cost_limit(training_step)
+
+    metrics["cost_limit"] = self.cost_limit
     if self._config.learnable_lagrange:
       if self._config.update_lagrange_metric == 'target_mean':
-        self._update_lagrange_multiplier(torch.mean(target_cost.detach()), cost_limit)
+        self._update_lagrange_multiplier(torch.mean(target_cost.detach()),  self.cost_limit)
       elif self._config.update_lagrange_metric == 'target_max':
-        self._update_lagrange_multiplier(torch.max(target_cost.detach()), cost_limit)
+        self._update_lagrange_multiplier(torch.max(target_cost.detach()),  self.cost_limit)
       elif self._config.update_lagrange_metric == 'mean_ep_cost':
-        self._update_lagrange_multiplier(mean_ep_cost, cost_limit)
+        self._update_lagrange_multiplier(mean_ep_cost,  self.cost_limit)
 
 
     return imag_feat, imag_state, imag_action, weights, metrics
@@ -526,7 +529,8 @@ class ImagBehavior(nn.Module):
       action_inp_ = imag_action.detach() if self._stop_grad_actor else imag_action
       safe_policy_ = self.safe_actor(inp_) # safe policy under control state
       behavior_loss =  -safe_policy_.log_prob(action_inp_)[:-1][:, :, None]
-      behavior_loss = torch.clamp(behavior_loss, min=self._config.min_behavior_loss)
+      if self._config.clamp_behavior_loss:
+        behavior_loss = torch.clamp(behavior_loss, min = self._config.min_behavior_loss)
       safe_actor_target += self._config.actor_behavior_scale * behavior_loss
 
     if penalty > 1.0:

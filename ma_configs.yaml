@@ -182,7 +182,8 @@ sgym:
   cost_threshold: 3 #1
   actor_behavior_scale: 1 # 100, 1.5 0.8
   behavior_cloning: 'log_prob' #kl, log_prob
-  min_behavior_loss: 0.0  # Adjust this value as needed
+  min_behavior_loss: 0.2  # Adjust this value as needed
+  clamp_behavior_loss: True
   # cost_imag_horizon: 5 
 
   #Observation setting
@@ -202,8 +203,8 @@ sgym:
 
   # cost curriculum learning parmaters
   limit_decay_start: 20_000 # 30_000
-  limit_signal_prob: 150
-  limit_signal_prob_decay: 150_000
+  limit_signal_prob: 100
+  limit_signal_prob_decay: 140_000
   limit_signal_prob_decay_min:  12
 
   #lagrange multipler  parameters
