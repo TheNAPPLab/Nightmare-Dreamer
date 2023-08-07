@@ -180,7 +180,7 @@ class ImagBehavior(nn.Module):
     self._stop_grad_actor = stop_grad_actor
     self._reward = reward
     self._cost = cost
-    self.cost_limit = self._config.limit_signal_prob
+    self.cost_limit = self._config.limit_signal_prob if self._config.decay_cost else self._config.limit_signal_prob_decay_min
     if config.dyn_discrete:
       feat_size = config.dyn_stoch * config.dyn_discrete + config.dyn_deter
     else:
@@ -591,6 +591,9 @@ class ImagBehavior(nn.Module):
 
 
   def _cost_limit(self, step):
+    #  limit_signal_prob_decay_min:  12
+    if not self._config.decay_cost:
+      return self._config.limit_signal_prob_decay_min
     if step <= self._config.limit_decay_start:
         expl_amount = self._config.limit_signal_prob
     else:
