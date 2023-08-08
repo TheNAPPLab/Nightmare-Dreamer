@@ -372,7 +372,7 @@ class ImagBehavior(nn.Module):
     if training_step % 20_000 == 0 and (abs(self.cost_limit - mean_ep_cost) == 5 or mean_ep_cost<=self.cost_limit):
       self.cost_limit = self._cost_limit(training_step)
     metrics["cost_limit"] = self.cost_limit
-    
+
     if self._config.learnable_lagrange:
       if self._config.update_lagrange_metric == 'target_mean':
         self._update_lagrange_multiplier(torch.mean(target_cost.detach()),  self.cost_limit)
