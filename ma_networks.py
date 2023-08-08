@@ -487,7 +487,7 @@ class Discriminator(nn.Module):
   def __init__(
       self, inp_dim,
       shape, layers, units, act = nn.ELU):
-    super(DenseHead, self).__init__()
+    super(Discriminator, self).__init__()
     self._shape = (shape,) if isinstance(shape, int) else shape
     if len(self._shape) == 0:
       self._shape = (1,)

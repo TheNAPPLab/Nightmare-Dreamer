@@ -209,11 +209,12 @@ class ImagBehavior(nn.Module):
         [], config.value_layers, config.units, config.act,
         config.value_head)
     #discriminator network
-    # self.discriminator = networks.Discriminator(
-    #   feat_size +  config.num_actions,
-    #   [], config.discriminator_layers, config.discriminator_units, config.act)
-    
-    # self.criterion = nn.BCELoss() # discriminator
+    if self._config.learn_discriminator:
+      self.discriminator = networks.Discriminator(
+        feat_size +  config.num_actions,
+        [], config.discriminator_layers, config.discriminator_units, config.act)
+      
+      self.discriminator_criterion = nn.BCELoss() # discriminator
 
     if config.slow_value_target or config.slow_actor_target:
       # target network
@@ -245,29 +246,14 @@ class ImagBehavior(nn.Module):
     self._cost_value_opt = tools.Optimizer(
           'cost_value', self.cost_value.parameters(), config.cost_value_lr, config.opt_eps, config.value_grad_clip,
           **kw)
-    # self._discriminator_opt = tools.Optimizer(
-    #   'discriminator', self.discriminator.parameters(), config.discrimiator_lr, config.opt_eps, config.discriminator_grad_clip,
-    #      **kw
-    # )
+    if self._config.learn_discriminator:
+      self._discriminator_opt = tools.Optimizer(
+        'discriminator', self.discriminator.parameters(), config.discrimiator_lr, config.opt_eps, config.discriminator_grad_clip,
+          **kw
+      )
 
     # lagrange parameters and initalisation
-    init_value = max(config.lagrangian_multiplier_init, 1e-5)
-
-
-    self._lagrangian_multiplier = torch.nn.Parameter(
-            torch.as_tensor( init_value ),
-            requires_grad = True) if config.learnable_lagrange else config.lagrangian_multiplier_fixed
-      
-    if config.lamda_projection == 'relu':
-        self._lambda_range_projection = torch.nn.ReLU()
-    elif config.lamda_projection == 'sigmoid':
-        self._lambda_range_projection = torch.nn.Sigmoid()
-    elif config.lamda_projection == 'stretched_sigmoid':
-        self._lambda_range_projection = tools.StretchedSigmoid(config.sigmoid_a)
-
-    torch_opt = getattr(optim, 'Adam')
-    self._lamda_optimizer = torch_opt([self._lagrangian_multiplier, ],
-                                  lr = config.lambda_lr )  if config.learnable_lagrange else None
+    self._declare_lagrnagian()
 
   def _train(
         self, start, objective = None, constrain = None, action = None, \
@@ -351,11 +337,11 @@ class ImagBehavior(nn.Module):
         cost_value_loss = -cost_value.log_prob(target_cost.detach())
         # multi[ly by weights only if we wish to dsicount the value function
         cost_value_loss = torch.mean(weights[:-1] * cost_value_loss[:,:,None])
-
-    # with tools.RequiresGrad(self.discriminator):
-    #   with torch.cuda.amp.autocast(self._use_amp):
-    #     discrimiator_loss = self._compute_discrimiator_loss(safe_imag_action, safe_imag_feat,\
-    #                               imag_action, imag_feat )
+    if self._config.learn_discriminator:
+      with tools.RequiresGrad(self.discriminator):
+        with torch.cuda.amp.autocast(self._use_amp):
+          discrimiator_loss = self._compute_discrimiator_loss(safe_imag_action, safe_imag_feat,\
+                                    imag_action, imag_feat )
         
 
     metrics['reward_mean'] = to_np(torch.mean(reward))
@@ -377,6 +363,8 @@ class ImagBehavior(nn.Module):
       metrics.update(self._safe_actor_opt(safe_actor_loss, self.safe_actor.parameters()))
       metrics.update(self._value_opt(value_loss, self.value.parameters()))
       metrics.update(self._cost_value_opt(cost_value_loss, self.cost_value.parameters()))
+      if self._config.learn_discriminator:
+        metrics.update(self._discriminator_opt(discrimiator_loss, self.discriminator.parameters()))
 
     
     metrics['mean_target_cost'] = to_np(torch.mean(target_cost.detach()))
@@ -549,7 +537,13 @@ class ImagBehavior(nn.Module):
       behavior_loss =  -safe_policy_.log_prob(action_inp_)[:-1][:, :, None]
       if self._config.clamp_behavior_loss:
         behavior_loss = torch.clamp(behavior_loss, min = self._config.min_behavior_loss)
-      safe_actor_target += self._config.actor_behavior_scale * behavior_loss
+      scaled_behavior_loss = self._config.actor_behavior_scale * behavior_loss
+      safe_actor_target += scaled_behavior_loss
+
+    elif self._config.behavior_cloning == 'discriminator':
+      behavior_loss = -self.discriminator(inp[:-1], safe_imag_action[:-1])
+      scaled_behavior_loss = self._config.actor_behavior_scale  * behavior_loss
+      safe_actor_target += scaled_behavior_loss
 
     if penalty > 1.0:
       safe_actor_target /= penalty
@@ -558,6 +552,7 @@ class ImagBehavior(nn.Module):
     if self._config.behavior_cloning != '':
       metrics['behavior_cloning_loss_mean'] = to_np(torch.mean(behavior_loss))
       metrics['behavior_cloning__loss_max'] = to_np(torch.max(behavior_loss))
+      metrics['scaled_behavior_cloning_loss_mean'] = to_np(torch.mean(scaled_behavior_loss))
     else:
       metrics['behavior_cloning_loss_mean'] = 0
       metrics['behavior_cloning__loss_max'] = 0
@@ -623,20 +618,46 @@ class ImagBehavior(nn.Module):
 
   def _compute_discrimiator_loss(self, safe_actions, states_under_safe_policy,\
                                   control_action, states_under_control_policy ):
-    states_under_safe_policy = states_under_safe_policy.detach()
+    statesGenerated_under_safe_policy = states_under_safe_policy.detach()
     safe_actions = safe_actions.detach()
-    states_under_control_policy = states_under_control_policy.detach()
+    statesGenerated_under_control_policy = states_under_control_policy.detach()
     control_action = control_action.detach()
 
-    pred_safe = self.discriminator(states_under_safe_policy, safe_actions)
-    pred_control = self.discriminator(states_under_control_policy, control_action)
+    safe_actions_under_GenratedControl_states =  self.safe_actor(statesGenerated_under_control_policy).sample().detach()
+
+    control_actions_under_GenratedSafe_states =  self.actor(statesGenerated_under_safe_policy).sample().detach()
+
+    pred_safe1 = self.discriminator(statesGenerated_under_safe_policy, safe_actions)
+    pred_safe2 = self.discriminator(statesGenerated_under_control_policy, safe_actions_under_GenratedControl_states)
+
+    pred_control1 = self.discriminator(statesGenerated_under_control_policy, control_action)
+    pred_control2 = self.discriminator(statesGenerated_under_safe_policy, control_actions_under_GenratedSafe_states)
 
     output_shape = (safe_actions.shape[0], safe_actions.shape[1], 1)
     control_labels = torch.ones(output_shape)
     safe_labels = torch.zeros(output_shape)
 
-    control_loss_pred = self.criterion(pred_control, control_labels)
-    safe_loss_pred = self.criterion(pred_safe, safe_labels )
+    control_loss_pred = self.discriminator_criterion(pred_control1, control_labels) + self.discriminator_criterion(pred_control2, control_labels) 
+    safe_loss_pred = self.discriminator_criterion(pred_safe1, safe_labels ) + self.discriminator_criterion(pred_safe2, safe_labels )
 
-    loss = (control_loss_pred + safe_loss_pred)/2
+    loss = (control_loss_pred + safe_loss_pred)/4
     return loss
+
+  def _declare_lagrnagian(self):
+    init_value = max(self._config.lagrangian_multiplier_init, 1e-5)
+
+
+    self._lagrangian_multiplier = torch.nn.Parameter(
+            torch.as_tensor( init_value ),
+            requires_grad = True) if self._config.learnable_lagrange else self._config.lagrangian_multiplier_fixed
+      
+    if self._config.lamda_projection == 'relu':
+        self._lambda_range_projection = torch.nn.ReLU()
+    elif self._config.lamda_projection == 'sigmoid':
+        self._lambda_range_projection = torch.nn.Sigmoid()
+    elif self._config.lamda_projection == 'stretched_sigmoid':
+        self._lambda_range_projection = tools.StretchedSigmoid(self._config.sigmoid_a)
+
+    torch_opt = getattr(optim, 'Adam')
+    self._lamda_optimizer = torch_opt([self._lagrangian_multiplier, ],
+                                  lr = self._config.lambda_lr )  if self._config.learnable_lagrange else None
