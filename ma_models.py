@@ -208,7 +208,12 @@ class ImagBehavior(nn.Module):
         feat_size,  # pytorch version
         [], config.value_layers, config.units, config.act,
         config.value_head)
-      
+    #discriminator network
+    # self.discriminator = networks.Discriminator(
+    #   feat_size +  config.num_actions,
+    #   [], config.discriminator_layers, config.discriminator_units, config.act)
+    
+    # self.criterion = nn.BCELoss() # discriminator
 
     if config.slow_value_target or config.slow_actor_target:
       # target network
@@ -227,6 +232,7 @@ class ImagBehavior(nn.Module):
     self._actor_opt = tools.Optimizer(
         'actor', self.actor.parameters(), config.actor_lr, config.opt_eps, config.actor_grad_clip,
         **kw)
+    
     self._safe_actor_opt = tools.Optimizer(
         'safe_actor', self.safe_actor.parameters(), config.safe_actor_lr, config.opt_eps, config.actor_grad_clip,
         **kw)
@@ -235,9 +241,15 @@ class ImagBehavior(nn.Module):
     self._value_opt = tools.Optimizer(
         'value', self.value.parameters(), config.value_lr, config.opt_eps, config.value_grad_clip,
         **kw)
+    
     self._cost_value_opt = tools.Optimizer(
           'cost_value', self.cost_value.parameters(), config.cost_value_lr, config.opt_eps, config.value_grad_clip,
           **kw)
+    # self._discriminator_opt = tools.Optimizer(
+    #   'discriminator', self.discriminator.parameters(), config.discrimiator_lr, config.opt_eps, config.discriminator_grad_clip,
+    #      **kw
+    # )
+
     # lagrange parameters and initalisation
     init_value = max(config.lagrangian_multiplier_init, 1e-5)
 
@@ -339,6 +351,12 @@ class ImagBehavior(nn.Module):
         cost_value_loss = -cost_value.log_prob(target_cost.detach())
         # multi[ly by weights only if we wish to dsicount the value function
         cost_value_loss = torch.mean(weights[:-1] * cost_value_loss[:,:,None])
+
+    # with tools.RequiresGrad(self.discriminator):
+    #   with torch.cuda.amp.autocast(self._use_amp):
+    #     discrimiator_loss = self._compute_discrimiator_loss(safe_imag_action, safe_imag_feat,\
+    #                               imag_action, imag_feat )
+        
 
     metrics['reward_mean'] = to_np(torch.mean(reward))
     metrics['reward_std'] = to_np(torch.std(reward))
@@ -603,3 +621,22 @@ class ImagBehavior(nn.Module):
         expl_amount = max(self._config.limit_signal_prob_decay_min, expl_amount)
     return expl_amount
 
+  def _compute_discrimiator_loss(self, safe_actions, states_under_safe_policy,\
+                                  control_action, states_under_control_policy ):
+    states_under_safe_policy = states_under_safe_policy.detach()
+    safe_actions = safe_actions.detach()
+    states_under_control_policy = states_under_control_policy.detach()
+    control_action = control_action.detach()
+
+    pred_safe = self.discriminator(states_under_safe_policy, safe_actions)
+    pred_control = self.discriminator(states_under_control_policy, control_action)
+
+    output_shape = (safe_actions.shape[0], safe_actions.shape[1], 1)
+    control_labels = torch.ones(output_shape)
+    safe_labels = torch.zeros(output_shape)
+
+    control_loss_pred = self.criterion(pred_control, control_labels)
+    safe_loss_pred = self.criterion(pred_safe, safe_labels )
+
+    loss = (control_loss_pred + safe_loss_pred)/2
+    return loss

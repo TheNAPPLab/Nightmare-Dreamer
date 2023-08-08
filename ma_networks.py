@@ -481,3 +481,32 @@ class GRUCell(nn.Module):
     update = torch.sigmoid(update + self._update_bias)
     output = update * cand + (1 - update) * state
     return output, [output]
+
+class Discriminator(nn.Module):
+
+  def __init__(
+      self, inp_dim,
+      shape, layers, units, act = nn.ELU):
+    super(DenseHead, self).__init__()
+    self._shape = (shape,) if isinstance(shape, int) else shape
+    if len(self._shape) == 0:
+      self._shape = (1,)
+    self._layers = layers
+    self._units = units
+    self._act = act
+
+    mean_layers = []
+    for index in range(self._layers):
+      mean_layers.append(nn.Linear(inp_dim, self._units))
+      mean_layers.append(act())
+      if index == 0:
+        inp_dim = self._units
+    mean_layers.append(nn.Linear(inp_dim, np.prod(self._shape)))
+    self._mean_layers = nn.Sequential(*mean_layers)
+
+
+  def __call__(self, states, actions ):
+    x = torch.cat((states, actions), dim=-1)
+    logits = self._mean_layers(x)
+    probabilities = torch.sigmoid(logits)
+    return probabilities
