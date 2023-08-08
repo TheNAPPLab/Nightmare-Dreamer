@@ -6,6 +6,7 @@ import torch.optim as optim
 from torch import distributions as torchd
 import ma_networks as networks
 import ma_tools as tools
+import torch.nn.functional as F
 to_np = lambda x: x.detach().cpu().numpy()
 
 
@@ -634,11 +635,11 @@ class ImagBehavior(nn.Module):
     pred_control2 = self.discriminator(statesGenerated_under_safe_policy, control_actions_under_GenratedSafe_states)
 
     output_shape = (safe_actions.shape[0], safe_actions.shape[1], 1)
-    control_labels = torch.ones(output_shape)
-    safe_labels = torch.zeros(output_shape)
+    control_labels = torch.ones(output_shape, device=self._config.device)
+    safe_labels = torch.zeros(output_shape, device=self._config.device)
 
-    control_loss_pred = self.discriminator_criterion(pred_control1, control_labels) + self.discriminator_criterion(pred_control2, control_labels) 
-    safe_loss_pred = self.discriminator_criterion(pred_safe1, safe_labels ) + self.discriminator_criterion(pred_safe2, safe_labels )
+    control_loss_pred = F.binary_cross_entropy_with_logits(pred_control1, control_labels) + F.binary_cross_entropy_with_logits(pred_control2, control_labels) 
+    safe_loss_pred = F.binary_cross_entropy_with_logits(pred_safe1, safe_labels ) + F.binary_cross_entropy_with_logits(pred_safe2, safe_labels )
 
     loss = (control_loss_pred + safe_loss_pred)/4
     return loss
