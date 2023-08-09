@@ -72,8 +72,8 @@ class SaveVideoInteraction:
       dir = self.log_dir + "/eval_video.gif"
       # write_apng(dir, upscaled_images, delay = self.delay)
       imageio.mimsave(dir, upscaled_images, duration=0.2) 
-      if sys.platform == 'linux': 
-        wandb.log({"Policy_display": wandb.Video(dir)})
+      # if sys.platform == 'linux': 
+      #   wandb.log({"Policy_display": wandb.Video(dir)})
 
 class OnlineMeanCalculator:
     def __init__(self):
@@ -165,7 +165,8 @@ class Logger:
     print(f'[{self.step}]', ' / '.join(f'{k} {v:.1f}' for k, v in scalars))
     with (self._logdir / 'metrics.jsonl').open('a') as f:
       f.write(json.dumps({'step': self.step, ** dict(scalars)}) + '\n')
-    if sys.platform == 'linux': wandb.log(self._scalars, step = self.step)
+    if sys.platform == 'linux': 
+      wandb.log(self._scalars, step = self.step)
 
 
     # for name, value in scalars:
