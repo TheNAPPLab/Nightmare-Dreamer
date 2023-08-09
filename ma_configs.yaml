@@ -196,9 +196,9 @@ sgym:
   cost_imag_gradient_mix: 0.05
 
   #explore task switching
-  safe_decay_start: 10_000 #10_000
+  safe_decay_start: 1_000 #10_000
   safe_signal_prob: 1.0
-  safe_signal_prob_decay: 200_000 # 90_000
+  safe_signal_prob_decay: 3_000 # 90_000 
   safe_signal_prob_decay_min: 0.01
 
   # cost curriculum learning parmaters
