@@ -26,6 +26,7 @@ to_np = lambda x: x.detach().cpu().numpy()
 
 # online_mean_cost_calc = tools.OnlineMeanCalculator()
 online_mean_cost_calc = tools.RollingMeanCalculator(50)
+VideoInteractionSaver = tools.SaveVideoInteraction()
 
 class Dreamer(nn.Module):
 
@@ -268,6 +269,7 @@ def process_episode(config, logger, mode, train_eps, eval_eps, episode):
   num_task_switch = float(episode['task_switch'].astype(np.float64).sum())
   video = episode['image']
   if mode == 'eval':
+    VideoInteractionSaver.save_video(video, score, score_cost, episode['task_switch'])
     cache.clear()
   if mode == 'train' and config.dataset_size:
     total = 0
@@ -325,6 +327,7 @@ def main(config):
 
   print('Logdir', logdir)
   logdir.mkdir(parents = True, exist_ok = True)
+  VideoInteractionSaver.set_video_dir(logdir, config.logdir)
   config.traindir.mkdir(parents=True, exist_ok=True)
   config.evaldir.mkdir(parents=True, exist_ok=True)
   step = count_steps(config.traindir)

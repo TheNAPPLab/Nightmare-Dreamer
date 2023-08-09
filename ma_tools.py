@@ -16,6 +16,64 @@ from torch.nn import functional as F
 from torch import distributions as torchd
 from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
+from PIL import Image, ImageDraw, ImageFont
+import imageio
+from numpngw import write_apng  
+import datetime
+
+class SaveVideoInteraction:
+  def __init__(self) -> None:
+    self.best_reward = -100
+    self.best_cost = 100_000
+    self.log_dir = ""
+    self.desired_size = (255, 255)
+    self.delay = 150
+    self.rect_width = 30
+    self.rect_height = 30
+    self.green_ = (0, 255, 0)
+    self.red_ = (255, 0, 0)
+    self.font = ImageFont.load_default() 
+  def set_video_dir(self, weird_path, log_dir):
+    self.log_dir = log_dir
+    self.weird_path = weird_path
+    # create folder in dir if it doesnt exist
+    # logdir.mkdir(parents = True, exist_ok = True)
+  def save_video(self, video, reward, cost, violation_detected = None):
+  #   timestamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
+  #   output_path = "UpscaledVideo.gif"
+  # imageio.mimsave(output_path, upscaled_images, duration=0.2)
+    if cost <= self.best_cost and reward >= self.best_reward:
+      print("Found New best performance saving Video")
+      upscaled_images = []
+      for i in range(len(video)):
+        image = video[i]
+        original_image = Image.fromarray(image)
+        upscaled_image = original_image.resize(self.desired_size, Image.BILINEAR)
+         # Create a copy of the upscaled image to draw on
+        modified_image = upscaled_image.copy()
+        rect_color = self.green_
+        if violation_detected[i] > 0.0:
+          rect_color = self.red_
+        draw = ImageDraw.Draw(modified_image)
+        top_right_x = modified_image.width - self.rect_width
+        top_right_y = 0
+        bottom_left_x = modified_image.width
+        bottom_left_y = self.rect_height
+        draw.rectangle(
+                [top_right_x, top_right_y, bottom_left_x, bottom_left_y],
+                fill=rect_color)
+        
+        score_text = f"Score: {reward:.2f}"
+        cost_text = f"Cost: {cost:.2f}"
+        text_position = (10, 10)  # Adjust position as needed
+        draw.text(text_position, score_text, font=self.font, fill=(255, 255, 255))  # White text
+        draw.text((text_position[0], text_position[1] + 20), cost_text, font=self.font, fill=(255, 255, 255))
+        upscaled_images.append(np.array(modified_image))
+      dir = self.log_dir + "/eval_video.gif"
+      # write_apng(dir, upscaled_images, delay = self.delay)
+      imageio.mimsave(dir, upscaled_images, duration=0.2) 
+      if sys.platform == 'linux': 
+        wandb.log({"Policy_display": wandb.Video(dir)})
 
 class OnlineMeanCalculator:
     def __init__(self):

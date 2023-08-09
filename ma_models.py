@@ -376,8 +376,10 @@ class ImagBehavior(nn.Module):
     metrics['lagrangian_multiplier'] = self._lagrangian_multiplier.detach().item() if self._config.learnable_lagrange else self._lagrangian_multiplier
 
     metrics['lagrangian_multiplier_projected'] = self._lambda_range_projection(self._lagrangian_multiplier).detach().item() if self._config.learnable_lagrange else self._lagrangian_multiplier
-    if training_step % 20_000 == 0 and (abs(self.cost_limit - mean_ep_cost) == 5 or mean_ep_cost<=self.cost_limit):
-      self.cost_limit = self._cost_limit(training_step)
+    if training_step > 20_000 == 0 and training_step % 10_000 == 0 and (abs(self.cost_limit - mean_ep_cost) == 5 or (mean_ep_cost+5)<=self.cost_limit):
+      # self.cost_limit = self._cost_limit(training_step)
+      self.cost_limit = min(self._config.limit_signal_prob_decay_min, self.cost_limit-10)
+
     metrics["cost_limit"] = self.cost_limit
 
     if self._config.learnable_lagrange:
