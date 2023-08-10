@@ -268,6 +268,7 @@ def process_episode(config, logger, mode, train_eps, eval_eps, episode):
   score_cost = float(episode['cost'].astype(np.float64).sum())
   num_task_switch = float(episode['task_switch'].astype(np.float64).sum())
   video = episode['image']
+#  VideoInteractionSaver.save_video(video, score, score_cost, episode['task_switch'])
   if mode == 'eval':
     VideoInteractionSaver.save_video(video, score, score_cost, episode['task_switch'])
     cache.clear()
@@ -415,9 +416,9 @@ if __name__ == '__main__':
     parser.add_argument(f'--{key}', type=arg_type, default=arg_type(value))
   current_dir = os.path.dirname(os.path.abspath(__file__))
   logdir = os.path.join(current_dir, 'logdir', 'safecircle1', '0')  
-  existed_ns = [int(v) for v in os.listdir(os.path.join(current_dir, 'logdir', 'safecircle1'))]
-  if len(existed_ns) > 0:
-    new_n = max(existed_ns)+1
-    logdir = os.path.join(current_dir, 'logdir', 'safecircle1', str(new_n))
+  # existed_ns = [int(v) for v in os.listdir(os.path.join(current_dir, 'logdir', 'safecircle1'))]
+  # if len(existed_ns) > 0:
+  #   new_n = max(existed_ns)+1
+  #   logdir = os.path.join(current_dir, 'logdir', 'safecircle1', str(new_n))
   parser.set_defaults(logdir = logdir)
   main(parser.parse_args(remaining))

@@ -215,8 +215,8 @@ sgym:
   update_lagrange_metric: 'mean_ep_cost' # target_mean target_max mean_ep_cost
   lagrangian_multiplier_init: 0.001 # 0.3
   lambda_lr: 0.0035  # 0.035 0.0035
-  learnable_lagrange: True
-  lagrangian_multiplier_fixed: 1 # 0.3
+  learnable_lagrange: False #default True
+  lagrangian_multiplier_fixed: 0.15 # 0.3
   max_lagrangian : 100.0 # 10 important if using stretched sigmoid
   min_lagrangian: 0.1
 

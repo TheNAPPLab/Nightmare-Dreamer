@@ -44,9 +44,11 @@ class SaveVideoInteraction:
   #   output_path = "UpscaledVideo.gif"
   # imageio.mimsave(output_path, upscaled_images, duration=0.2)
     self.count += 1
-    if self.count > 5 and cost <= self.best_cost and reward >= self.best_reward and any(violation_detected):
+    #self.count > 5 and
+    if self.count > 5  and cost <= self.best_cost and reward >= self.best_reward and any(violation_detected):
       self.best_cost = cost
       self.best_reward = reward
+      print("Found new best saving video")
       upscaled_images = []
       for i in range(len(video)):
         image = video[i]
