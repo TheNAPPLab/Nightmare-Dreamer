@@ -602,6 +602,7 @@ class ImagBehavior(nn.Module):
     self._lamda_optimizer.step()
     if self._config.lamda_projection == 'relu':
       self._lagrangian_multiplier.data.clamp_(self._config.min_lagrangian)  # enforce: lambda in [0, inf]
+      self._lagrangian_multiplier.data.clamp_max_(self._config.max_lagrangian) #prevent explosion
     else:
       self._lagrangian_multiplier.data.clamp_max_(self._config.max_lagrangian)
 
