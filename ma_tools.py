@@ -32,18 +32,21 @@ class SaveVideoInteraction:
     self.rect_height = 30
     self.green_ = (0, 255, 0)
     self.red_ = (255, 0, 0)
-    self.font = ImageFont.load_default() 
+    self.font = ImageFont.load_default()
+    self.count = 0
   def set_video_dir(self, weird_path, log_dir):
     self.log_dir = log_dir
     self.weird_path = weird_path
     # create folder in dir if it doesnt exist
     # logdir.mkdir(parents = True, exist_ok = True)
-  def save_video(self, video, reward, cost, violation_detected = None):
+  def save_video(self, video, reward, cost, violation_detected):
   #   timestamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
   #   output_path = "UpscaledVideo.gif"
   # imageio.mimsave(output_path, upscaled_images, duration=0.2)
-    if cost <= self.best_cost and reward >= self.best_reward:
-      print("Found New best performance saving Video")
+    self.count += 1
+    if self.count > 5 and cost <= self.best_cost and reward >= self.best_reward and any(violation_detected):
+      self.best_cost = cost
+      self.best_reward = reward
       upscaled_images = []
       for i in range(len(video)):
         image = video[i]
