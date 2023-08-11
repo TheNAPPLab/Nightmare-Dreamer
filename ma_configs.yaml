@@ -178,7 +178,7 @@ sgym:
 
   #Multi agent paramters
   use_single_roll_out: False
-  safety_look_ahead_steps: 5 #2 -primr 7 short 3
+  safety_look_ahead_steps: 10 #2 -primr 7 short 3
   cost_threshold: 2 #1 prime 3 short 1
   actor_behavior_scale: 1 # 100, 1.5 0.8
   behavior_cloning: 'discriminator' #kl, log_prob discriminator
@@ -192,7 +192,7 @@ sgym:
 
   perturb_cost_entropy: True # to include uncertainty in the computation of cost
 
-  cost_imag_gradient: 'dynamics' #dynamics , reinforce, mix
+  cost_imag_gradient: '' #dynamics , reinforce, mix
   cost_imag_gradient_mix: 0.05
 
   #explore task switching
