@@ -178,7 +178,7 @@ sgym:
 
   #Multi agent paramters
   use_single_roll_out: False
-  safety_look_ahead_steps: 10 #2 -primr 7 short 3
+  safety_look_ahead_steps: 11 #2 -primr 7 short 3
   cost_threshold: 2 #1 prime 3 short 1
   actor_behavior_scale: 1 # 100, 1.5 0.8
   behavior_cloning: 'discriminator' #kl, log_prob discriminator
@@ -192,7 +192,7 @@ sgym:
 
   perturb_cost_entropy: True # to include uncertainty in the computation of cost
 
-  cost_imag_gradient: '' #dynamics , reinforce, mix
+  cost_imag_gradient: 'dynamics' #dynamics , reinforce, mix
   cost_imag_gradient_mix: 0.05
 
   #explore task switching
@@ -202,8 +202,8 @@ sgym:
   safe_signal_prob_decay_min: 0.01
 
   # cost curriculum learning parmaters
-  limit_decay_start: 5_000 # 30_000
-  limit_signal_prob: 100
+  limit_decay_start: 150_000 # last value: 5_000  30_000
+  limit_signal_prob: 120
   limit_signal_prob_decay: 800 #1450 circle
   limit_signal_prob_decay_min:  12
   decay_cost: True
@@ -217,7 +217,7 @@ sgym:
   lambda_lr: 0.0035  # 0.035 0.0035
   learnable_lagrange: True #default True
   lagrangian_multiplier_fixed: 0.15 # 0.3
-  max_lagrangian : 30.0 # 10 important if using stretched sigmoid
+  max_lagrangian : 0.15 # 10 important if using stretched sigmoid
   min_lagrangian: 0.1
 
   #discrimiator parameters
