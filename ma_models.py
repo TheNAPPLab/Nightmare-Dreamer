@@ -550,9 +550,24 @@ class ImagBehavior(nn.Module):
       scaled_behavior_loss = self._config.actor_behavior_scale  * behavior_loss
       safe_actor_target += scaled_behavior_loss
 
+    elif self._config.behavior_cloning == 'discriminator_log':
+      discriminator_predictions = self.discriminator(inp[:-1], safe_imag_action[:-1])
+      output_shape = (safe_imag_action.shape[0]-1, safe_imag_action.shape[1], 1)
+      control_labels = torch.ones(output_shape, device=self._config.device)
+      behavior_loss = -F.binary_cross_entropy_with_logits(discriminator_predictions, control_labels)
+      scaled_behavior_loss = self._config.actor_behavior_scale  * behavior_loss
+      safe_actor_target += scaled_behavior_loss
+
+    elif self._config.behavior_cloning == 'mse':
+      cntrl_actions = imag_action.detach()[:-1]
+      safe_actions = self.safe_actor(imag_feat).sample()[:-1] #safe actions given  states from control policy
+      squared_diff = (safe_actions - cntrl_actions)**2
+      behavior_loss = torch.mean(squared_diff, dim = 2)[:,:,None]
+      scaled_behavior_loss = self._config.actor_behavior_scale  * behavior_loss
+      safe_actor_target += scaled_behavior_loss
+
     if penalty > 1.0:
       safe_actor_target /= penalty
-
 
     if self._config.behavior_cloning != '':
       metrics['behavior_cloning_loss_mean'] = to_np(torch.mean(behavior_loss))
