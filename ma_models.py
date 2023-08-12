@@ -533,7 +533,8 @@ class ImagBehavior(nn.Module):
     #behavior cloning loss
     if self._config.behavior_cloning == 'kl':
       behavior_loss = self._action_kl_loss(self.actor(inp[:-1]), self.safe_actor(inp[:-1]))
-      safe_actor_target += self._config.actor_behavior_scale * behavior_loss
+      scaled_behavior_loss = self._config.actor_behavior_scale * behavior_loss
+      safe_actor_target += scaled_behavior_loss
 
     elif self._config.behavior_cloning == 'log_prob':
       inp_ = imag_feat.detach() if self._stop_grad_actor else imag_feat
@@ -560,7 +561,7 @@ class ImagBehavior(nn.Module):
 
     elif self._config.behavior_cloning == 'mse':
       cntrl_actions = imag_action.detach()[:-1]
-      safe_actions = self.safe_actor(imag_feat).sample()[:-1] #safe actions given  states from control policy
+      safe_actions = self.safe_actor(imag_feat.detach()).sample()[:-1] #safe actions given  states from control policy
       squared_diff = (safe_actions - cntrl_actions)**2
       behavior_loss = torch.mean(squared_diff, dim = 2)[:,:,None]
       scaled_behavior_loss = self._config.actor_behavior_scale  * behavior_loss

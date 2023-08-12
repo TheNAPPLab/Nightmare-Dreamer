@@ -181,7 +181,7 @@ sgym:
   safety_look_ahead_steps: 11 #2 -primr 7 short 3
   cost_threshold: 2 #1 prime 3 short 1
   actor_behavior_scale: 1 # 100, 1.5 0.8
-  behavior_cloning: 'discriminator_log' #kl, log_prob discriminator discriminator_log mse
+  behavior_cloning: 'mse' #kl, log_prob discriminator discriminator_log mse
   min_behavior_loss: 0.2 # Adjust this value as needed
   clamp_behavior_loss: True
   # cost_imag_horizon: 5 
