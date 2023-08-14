@@ -537,6 +537,10 @@ class ImagBehavior(nn.Module):
       safe_actor_target += scaled_behavior_loss
 
     elif self._config.behavior_cloning == 'kl2':
+      '''
+      inp is states from Safe policy
+      inp_ is states from Control policy
+      '''
       behavior_loss1 = self._action_kl_loss(self.actor(inp[:-1]), self.safe_actor(inp[:-1]))
       inp_ = imag_feat.detach() if self._stop_grad_actor else imag_feat
       behavior_loss2 = self._action_kl_loss(self.actor(inp_[:-1]), self.safe_actor(inp_[:-1])) # use control states
