@@ -203,7 +203,7 @@ sgym:
 
   # cost curriculum learning parmaters
   limit_decay_start: 50_000 # last value: 5_000  30_000
-  limit_signal_prob: 100
+  limit_signal_prob: 50
   limit_signal_prob_decay: 800 #1450 circle
   limit_signal_prob_decay_min:  12
   decay_cost: True
@@ -217,7 +217,7 @@ sgym:
   lambda_lr: 0.0035  # 0.035 0.0035
   learnable_lagrange: True #default True
   lagrangian_multiplier_fixed: 0.15 # 0.3
-  max_lagrangian : 10.0 # 10 important if using stretched sigmoid
+  max_lagrangian : 20.0 # 10 important if using stretched sigmoid
   min_lagrangian: 0.5
 
   #discrimiator parameters
