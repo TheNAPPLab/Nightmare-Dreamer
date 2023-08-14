@@ -217,7 +217,7 @@ sgym:
   lambda_lr: 0.0035  # 0.035 0.0035
   learnable_lagrange: True #default True
   lagrangian_multiplier_fixed: 0.15 # 0.3
-  max_lagrangian : 1.0 # 10 important if using stretched sigmoid
+  max_lagrangian : 10.0 # 10 important if using stretched sigmoid
   min_lagrangian: 0.5
 
   #discrimiator parameters
