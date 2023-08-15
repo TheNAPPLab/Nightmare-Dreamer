@@ -312,21 +312,27 @@ class ImagBehavior(nn.Module):
 
         safe_imag_feat, safe_imag_state, safe_imag_action = self._imagine(
               start, self.safe_actor, self._config.imag_horizon, repeats)
-        
+        #reward under safe policy
+        reward_safe_policy = objective(safe_imag_feat, safe_imag_state, safe_imag_action)
         cost = constrain(safe_imag_feat, safe_imag_state, safe_imag_action)
-        # reward_safe_policy = objective(safe_imag_feat, safe_imag_state, imag_action)
+
+
         safe_actor_ent = self.safe_actor(safe_imag_feat).entropy()
 
         safe_state_ent = self._world_model.dynamics.get_dist(
             safe_imag_state).entropy()
 
+        target_under_safe_policy, _ = self._compute_target(
+            safe_imag_feat, safe_imag_state, safe_imag_action, reward_safe_policy, safe_actor_ent, safe_state_ent,
+            self._config.slow_actor_target)
+        
         target_cost = self._compute_target_cost(
                 safe_imag_feat, safe_imag_state, safe_imag_action, cost, self._config.slow_actor_target)
 
         safe_actor_loss, mets = self._compute_safe_actor_loss( \
               safe_imag_feat, safe_imag_state, safe_imag_action, \
               target_cost, safe_actor_ent, safe_state_ent, weights,\
-              imag_feat, imag_action)
+              imag_feat, imag_action, target_under_safe_policy)
         
         metrics.update(mets)
         safe_value_input = safe_imag_feat
@@ -372,6 +378,8 @@ class ImagBehavior(nn.Module):
     metrics['max_target_cost'] = to_np(torch.max(target_cost.detach()))
     metrics['std_target_cost'] = to_np(torch.std(target_cost.detach()))
     metrics['min_target_cost'] = to_np(torch.min(target_cost.detach()))
+
+   
 
     metrics['lagrangian_multiplier'] = self._lagrangian_multiplier.detach().item() if self._config.learnable_lagrange else self._lagrangian_multiplier
 
@@ -499,11 +507,12 @@ class ImagBehavior(nn.Module):
   def _compute_safe_actor_loss(
       self, safe_imag_feat, safe_imag_state, safe_imag_action,
       target_cost, safe_actor_ent, safe_state_ent, weights, 
-      imag_feat, imag_action):
+      imag_feat, imag_action, target_under_safe_policy):
     metrics = {}
     inp = safe_imag_feat.detach() if self._stop_grad_actor else safe_imag_feat
     safe_policy = self.safe_actor(inp)
     target_cost =  torch.stack(target_cost, dim=1)
+    target_under_safe_policy = torch.stack(target_under_safe_policy, dim = 1)
     safe_actor_target = 0
     penalty = 0
     if self._config.cost_imag_gradient == 'dynamics':
@@ -579,6 +588,8 @@ class ImagBehavior(nn.Module):
       scaled_behavior_loss = self._config.actor_behavior_scale  * behavior_loss
       safe_actor_target += scaled_behavior_loss
 
+    safe_actor_target -= target_under_safe_policy
+
     if penalty > 1.0:
       safe_actor_target /= penalty
 
@@ -590,6 +601,8 @@ class ImagBehavior(nn.Module):
       metrics['behavior_cloning_loss_mean'] = 0
       metrics['behavior_cloning__loss_max'] = 0
       metrics['scaled_behavior_cloning_loss_mean'] = 0
+    metrics['mean_target_under_safe_policy'] = to_np(torch.mean(target_under_safe_policy))
+    metrics['max_target_under_safe_policy'] = to_np(torch.max(target_under_safe_policy))
     safe_actor_loss = torch.mean(weights[:-1] * safe_actor_target)
     return safe_actor_loss, metrics
 
