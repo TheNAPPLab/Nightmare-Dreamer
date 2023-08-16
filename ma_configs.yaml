@@ -175,7 +175,7 @@ sgym:
   cost_value_lr: 8e-5
   cost_scale: 2
   clip_costs: 'identity'
-  
+
   #Multi agent paramters
   use_single_roll_out: False
   safety_look_ahead_steps: 15 #2 -primr 7 short 3
@@ -222,7 +222,7 @@ sgym:
   learnable_lagrange: False #default True PID False
   lagrangian_multiplier_fixed: 0.15 # 0.3
   max_lagrangian : 0.75 # 10 important if using stretched sigmoid PID = 0.75
-  min_lagrangian: 0.0 #0.5 for curr
+  min_lagrangian: 0.1 #0.5 for curr
 
   #discrimiator parameters
   discriminator_layers: 2
