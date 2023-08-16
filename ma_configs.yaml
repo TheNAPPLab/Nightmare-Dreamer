@@ -175,7 +175,7 @@ sgym:
   cost_value_lr: 8e-5
   cost_scale: 2
   clip_costs: 'identity'
-
+  
   #Multi agent paramters
   use_single_roll_out: False
   safety_look_ahead_steps: 15 #2 -primr 7 short 3
@@ -185,7 +185,7 @@ sgym:
   min_behavior_loss: 0.2 # Adjust this value as needed
   clamp_behavior_loss: False
   alpha1: 3.0 #coeff
-  safe_actor_entropy: '5e-4'
+  safe_actor_entropy: 5e-4
 
   # cost_imag_horizon: 5 
 
@@ -219,7 +219,7 @@ sgym:
   update_lagrange_metric: 'mean_ep_cost' # target_mean target_max mean_ep_cost
   lagrangian_multiplier_init: 0.7 # 0.3
   lambda_lr: 0.0035  # 0.035 0.0035
-  learnable_lagrange: True #default True
+  learnable_lagrange: False #default True PID False
   lagrangian_multiplier_fixed: 0.15 # 0.3
   max_lagrangian : 0.75 # 10 important if using stretched sigmoid PID = 0.75
   min_lagrangian: 0.0 #0.5 for curr

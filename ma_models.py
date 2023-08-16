@@ -510,7 +510,7 @@ class ImagBehavior(nn.Module):
     #entropy term loss
     if self._config.cost_imag_gradient != "": #incase of pure cloninng
       if not self._config.future_entropy and (self._config.actor_entropy() > 0):
-        safe_actor_target -= self._config.safe_actor_entropy() * safe_actor_ent[:-1][:,:,None]
+        safe_actor_target -= self._config.safe_actor_entropy * safe_actor_ent[:-1][:,:,None]
         
       if not self._config.future_entropy and (self._config.actor_state_entropy() > 0):
         safe_actor_target -= self._config.actor_state_entropy() * safe_state_ent[:-1]
