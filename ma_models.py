@@ -641,8 +641,8 @@ class ImagBehavior(nn.Module):
         pid_d = max(0., self._cost_d - self.cost_ds[0])
         pid_o = (self.pid_Kp * self._delta_p + self.pid_i +
                  self.pid_Kd * pid_d)
-        self._lagrangian_multiplier = max(self._config.min_lagrangian, pid_o)
-        self._lagrangian_multiplier = min(self._config.max_lagrangian, pid_o)
+        self._lagrangian_multiplier = min(self._config.min_lagrangian, pid_o)
+        self._lagrangian_multiplier = max(self._config.max_lagrangian, pid_o)
         if self.diff_norm:
             self._lagrangian_multiplier = min(1., self.cost_penalty)
         if not (self.diff_norm or self.sum_norm):
