@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 import numpy as np
-from PIL import ImageColor, Image, ImageDraw, ImageFont
+from collections import  deque
 import torch.optim as optim
 from torch import distributions as torchd
 import ma_networks as networks
@@ -253,7 +253,7 @@ class ImagBehavior(nn.Module):
           **kw
       )
 
-    # lagrange parameters and initalisation
+    # lagrange parameters and pid and initalisation
     self._declare_lagrnagian()
 
   def _train(
@@ -266,6 +266,9 @@ class ImagBehavior(nn.Module):
 
     self._update_slow_target()
     metrics = {}
+
+    mets_lag = self._update_lag(training_step, mean_ep_cost)
+    metrics.update(mets_lag)
 
     with tools.RequiresGrad(self.actor):
       with torch.cuda.amp.autocast(self._use_amp): #prcesion
@@ -372,33 +375,6 @@ class ImagBehavior(nn.Module):
       metrics.update(self._cost_value_opt(cost_value_loss, self.cost_value.parameters()))
       if self._config.learn_discriminator:
         metrics.update(self._discriminator_opt(discrimiator_loss, self.discriminator.parameters()))
-
-    
-    metrics['mean_target_cost'] = to_np(torch.mean(target_cost.detach()))
-    metrics['max_target_cost'] = to_np(torch.max(target_cost.detach()))
-    metrics['std_target_cost'] = to_np(torch.std(target_cost.detach()))
-    metrics['min_target_cost'] = to_np(torch.min(target_cost.detach()))
-
-   
-
-    metrics['lagrangian_multiplier'] = self._lagrangian_multiplier.detach().item() if self._config.learnable_lagrange else self._lagrangian_multiplier
-
-    metrics['lagrangian_multiplier_projected'] = self._lambda_range_projection(self._lagrangian_multiplier).detach().item() if self._config.learnable_lagrange else self._lagrangian_multiplier
-   # if training_step > self._config.limit_decay_start and training_step % 20_000 == 0 and (abs(self.cost_limit - mean_ep_cost) == 5 or mean_ep_cost <= self.cost_limit):
-    if training_step > self._config.limit_decay_start and training_step % self._config.limit_decay_freq == 0 and  mean_ep_cost < self.cost_limit:
-      # self.cost_limit = self._cost_limit(training_step)
-      self.cost_limit = max(self._config.limit_signal_prob_decay_min, self.cost_limit-10)
-
-    metrics["cost_limit"] = self.cost_limit
-
-    if self._config.learnable_lagrange:
-      if self._config.update_lagrange_metric == 'target_mean':
-        self._update_lagrange_multiplier(torch.mean(target_cost.detach()),  self.cost_limit)
-      elif self._config.update_lagrange_metric == 'target_max':
-        self._update_lagrange_multiplier(torch.max(target_cost.detach()),  self.cost_limit)
-      elif self._config.update_lagrange_metric == 'mean_ep_cost':
-        self._update_lagrange_multiplier(mean_ep_cost,  self.cost_limit)
-
 
     return imag_feat, imag_state, imag_action, weights, metrics
 
@@ -534,7 +510,7 @@ class ImagBehavior(nn.Module):
     #entropy term loss
     if self._config.cost_imag_gradient != "": #incase of pure cloninng
       if not self._config.future_entropy and (self._config.actor_entropy() > 0):
-        safe_actor_target -= self._config.actor_entropy() * safe_actor_ent[:-1][:,:,None]
+        safe_actor_target -= self._config.safe_actor_entropy() * safe_actor_ent[:-1][:,:,None]
         
       if not self._config.future_entropy and (self._config.actor_state_entropy() > 0):
         safe_actor_target -= self._config.actor_state_entropy() * safe_state_ent[:-1]
@@ -588,7 +564,7 @@ class ImagBehavior(nn.Module):
       scaled_behavior_loss = self._config.actor_behavior_scale  * behavior_loss
       safe_actor_target += scaled_behavior_loss
 
-    safe_actor_target -= target_under_safe_policy
+    safe_actor_target -= self._config.alpha1 * target_under_safe_policy
 
     if penalty > 1.0:
       safe_actor_target /= penalty
@@ -601,6 +577,7 @@ class ImagBehavior(nn.Module):
       metrics['behavior_cloning_loss_mean'] = 0
       metrics['behavior_cloning__loss_max'] = 0
       metrics['scaled_behavior_cloning_loss_mean'] = 0
+
     metrics['mean_target_under_safe_policy'] = to_np(torch.mean(target_under_safe_policy))
     metrics['max_target_under_safe_policy'] = to_np(torch.max(target_under_safe_policy))
     safe_actor_loss = torch.mean(weights[:-1] * safe_actor_target)
@@ -650,6 +627,43 @@ class ImagBehavior(nn.Module):
     else:
       self._lagrangian_multiplier.data.clamp_max_(self._config.max_lagrangian)
 
+  def pid_update(self, ep_cost_avg):
+        delta = float(ep_cost_avg - self.cost_limit)  # ep_cost_avg: tensor
+        self.pid_i = max(0., self.pid_i + delta * self.pid_Ki)
+        if self.diff_norm:
+            self.pid_i = max(0., min(1., self.pid_i))
+        a_p = self.pid_delta_p_ema_alpha
+        self._delta_p *= a_p
+        self._delta_p += (1 - a_p) * delta
+        a_d = self.pid_delta_d_ema_alpha
+        self._cost_d *= a_d
+        self._cost_d += (1 - a_d) * float(ep_cost_avg)
+        pid_d = max(0., self._cost_d - self.cost_ds[0])
+        pid_o = (self.pid_Kp * self._delta_p + self.pid_i +
+                 self.pid_Kd * pid_d)
+        self._lagrangian_multiplier = max(0.1, pid_o)
+        if self.diff_norm:
+            self._lagrangian_multiplier = min(1., self.cost_penalty)
+        if not (self.diff_norm or self.sum_norm):
+            self._lagrangian_multiplier = min(self.cost_penalty, self.penalty_max)
+        self.cost_ds.append(self._cost_d)
+
+  def _declare_lag_params(self):
+    #max lag is self._config.max_lagrangian 0.75
+    self.pid_d_delay=10
+    self.cost_ds = deque(maxlen=self.pid_d_delay)
+    self.cost_ds.append(0)
+    self.pid_Kp=0.01
+    self.pid_Ki=0.1
+    self.pid_Kd=0.01
+    self.pid_delta_p_ema_alpha=0.95  # 0 for hard update, 1 for no update
+    self.pid_delta_d_ema_alpha=0.95
+    self.sum_norm=True  # L = (J_r - lam * J_c) / (1 + lam); lam <= 0
+    self.diff_norm=False  # L = (1 - lam) * J_r - lam * J_c; 0 <= lam <= 1
+    self.pid_i = self._lagrangian_multiplier
+    self._delta_p = 0
+    self._cost_d = 0
+
 
   def _cost_limit(self, step):
     #  limit_signal_prob_decay_min:  12
@@ -663,6 +677,33 @@ class ImagBehavior(nn.Module):
         expl_amount = expl_amount - ir/self._config.limit_signal_prob_decay
         expl_amount = max(self._config.limit_signal_prob_decay_min, expl_amount)
     return expl_amount
+
+  def _update_lag(self, training_step, mean_ep_cost, target_cost = None):
+    metrics = {}
+    if not self._config.use_pid:
+      metrics['lagrangian_multiplier'] = self._lagrangian_multiplier.detach().item() if self._config.learnable_lagrange else self._lagrangian_multiplier
+
+      metrics['lagrangian_multiplier_projected'] = self._lambda_range_projection(self._lagrangian_multiplier).detach().item() if self._config.learnable_lagrange else self._lagrangian_multiplier
+    # if training_step > self._config.limit_decay_start and training_step % 20_000 == 0 and (abs(self.cost_limit - mean_ep_cost) == 5 or mean_ep_cost <= self.cost_limit):
+      if training_step > self._config.limit_decay_start and training_step % self._config.limit_decay_freq == 0 and  mean_ep_cost < self.cost_limit:
+        # self.cost_limit = self._cost_limit(training_step)
+        self.cost_limit = max(self._config.limit_signal_prob_decay_min, self.cost_limit-10)
+
+      metrics["cost_limit"] = self.cost_limit
+
+      if self._config.learnable_lagrange:
+        if self._config.update_lagrange_metric == 'target_mean':
+          self._update_lagrange_multiplier(torch.mean(target_cost.detach()),  self.cost_limit)
+        elif self._config.update_lagrange_metric == 'target_max':
+          self._update_lagrange_multiplier(torch.max(target_cost.detach()),  self.cost_limit)
+        elif self._config.update_lagrange_metric == 'mean_ep_cost':
+          self._update_lagrange_multiplier(mean_ep_cost,  self.cost_limit)
+    else:
+     
+      self.pid_update( mean_ep_cost )
+      metrics['lagrangian_multiplier'] = self._lagrangian_multiplier
+      metrics["cost_limit"] = self.cost_limit
+    return metrics
 
   def _compute_discrimiator_loss(self, safe_actions, states_under_safe_policy,\
                                   control_action, states_under_control_policy ):
@@ -692,20 +733,25 @@ class ImagBehavior(nn.Module):
     return loss
 
   def _declare_lagrnagian(self):
-    init_value = max(self._config.lagrangian_multiplier_init, 1e-5)
+    if not self._config.use_pid:
+      init_value = max(self._config.lagrangian_multiplier_init, 1e-5)
 
 
-    self._lagrangian_multiplier = torch.nn.Parameter(
-            torch.as_tensor( init_value ),
-            requires_grad = True) if self._config.learnable_lagrange else self._config.lagrangian_multiplier_fixed
-      
-    if self._config.lamda_projection == 'relu':
-        self._lambda_range_projection = torch.nn.ReLU()
-    elif self._config.lamda_projection == 'sigmoid':
-        self._lambda_range_projection = torch.nn.Sigmoid()
-    elif self._config.lamda_projection == 'stretched_sigmoid':
-        self._lambda_range_projection = tools.StretchedSigmoid(self._config.sigmoid_a)
+      self._lagrangian_multiplier = torch.nn.Parameter(
+              torch.as_tensor( init_value ),
+              requires_grad = True) if self._config.learnable_lagrange else self._config.lagrangian_multiplier_fixed
+        
+      if self._config.lamda_projection == 'relu':
+          self._lambda_range_projection = torch.nn.ReLU()
+      elif self._config.lamda_projection == 'sigmoid':
+          self._lambda_range_projection = torch.nn.Sigmoid()
+      elif self._config.lamda_projection == 'stretched_sigmoid':
+          self._lambda_range_projection = tools.StretchedSigmoid(self._config.sigmoid_a)
 
-    torch_opt = getattr(optim, 'Adam')
-    self._lamda_optimizer = torch_opt([self._lagrangian_multiplier, ],
-                                  lr = self._config.lambda_lr )  if self._config.learnable_lagrange else None
+      torch_opt = getattr(optim, 'Adam')
+      self._lamda_optimizer = torch_opt([self._lagrangian_multiplier, ],
+                                    lr = self._config.lambda_lr )  if self._config.learnable_lagrange else None
+    else:
+      init_value = min(self._config.lagrangian_multiplier_init, 1e-5)
+      self._lagrangian_multiplier = init_value
+      self._declare_lag_params()
