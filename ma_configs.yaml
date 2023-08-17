@@ -184,7 +184,7 @@ sgym:
   behavior_cloning: '' #kl1, kl2, log_prob discriminator discriminator_log mse
   min_behavior_loss: 0.2 # Adjust this value as needed
   clamp_behavior_loss: False
-  alpha1: 1.0 #coeff
+  alpha1: 8.0 #coeff
   safe_actor_entropy: 2e-4 #1e-4 5e-4
 
   # cost_imag_horizon: 5 
