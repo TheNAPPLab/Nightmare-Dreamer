@@ -233,7 +233,14 @@ sgym:
 
 
   #pid params
+  pid_Kp: 0.01
+  pid_Ki: 0.01
+  pid_Kd: 0.01
   use_pid: True
+  pid_delta_p_ema_alpha: 0.95
+  pid_delta_d_ema_alpha: 0.95
+  pid_d_delay: 10
+
 
 
 debug:

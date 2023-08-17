@@ -580,6 +580,8 @@ class ImagBehavior(nn.Module):
 
     metrics['mean_target_under_safe_policy'] = to_np(torch.mean(target_under_safe_policy))
     metrics['max_target_under_safe_policy'] = to_np(torch.max(target_under_safe_policy))
+    metrics['mean_target_cost'] = to_np(torch.mean(target_cost.detach()))
+    metrics['max_target_cost'] = to_np(torch.max(target_cost.detach()))
     safe_actor_loss = torch.mean(weights[:-1] * safe_actor_target)
     return safe_actor_loss, metrics
 
@@ -627,7 +629,8 @@ class ImagBehavior(nn.Module):
     else:
       self._lagrangian_multiplier.data.clamp_max_(self._config.max_lagrangian)
 
-  def pid_update(self, ep_cost_avg):
+  def _pid_update(self, ep_cost_avg):
+        metrics = {}
         delta = float(ep_cost_avg - self.cost_limit)  # ep_cost_avg: tensor
         self.pid_i = max(0., self.pid_i + delta * self.pid_Ki)
         if self.diff_norm:
@@ -641,30 +644,33 @@ class ImagBehavior(nn.Module):
         pid_d = max(0., self._cost_d - self.cost_ds[0])
         pid_o = (self.pid_Kp * self._delta_p + self.pid_i +
                  self.pid_Kd * pid_d)
-        self._lagrangian_multiplier = min(self._config.min_lagrangian, pid_o)
-        self._lagrangian_multiplier = max(self._config.max_lagrangian, pid_o)
+        self._lagrangian_multiplier = max(self._config.min_lagrangian, min(self._config.max_lagrangian, pid_o))
         if self.diff_norm:
             self._lagrangian_multiplier = min(1., self.cost_penalty)
         if not (self.diff_norm or self.sum_norm):
             self._lagrangian_multiplier = min(self.cost_penalty, self.penalty_max)
         self.cost_ds.append(self._cost_d)
+        metrics['Proortional_term'] = self.pid_Kp * self._delta_p
+        metrics['integral']  = self.pid_i
+        metrics['derivative'] = self.pid_Kd * pid_d
+        return metrics
+
 
   def _declare_lag_params(self):
     #max lag is self._config.max_lagrangian 0.75
-    self.pid_d_delay=10
+    self.pid_d_delay = self._config.pid_d_delay 10
     self.cost_ds = deque(maxlen=self.pid_d_delay)
     self.cost_ds.append(0)
-    self.pid_Kp=0.01
-    self.pid_Ki=0.1
-    self.pid_Kd=0.01
-    self.pid_delta_p_ema_alpha=0.95  # 0 for hard update, 1 for no update
-    self.pid_delta_d_ema_alpha=0.95
-    self.sum_norm=True  # L = (J_r - lam * J_c) / (1 + lam); lam <= 0
-    self.diff_norm=False  # L = (1 - lam) * J_r - lam * J_c; 0 <= lam <= 1
+    self.pid_Kp = self._config.pid_Kp 
+    self.pid_Ki = self._config.pid_Ki 
+    self.pid_Kd = self._config.pid_Kd 
+    self.pid_delta_p_ema_alpha = self._config.pid_delta_p_ema_alpha # 0 for hard update, 1 for no update
+    self.pid_delta_d_ema_alpha = self._config.pid_delta_d_ema_alpha 
+    self.sum_norm = True  # L = (J_r - lam * J_c) / (1 + lam); lam <= 0
+    self.diff_norm = False  # L = (1 - lam) * J_r - lam * J_c; 0 <= lam <= 1
     self.pid_i = self._lagrangian_multiplier
     self._delta_p = 0
     self._cost_d = 0
-
 
   def _cost_limit(self, step):
     #  limit_signal_prob_decay_min:  12
@@ -701,7 +707,7 @@ class ImagBehavior(nn.Module):
           self._update_lagrange_multiplier(mean_ep_cost,  self.cost_limit)
     else:
      
-      self.pid_update( mean_ep_cost )
+      metrics.update(self._pid_update( mean_ep_cost ))
       metrics['lagrangian_multiplier'] = self._lagrangian_multiplier
       metrics["cost_limit"] = self.cost_limit
     return metrics
