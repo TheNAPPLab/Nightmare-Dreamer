@@ -183,7 +183,7 @@ sgym:
   cost_threshold_train: 3
   actor_behavior_scale: 0.8 # 100, 1.5 0.8
   behavior_cloning: '' #kl1, kl2, log_prob discriminator discriminator_log mse
-  conditional_cloning: True
+  conditional_cloning: False
   min_behavior_loss: 0.2 # Adjust this value as needed
   clamp_behavior_loss: False
   alpha1: 1.0 #coeff

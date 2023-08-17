@@ -493,7 +493,7 @@ class ImagBehavior(nn.Module):
     penalty = 0
     if self._config.cost_imag_gradient == 'dynamics':
       penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item() if self._config.learnable_lagrange else self._lagrangian_multiplier
-      safe_actor_target += penalty *  target_cost
+      safe_actor_target += penalty *  0.1 * target_cost
 
     elif self._config.cost_imag_gradient == 'reinforce':
       penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item() if self._config.learnable_lagrange else self._lagrangian_multiplier
@@ -568,7 +568,7 @@ class ImagBehavior(nn.Module):
       scaled_behavior_loss = self._config.actor_behavior_scale  * behavior_loss
       safe_actor_target += scaled_behavior_loss
 
-    safe_actor_target -= self._config.alpha1 * 0.1 * target_under_safe_policy
+    safe_actor_target -= self._config.alpha1 *  target_under_safe_policy
 
     if penalty > 1.0:
       safe_actor_target /= penalty
