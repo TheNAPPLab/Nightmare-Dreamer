@@ -335,7 +335,7 @@ class ImagBehavior(nn.Module):
         safe_actor_loss, mets = self._compute_safe_actor_loss( \
               safe_imag_feat, safe_imag_state, safe_imag_action, \
               target_cost, safe_actor_ent, safe_state_ent, weights,\
-              imag_feat, imag_action, target_under_safe_policy)
+              imag_feat, imag_action, target_under_safe_policy, cost)
         
         metrics.update(mets)
         safe_value_input = safe_imag_feat
@@ -483,7 +483,7 @@ class ImagBehavior(nn.Module):
   def _compute_safe_actor_loss(
       self, safe_imag_feat, safe_imag_state, safe_imag_action,
       target_cost, safe_actor_ent, safe_state_ent, weights, 
-      imag_feat, imag_action, target_under_safe_policy):
+      imag_feat, imag_action, target_under_safe_policy, cost):
     metrics = {}
     inp = safe_imag_feat.detach() if self._stop_grad_actor else safe_imag_feat
     safe_policy = self.safe_actor(inp)
@@ -515,11 +515,15 @@ class ImagBehavior(nn.Module):
       if not self._config.future_entropy and (self._config.actor_state_entropy() > 0):
         safe_actor_target -= self._config.actor_state_entropy() * safe_state_ent[:-1]
 
+    #Conditional Behavior Cloning
+    if self._config.conditional_cloning:
+        future_cost = torch.sum(cost.detach(), dim = 0)
+        threshold_mask = future_cost < self._config.cost_threshold_train
     #behavior cloning loss
     if self._config.behavior_cloning == 'kl1':
       behavior_loss = self._action_kl_loss(self.actor(inp[:-1]), self.safe_actor(inp[:-1]))
       scaled_behavior_loss = self._config.actor_behavior_scale * behavior_loss
-      safe_actor_target += scaled_behavior_loss
+      safe_actor_target += threshold_mask * scaled_behavior_loss
 
     elif self._config.behavior_cloning == 'kl2':
       '''
@@ -578,6 +582,8 @@ class ImagBehavior(nn.Module):
       metrics['behavior_cloning__loss_max'] = 0
       metrics['scaled_behavior_cloning_loss_mean'] = 0
 
+    if self._config.conditional_cloning :
+      metrics['batches_using_kl_Loss'] = to_np(torch.sum(threshold_mask))
     metrics['mean_target_under_safe_policy'] = to_np(torch.mean(target_under_safe_policy))
     metrics['max_target_under_safe_policy'] = to_np(torch.max(target_under_safe_policy))
     metrics['mean_target_cost'] = to_np(torch.mean(target_cost.detach()))
@@ -654,7 +660,6 @@ class ImagBehavior(nn.Module):
         metrics['integral']  = self.pid_i
         metrics['derivative'] = self.pid_Kd * pid_d
         return metrics
-
 
   def _declare_lag_params(self):
     #max lag is self._config.max_lagrangian 0.75
