@@ -493,7 +493,7 @@ class ImagBehavior(nn.Module):
     penalty = 0
     if self._config.cost_imag_gradient == 'dynamics':
       penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item() if self._config.learnable_lagrange else self._lagrangian_multiplier
-      safe_actor_target += penalty * target_cost
+      safe_actor_target += penalty * 0.1 *  target_cost
 
     elif self._config.cost_imag_gradient == 'reinforce':
       penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item() if self._config.learnable_lagrange else self._lagrangian_multiplier
@@ -658,7 +658,7 @@ class ImagBehavior(nn.Module):
 
   def _declare_lag_params(self):
     #max lag is self._config.max_lagrangian 0.75
-    self.pid_d_delay = self._config.pid_d_delay 10
+    self.pid_d_delay = self._config.pid_d_delay
     self.cost_ds = deque(maxlen=self.pid_d_delay)
     self.cost_ds.append(0)
     self.pid_Kp = self._config.pid_Kp 
