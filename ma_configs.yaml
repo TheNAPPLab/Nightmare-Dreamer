@@ -182,11 +182,11 @@ sgym:
   cost_threshold: 2 #1 prime 3 short 1
   cost_threshold_train: 3
   actor_behavior_scale: 0.8 # 100, 1.5 0.8
-  behavior_cloning: 'kl1' #kl1, kl2, log_prob discriminator discriminator_log mse
+  behavior_cloning: '' #kl1, kl2, log_prob discriminator discriminator_log mse
   conditional_cloning: True
   min_behavior_loss: 0.2 # Adjust this value as needed
   clamp_behavior_loss: False
-  alpha1: 8.0 #coeff
+  alpha1: 1.0 #coeff
   safe_actor_entropy: 2e-4 #1e-4 5e-4
 
   # cost_imag_horizon: 5 
@@ -236,7 +236,7 @@ sgym:
 
   #pid params
   pid_Kp: 0.01
-  pid_Ki: 0.01
+  pid_Ki: 0.001
   pid_Kd: 0.01
   use_pid: True
   pid_delta_p_ema_alpha: 0.95

@@ -568,7 +568,7 @@ class ImagBehavior(nn.Module):
       scaled_behavior_loss = self._config.actor_behavior_scale  * behavior_loss
       safe_actor_target += scaled_behavior_loss
 
-    safe_actor_target -= self._config.alpha1 * target_under_safe_policy
+    safe_actor_target -= self._config.alpha1 * 0.1 * target_under_safe_policy
 
     if penalty > 1.0:
       safe_actor_target /= penalty
