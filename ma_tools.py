@@ -45,7 +45,7 @@ class SaveVideoInteraction:
   # imageio.mimsave(output_path, upscaled_images, duration=0.2)
     self.count += 1
     #self.count > 5 and
-    if self.count > 5  and cost <= self.best_cost and reward >= self.best_reward and any(violation_detected):
+    if self.count > 3  and cost <= self.best_cost and reward >= self.best_reward and any(violation_detected):
       # self.best_cost = cost
       # self.best_reward = reward
       print("Found new best saving video")
@@ -76,7 +76,8 @@ class SaveVideoInteraction:
         upscaled_images.append(np.array(modified_image))
       dir = self.log_dir + "/eval_video.gif"
       # write_apng(dir, upscaled_images, delay = self.delay)
-      imageio.mimsave(dir, upscaled_images, duration=0.2) 
+      # imageio.mimsave(dir, upscaled_images, duration = 0.2) 
+      imageio.mimsave(dir, upscaled_images, duration = 1.0 ) 
       # if sys.platform == 'linux': 
       #   wandb.log({"Policy_display": wandb.Video(dir)})
 

@@ -182,6 +182,7 @@ sgym:
   cost_threshold: 2 #1 prime 3 short 1
   cost_threshold_train: 3
   actor_behavior_scale: 0.8 # 100, 1.5 0.8
+  num_safety_steps: 15
   behavior_cloning: '' #kl1, kl2, log_prob discriminator discriminator_log mse
   conditional_cloning: False
   min_behavior_loss: 0.2 # Adjust this value as needed

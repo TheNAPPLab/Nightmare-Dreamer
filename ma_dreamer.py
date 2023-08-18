@@ -43,6 +43,7 @@ class Dreamer(nn.Module):
     )
     self._metrics = {}
     self._step = count_steps(config.traindir)
+    self.count_before_switch = 0
     # Schedules.
     config.actor_entropy = (
         lambda x = config.actor_entropy: tools.schedule(x, self._step))
@@ -72,6 +73,7 @@ class Dreamer(nn.Module):
     if self._should_reset(step):
       state = None
     if state is not None and reset.any():
+      self.count_before_switch = 0
       mask = 1 - reset
       for key in state[0].keys():
         for i in range(state[0][key].shape[0]):
@@ -106,6 +108,11 @@ class Dreamer(nn.Module):
     Starting from current state we roll out using learned model
     to forcast constraint violation under control policy
     '''
+    if self.count_before_switch > 0:
+      self.count_before_switch -= 1
+      # we only return to possibility to use control policy after number of steps to reach saftey has passed
+      return True
+
     total_cost = 0
     cost_fn = lambda f, s, a: self._wm.heads['cost'](f).mode()
         # self._wm.dynamics.get_feat(s)  ).mode()
@@ -118,8 +125,14 @@ class Dreamer(nn.Module):
             actor = self._task_behavior.actor(feat)
             action = actor.sample() if not is_eval  else actor.mode()
             latent_state = self._wm.dynamics.img_step(latent_state, action, sample = self._config.imag_sample)
+    #return total_cost >= self._config.cost_threshold
 
-    return total_cost >= self._config.cost_threshold
+    is_violation = total_cost >= self._config.cost_threshold
+
+    if is_violation: 
+      self.count_before_switch = self._config.num_safety_steps
+      return True
+    return False
 
   def _task_switch_prob(self):
     '''
@@ -415,7 +428,7 @@ if __name__ == '__main__':
     arg_type = tools.args_type(value)
     parser.add_argument(f'--{key}', type=arg_type, default=arg_type(value))
   current_dir = os.path.dirname(os.path.abspath(__file__))
-  logdir = os.path.join(current_dir, 'logdir', 'safecircle1', '0')  
+  logdir = os.path.join(current_dir, 'logdir', 'safecircle1', '0')
   existed_ns = [int(v) for v in os.listdir(os.path.join(current_dir, 'logdir', 'safecircle1'))]
   if len(existed_ns) > 0:
     new_n = max(existed_ns)+1
