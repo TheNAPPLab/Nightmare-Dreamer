@@ -639,7 +639,7 @@ class ImagBehavior(nn.Module):
   def _pid_update(self, ep_cost_avg):
         metrics = {}
         delta = float(ep_cost_avg - self.cost_limit)  # ep_cost_avg: tensor
-        self.pid_i = max(0., min(self.pid_i + delta * self.pid_Ki, 10.0))
+        self.pid_i = max(0., min(self.pid_i + delta * self.pid_Ki, self._config.max_integrator))
         if self.diff_norm:
             self.pid_i = max(0., min(1., self.pid_i))
         a_p = self.pid_delta_p_ema_alpha

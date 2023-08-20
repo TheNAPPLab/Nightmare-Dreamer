@@ -187,7 +187,7 @@ sgym:
   conditional_cloning: False
   min_behavior_loss: 0.2 # Adjust this value as needed
   clamp_behavior_loss: False
-  alpha1: 3.0 #coeff Reward
+  alpha1: 1.0 #coeff Reward
   alpha2: 0.1 # coeff cost
   safe_actor_entropy: 2e-4 #1e-4 5e-4
 
@@ -213,7 +213,7 @@ sgym:
   limit_decay_freq: 10_000 #10_000
   limit_signal_prob: 80 #100
   limit_signal_prob_decay: 800 #1450 circle
-  limit_signal_prob_decay_min:  25
+  limit_signal_prob_decay_min:  12
   decay_cost: False
 
   #lagrange multipler  parameters
@@ -226,7 +226,7 @@ sgym:
   learnable_lagrange: False #default True PID False
   lagrangian_multiplier_fixed: 0.15 # 0.3
   max_lagrangian : 0.75 # 10 important if using stretched sigmoid PID = 0.75
-  min_lagrangian: 0.1 #0.5 for curr
+  min_lagrangian: 0.4 #0.5 for curr
 
   #discrimiator parameters
   discriminator_layers: 2
@@ -238,12 +238,13 @@ sgym:
 
   #pid params
   pid_Kp: 0.01
-  pid_Ki: 0.001
+  pid_Ki: 0.01
   pid_Kd: 0.01
   use_pid: True
   pid_delta_p_ema_alpha: 0.95
   pid_delta_d_ema_alpha: 0.95
   pid_d_delay: 10
+  max_integrator: 6
 
 
 
