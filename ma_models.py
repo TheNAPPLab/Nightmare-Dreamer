@@ -522,7 +522,7 @@ class ImagBehavior(nn.Module):
     #behavior cloning loss
     if self._config.behavior_cloning == 'kl1':
       behavior_loss = self._action_kl_loss(self.actor(inp[:-1]), self.safe_actor(inp[:-1]))
-      scaled_behavior_loss = self._config.actor_behavior_scale * behavior_loss    
+      scaled_behavior_loss = self._config.behavior_clone_scale * behavior_loss    
       safe_actor_target += threshold_mask * scaled_behavior_loss if self._config.conditional_cloning else scaled_behavior_loss
   
 
@@ -535,7 +535,7 @@ class ImagBehavior(nn.Module):
       inp_ = imag_feat.detach() if self._stop_grad_actor else imag_feat
       behavior_loss2 = self._action_kl_loss(self.actor(inp_[:-1]), self.safe_actor(inp_[:-1])) # use control states
       behavior_loss = (behavior_loss1 + behavior_loss2) / 2
-      scaled_behavior_loss = self._config.actor_behavior_scale * behavior_loss
+      scaled_behavior_loss = self._config.behavior_clone_scale * behavior_loss
       safe_actor_target += scaled_behavior_loss
 
     elif self._config.behavior_cloning == 'log_prob':
