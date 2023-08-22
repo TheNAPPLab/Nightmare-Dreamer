@@ -131,6 +131,7 @@ class Dreamer(nn.Module):
 
     if is_violation: 
       self.count_before_switch = self._config.num_safety_steps
+      self.count_before_switch -= 1 # we are using one safety task so we reduce it
       return True
     return False
 
@@ -319,7 +320,7 @@ def set_test_paramters(config):
 
 def main(config):
   config_dict = config.__dict__
-  config.task ='SafetyHalfCheetahVelocity-v1' # 'SafetyPointCircle1-v0'
+  config.task = 'SafetyPointCircle1-v0' #'SafetyHalfCheetahVelocity-v1' 'SafetyPointCircle1-v0'
   config.steps = 500_000
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally

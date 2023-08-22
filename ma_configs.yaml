@@ -179,16 +179,16 @@ sgym:
   # Multi agent paramters
   use_single_roll_out: False
   safety_look_ahead_steps: 15 #2 -primr 7 short 3
-  cost_threshold: 30 #1 prime 3 short 1
+  cost_threshold: 2 #1 prime 3 short 1
   cost_threshold_train: 1
   behavior_clone_scale: 1 # 100, 1.5 0.8 
-  num_safety_steps: 5
-  behavior_cloning: 'discriminator' #kl1, kl2, log_prob discriminator discriminator_log mse
+  num_safety_steps: 1
+  behavior_cloning: 'discriminator_log' #kl1, kl2, log_prob discriminator discriminator_log mse
   conditional_cloning: False
   min_behavior_loss: 0.2 # Adjust this value as needed
   clamp_behavior_loss: False
-  alpha1: 1.0 #coeff Reward
-  alpha2: 0.1 # coeff cost
+  alpha1: 0.0 #coeff Reward
+  alpha2: 1.0 # coeff cost
   safe_actor_entropy: 1e-4 #1e-4 5e-4
 
   # cost_imag_horizon: 5 
@@ -209,23 +209,23 @@ sgym:
   safe_signal_prob_decay_min: 0.01
 
   # cost curriculum learning parmaters
-  limit_decay_start: 50_000 # last value: 5_000  30_000
+  limit_decay_start: 10_000 # last value: 5_000  30_000
   limit_decay_freq: 10_000 #10_000
-  limit_signal_prob: 80 #100
+  limit_signal_prob: 100 #100
   limit_signal_prob_decay: 800 #1450 circle
   limit_signal_prob_decay_min:  12
-  decay_cost: False
+  decay_cost: True
 
   #lagrange multipler  parameters
   cost_limit: 50
   sigmoid_a: 0.09
   lamda_projection: 'relu' # stretched_sigmoid relu
   update_lagrange_metric: 'mean_ep_cost' # target_mean target_max mean_ep_cost
-  lagrangian_multiplier_init: 0.7 # 0.3
+  lagrangian_multiplier_init: 0.001 # 0.3
   lambda_lr: 0.0035  # 0.035 0.0035
-  learnable_lagrange: False #default True PID False
+  learnable_lagrange: True #default True PID False
   lagrangian_multiplier_fixed: 0.15 # 0.3
-  max_lagrangian : 0.6 # 10 important if using stretched sigmoid PID = 0.75
+  max_lagrangian : 0.5 # 10 important if using stretched sigmoid PID = 0.75
   min_lagrangian: 0.1 #0.5 for curr
 
   #discrimiator parameters
