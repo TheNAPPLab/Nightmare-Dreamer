@@ -179,11 +179,11 @@ sgym:
   # Multi agent paramters
   use_single_roll_out: False
   safety_look_ahead_steps: 15 #2 -primr 7 short 3
-  cost_threshold: 2 #1 prime 3 short 1
+  cost_threshold: 30 #1 prime 3 short 1
   cost_threshold_train: 1
-  behavior_clone_scale: 0.5 # 100, 1.5 0.8 
+  behavior_clone_scale: 1 # 100, 1.5 0.8 
   num_safety_steps: 5
-  behavior_cloning: '' #kl1, kl2, log_prob discriminator discriminator_log mse
+  behavior_cloning: 'discriminator' #kl1, kl2, log_prob discriminator discriminator_log mse
   conditional_cloning: False
   min_behavior_loss: 0.2 # Adjust this value as needed
   clamp_behavior_loss: False
@@ -240,7 +240,7 @@ sgym:
   pid_Kp: 0.01
   pid_Ki: 0.001
   pid_Kd: 0.01
-  use_pid: True
+  use_pid: False
   pid_delta_p_ema_alpha: 0.95
   pid_delta_d_ema_alpha: 0.95
   pid_d_delay: 10

@@ -545,12 +545,12 @@ class ImagBehavior(nn.Module):
       behavior_loss =  -safe_policy_.log_prob(action_inp_)[:-1][:, :, None]
       if self._config.clamp_behavior_loss:
         behavior_loss = torch.clamp(behavior_loss, min = self._config.min_behavior_loss)
-      scaled_behavior_loss = self._config.actor_behavior_scale * behavior_loss
+      scaled_behavior_loss = self._config.behavior_clone_scale * behavior_loss
       safe_actor_target += scaled_behavior_loss
 
     elif self._config.behavior_cloning == 'discriminator':
       behavior_loss = -self.discriminator(inp[:-1], safe_imag_action[:-1])
-      scaled_behavior_loss = self._config.actor_behavior_scale  * behavior_loss
+      scaled_behavior_loss = self._config.behavior_clone_scale  * behavior_loss
       safe_actor_target += scaled_behavior_loss
 
     elif self._config.behavior_cloning == 'discriminator_log':
