@@ -209,7 +209,7 @@ sgym:
   safe_signal_prob_decay_min: 0.01
 
   # cost curriculum learning parmaters
-  limit_decay_start: 100_000 # last value: 5_000  30_000
+  limit_decay_start: 150_000 # last value: 5_000  30_000
   limit_decay_freq: 10_000 #10_000
   limit_signal_prob: 500 #100
   limit_signal_prob_decay: 800 #1450 circle
