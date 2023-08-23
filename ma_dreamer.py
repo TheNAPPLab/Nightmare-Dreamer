@@ -167,17 +167,20 @@ class Dreamer(nn.Module):
     if self._config.eval_state_mean:
       latent['stoch'] = latent['mean']
     feat = self._wm.dynamics.get_feat(latent)
-    
-    if np.random.uniform(0, 1) < self._task_switch_prob():
+    if not self._config.solve_cmdp:
+      constraint_violated = False
+      
+    elif np.random.uniform(0, 1) < self._task_switch_prob():
       constraint_violated = False
     else:
       constraint_violated = self._is_future_safety_violated(latent)
     # constraint_violated = False if np.random.uniform(0, 1) < self._task_switch_prob() \
     #                               else self._is_future_safety_violated(latent)
 
+
     if not training:
       #in this case no need for epsilon greedy
-      actor =  self._task_behavior.safe_actor(feat) if self._is_future_safety_violated(latent, is_eval = True) \
+      actor =  self._task_behavior.safe_actor(feat) if constraint_violated \
               else self._task_behavior.actor(feat)
       action = actor.mode()
 
