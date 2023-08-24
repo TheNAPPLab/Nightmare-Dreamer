@@ -90,7 +90,7 @@ defaults:
   imag_gradient_mix: '0.1'
   imag_sample: True
   actor_dist: 'trunc_normal'
-  actor_entropy: '2e-4'
+  actor_entropy: '1e-4'
   actor_state_entropy: 0.0
   actor_init_std: 1.0
   actor_min_std: 0.1
