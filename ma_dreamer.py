@@ -167,9 +167,10 @@ class Dreamer(nn.Module):
     if self._config.eval_state_mean:
       latent['stoch'] = latent['mean']
     feat = self._wm.dynamics.get_feat(latent)
+    
     if not self._config.solve_cmdp:
       constraint_violated = False
-      
+
     elif np.random.uniform(0, 1) < self._task_switch_prob():
       constraint_violated = False
     else:
@@ -323,7 +324,7 @@ def set_test_paramters(config):
 
 def main(config):
   config_dict = config.__dict__
-  config.task = 'SafetyHalfCheetahVelocity-v1' #'SafetyHalfCheetahVelocity-v1' 'SafetyPointCircle1-v0'
+  config.task = 'SafetySwimmerVelocity-v1' #'SafetyHalfCheetahVelocity-v1' 'SafetyPointCircle1-v0' SafetySwimmerVelocity-v1
   config.steps = 700_000
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
