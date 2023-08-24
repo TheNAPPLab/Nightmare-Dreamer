@@ -388,30 +388,6 @@ class OneHotDist(torchd.one_hot_categorical.OneHotCategorical):
     sample += probs - probs.detach()
     return sample
 
-class ContDist:
-
-  def __init__(self, dist=None):
-    super().__init__()
-    self._dist = dist
-    self.mean = dist.mean
-
-  def __getattr__(self, name):
-    return getattr(self._dist, name)
-
-  def entropy(self):
-    return self._dist.entropy()
-
-  def mode(self):
-    return self._dist.mean
-
-  def sample(self, sample_shape=()):
-    return self._dist.rsample(sample_shape)
-
-  def log_prob(self, x):
-    return self._dist.log_prob(x)
-  
-  def get_dist(self):
-    return self._dist
 
 class Bernoulli:
 
@@ -454,6 +430,31 @@ class UnnormalizedHuber(torchd.normal.Normal):
   def mode(self):
     return self.mean
 
+class ContDist:
+
+  def __init__(self, dist=None):
+    super().__init__()
+    self._dist = dist
+    self.mean = dist.mean
+
+  def __getattr__(self, name):
+    return getattr(self._dist, name)
+
+  def entropy(self):
+    return self._dist.entropy()
+
+  def mode(self):
+    return self._dist.mean
+
+  def sample(self, sample_shape=()):
+    return self._dist.rsample(sample_shape)
+    # return self._dist.sample(sample_shape)
+
+  def log_prob(self, x):
+    return self._dist.log_prob(x)
+  
+  def get_dist(self):
+    return self._dist
 
 class SafeTruncatedNormal(torchd.normal.Normal):
 

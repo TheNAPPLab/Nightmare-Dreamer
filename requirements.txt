@@ -19,3 +19,6 @@ pandas
 ruamel.yaml
 gym[atari]
 wandb
+numpngw
+imageio
+Pillow
