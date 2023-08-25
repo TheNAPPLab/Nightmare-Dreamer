@@ -169,7 +169,7 @@ sgym:
   kl_scale: '1.0'
 
   #cmdp
-  solve_cmdp: True
+  solve_cmdp: False
 
   #Cost model parameters
   cost_value_lr: 8e-5
