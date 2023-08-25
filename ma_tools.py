@@ -432,10 +432,11 @@ class UnnormalizedHuber(torchd.normal.Normal):
 
 class ContDist:
 
-  def __init__(self, dist=None):
+  def __init__(self, dist=None, is_actor = False):
     super().__init__()
     self._dist = dist
     self.mean = dist.mean
+    self._is_actor = is_actor
 
   def __getattr__(self, name):
     return getattr(self._dist, name)
@@ -447,8 +448,11 @@ class ContDist:
     return self._dist.mean
 
   def sample(self, sample_shape=()):
-    #return self._dist.rsample(sample_shape)
-    return self._dist.sample(sample_shape)
+    # we only wish to use the sample function inherited when using an actor
+    if self._is_actor:
+      return self._dist.sample(sample_shape)
+    return self._dist.rsample(sample_shape)
+    
 
   def log_prob(self, x):
     return self._dist.log_prob(x)
@@ -466,6 +470,7 @@ class SafeTruncatedNormal(torchd.normal.Normal):
     self._mult = mult
 
   def sample(self, sample_shape):
+    #if we not clipping the actor then we simply sample although not having grdients wont run anyways
     #event = super().sample(sample_shape)
     event = super().rsample(sample_shape)
     if self._clip:

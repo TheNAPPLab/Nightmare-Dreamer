@@ -438,7 +438,7 @@ class ActionHead(nn.Module):
       mean = torch.tanh(mean)
       std = 2 * torch.sigmoid(std / 2) + self._min_std
       dist = tools.SafeTruncatedNormal(mean, std, -1, 1)
-      dist = tools.ContDist(torchd.independent.Independent(dist, 1))
+      dist = tools.ContDist(torchd.independent.Independent(dist, 1), is_actor = True)
     elif self._dist == 'onehot':
       x = self._dist_layer(x)
       dist = tools.OneHotDist(x)
