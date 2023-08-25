@@ -169,7 +169,7 @@ sgym:
   kl_scale: '1.0'
 
   #cmdp
-  solve_cmdp: False
+  solve_cmdp: True
 
   #Cost model parameters
   cost_value_lr: 8e-5
@@ -182,7 +182,7 @@ sgym:
   cost_threshold: 2 #1 prime 3 short 1
   cost_threshold_train: 1
   behavior_clone_scale: 1 # 100, 1.5 0.8 
-  num_safety_steps: 7
+  num_safety_steps: 1
   behavior_cloning: 'discriminator' #kl1, kl2, log_prob discriminator discriminator_log mse
   conditional_cloning: False
   min_behavior_loss: 0.2 # Adjust this value as needed
@@ -213,7 +213,7 @@ sgym:
   limit_decay_freq: 10_000 #10_000
   limit_signal_prob: 500 #100
   limit_signal_prob_decay: 800 #1450 circle
-  limit_signal_prob_decay_min:  12
+  limit_signal_prob_decay_min:  30
   decay_cost: True
 
   #lagrange multipler  parameters
@@ -235,7 +235,6 @@ sgym:
   discriminator_grad_clip: 100
   learn_discriminator: True
 
-
   #pid params
   pid_Kp: 0.01
   pid_Ki: 0.001
@@ -245,8 +244,6 @@ sgym:
   pid_delta_d_ema_alpha: 0.95
   pid_d_delay: 10
   max_integrator: 6
-
-
 
 debug:
 
