@@ -16,7 +16,7 @@ import ruamel.yaml as yaml
 
 sys.path.append(str(pathlib.Path(__file__).parent))
 
-import exploration as expl
+import cmdp_.exploration as expl
 import cmdp_models as models
 import cmdp_tools as tools
 import cmdp_wrappers as wrappers

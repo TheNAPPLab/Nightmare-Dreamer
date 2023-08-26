@@ -18,6 +18,7 @@ import ma_exploration as expl
 import ma_models as models
 import ma_tools as tools
 import ma_wrappers as wrappers
+# import dm_wrapper as wrappers
 
 import torch
 from torch import nn
@@ -262,8 +263,11 @@ def make_dataset(episodes, config):
 
 
 def make_env(config, logger, mode, train_eps, eval_eps):
-  env = wrappers.SafetyGym(config.task, config.grayscale, action_repeat = config.action_repeat ) if not config.ontop else \
-    wrappers.SafetyGym(config.task, config.grayscale, action_repeat = config.action_repeat, camera_name = 'fixednear' )
+  if config.task_type == 'dmc':
+    env = wrappers.DMGymnassium(config.task, config.grayscale, action_repeat = config.action_repeat )
+  else:
+    env = wrappers.SafetyGym(config.task, config.grayscale, action_repeat = config.action_repeat ) if not config.ontop else \
+      wrappers.SafetyGym(config.task, config.grayscale, action_repeat = config.action_repeat, camera_name = 'fixednear' )
   
   env = wrappers.NormalizeActions(env)
   env = wrappers.TimeLimit(env, config.time_limit)
@@ -324,7 +328,10 @@ def set_test_paramters(config):
 
 def main(config):
   config_dict = config.__dict__
-  config.task = 'SafetyHopperVelocity-v0' # 'SafetyHalfCheetahVelocity-v1' 'SafetyPointCircle1-v0' SafetySwimmerVelocity-v1
+  config.task_type = 'dmc' # dmc or eempty string
+  #dmc Humanoid-v4 'Hopper-v4'
+  # 'Hopper-v4' SafetyWalker2dVelocity 'SafetyHalfCheetahVelocity-v1' 'SafetyPointCircle1-v0' SafetySwimmerVelocity-v1
+  config.task = 'Hopper-v4' 
   config.steps = 1e6
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally

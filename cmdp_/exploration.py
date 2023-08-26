@@ -2,8 +2,8 @@ import torch
 from torch import nn
 from torch import distributions as torchd
 
-import models
-import networks
+import cmdp_.models as models
+import cmdp_.networks as networks
 import cmdp_tools as tools
 
 
