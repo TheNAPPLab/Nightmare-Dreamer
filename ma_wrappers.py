@@ -21,6 +21,7 @@ class SafetyGym:
     self._size = size
     self._grayscale = grayscale
     if not camera_name:
+      # self._env = safety_gymnasium.make(name)
       self._env = safety_gymnasium.make(name, render_mode = render_mode, width = size[0], height = size[1])
     else:
       self._env = safety_gymnasium.make(name, render_mode = render_mode, width = size[0], height = size[1], camera_name = camera_name )

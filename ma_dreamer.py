@@ -324,7 +324,7 @@ def set_test_paramters(config):
 
 def main(config):
   config_dict = config.__dict__
-  config.task = 'SafetySwimmerVelocity-v1' # 'SafetyHalfCheetahVelocity-v1' 'SafetyPointCircle1-v0' SafetySwimmerVelocity-v1
+  config.task = 'SafetyHopperVelocity-v0' # 'SafetyHalfCheetahVelocity-v1' 'SafetyPointCircle1-v0' SafetySwimmerVelocity-v1
   config.steps = 1e6
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally

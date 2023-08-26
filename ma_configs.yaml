@@ -169,7 +169,7 @@ sgym:
   kl_scale: '1.0'
 
   #cmdp
-  solve_cmdp: True
+  solve_cmdp: False
 
   #Cost model parameters
   cost_value_lr: 8e-5
@@ -179,7 +179,7 @@ sgym:
   # Multi agent paramters
   use_single_roll_out: False
   safety_look_ahead_steps: 15 #2 -primr 7 short 3
-  cost_threshold: 2 #1 prime 3 short 1
+  cost_threshold: 7 #1 prime 3 short 1
   cost_threshold_train: 1
   behavior_clone_scale: 1 # 100, 1.5 0.8 
   num_safety_steps: 1
@@ -205,7 +205,7 @@ sgym:
   #explore task switching
   safe_decay_start: 1_000 #10_000
   safe_signal_prob: 1.0
-  safe_signal_prob_decay: 3_000 # 90_000 
+  safe_signal_prob_decay: 3_000 # 90_000  666_666
   safe_signal_prob_decay_min: 0.01
 
   # cost curriculum learning parmaters
