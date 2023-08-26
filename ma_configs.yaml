@@ -169,7 +169,7 @@ sgym:
   kl_scale: '1.0'
 
   #cmdp
-  solve_cmdp: False
+  solve_cmdp: True
 
   #Cost model parameters
   cost_value_lr: 8e-5
@@ -188,7 +188,7 @@ sgym:
   min_behavior_loss: 0.2 # Adjust this value as needed
   clamp_behavior_loss: False
   alpha1: 0.0 #coeff Reward
-  alpha2: 1.0 # coeff cost
+  alpha2: 0.1 # coeff cost
   safe_actor_entropy: 1e-4 #1e-4 5e-4
 
   # cost_imag_horizon: 5 
