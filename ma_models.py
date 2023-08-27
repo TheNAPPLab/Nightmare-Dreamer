@@ -577,6 +577,7 @@ class ImagBehavior(nn.Module):
 
     if self._config.behavior_cloning != '':
       metrics['behavior_cloning_loss_mean'] = to_np(torch.mean(behavior_loss))
+      metrics['behavior_cloning_loss_min'] = to_np(torch.min(behavior_loss))
       metrics['behavior_cloning__loss_max'] = to_np(torch.max(behavior_loss))
       metrics['scaled_behavior_cloning_loss_mean'] = to_np(torch.mean(scaled_behavior_loss))
     else:
