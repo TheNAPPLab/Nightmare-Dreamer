@@ -68,6 +68,7 @@ class Dreamer(nn.Module):
         random = lambda: expl.Random(config),
         plan2explore = lambda: expl.Plan2Explore(config, self._wm, reward),
     )[config.expl_behavior]()
+    self.number_of_switches = 0
 
   def __call__(self, obs, reset, state = None, reward = None, cost = None, training = True):
     step = self._step
@@ -75,6 +76,7 @@ class Dreamer(nn.Module):
       state = None
     if state is not None and reset.any():
       self.count_before_switch = 0
+      self.number_of_switches = 0
       mask = 1 - reset
       for key in state[0].keys():
         for i in range(state[0][key].shape[0]):
@@ -171,14 +173,19 @@ class Dreamer(nn.Module):
     
     if not self._config.solve_cmdp:
       constraint_violated = False
+      
+    elif self.number_of_switches > self._config.switch_budget:
+      constraint_violated = False
 
     elif np.random.uniform(0, 1) < self._task_switch_prob():
       constraint_violated = False
+
     else:
       constraint_violated = self._is_future_safety_violated(latent)
     # constraint_violated = False if np.random.uniform(0, 1) < self._task_switch_prob() \
     #                               else self._is_future_safety_violated(latent)
 
+    self.number_of_switches += 1 if constraint_violated else 0
 
     if not training:
       #in this case no need for epsilon greedy

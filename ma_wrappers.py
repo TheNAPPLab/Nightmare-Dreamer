@@ -71,6 +71,7 @@ class SafetyGym:
     if self._grayscale:
         obs['image'] = obs['image'][..., None]
     return obs, timestep_reward, timestep_cost, terminated, truncated, info
+  
 class EnvConfig:
   def __init__(self, name) -> None:
     self.name = name
