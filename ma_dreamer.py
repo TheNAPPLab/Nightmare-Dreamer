@@ -340,7 +340,7 @@ def main(config):
   # 'Hopper-v4' SafetyWalker2dVelocity 'SafetyHalfCheetahVelocity-v1' 'SafetyPointCircle1-v0' SafetySwimmerVelocity-v1
   config.task = 'Hopper-v4'  #HalfCheetah-v4
   config.steps = 1e6
-  config.device = 'cuda:1' if torch.cuda.is_available() else 'cpu'
+  config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
   # print(config_dict)
   if sys.platform == 'linux': #not debugging on mac but running experiment
