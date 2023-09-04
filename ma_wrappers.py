@@ -93,6 +93,9 @@ class EnvConfig:
       return  gymnasium.make(self.name, render_mode = render_mode, \
                              width = size[0], height = size[1], terminate_when_unhealthy = False,\
                                 healthy_reward = 1.5  )
+    elif self.name == 'HalfCheetah-v4':
+      return  gymnasium.make(self.name, render_mode = render_mode, \
+                        width = size[0], height = size[1])
 class DMGymnassium:
   def __init__(self, name, grayscale, size = (64, 64), action_repeat = 1, render_mode = 'rgb_array') -> None:
     
