@@ -1,7 +1,8 @@
+sys.path.append("Safe-panda-gym/panda_gym")
+
 import numpy as np
 import gym
-import safety_gymnasium
-import gymnasium
+import panda_gym
 import matplotlib.pyplot as plt
 
 '''
@@ -16,16 +17,14 @@ fixednear: The camera used for top-down observation.
 
 fixedfar: The camera used for top-down observation, but is further than fixednear.
 '''
-class SafetyGym:
-  def __init__(self, name, grayscale, size = (64, 64), action_repeat = 1, render_mode = 'rgb_array', camera_name = None) -> None:
+class PandaGym:
+  def __init__(self, name, grayscale, size = (64, 64), action_repeat = 1, render_mode = 'rgb_array') -> None:
     
     self._size = size
     self._grayscale = grayscale
-    if not camera_name:
-      # self._env = safety_gymnasium.make(name)
-      self._env = safety_gymnasium.make(name, render_mode = render_mode, width = size[0], height = size[1])
-    else:
-      self._env = safety_gymnasium.make(name, render_mode = render_mode, width = size[0], height = size[1], camera_name = camera_name )
+    self.render_mode = render_mode
+    self._env = gym.make(name, render=True)
+
     # self._env.set_seed(0)
     self._action_repeat = action_repeat
 
@@ -44,7 +43,7 @@ class SafetyGym:
     return self._env.close()
 
   def render(self):
-    return self._env.render()
+    return self._env.render(mode = self.render_mode)
   
   def reset(self):
     self._env.reset()
@@ -58,10 +57,13 @@ class SafetyGym:
     timestep_reward = 0
     timestep_cost = 0
     for _ in range(self._action_repeat):
-      o, reward, cost, terminated, truncated, info  = self._env.step(action)
+
+      obs, reward, done, info = self._env.step(action)
+    
       timestep_reward += reward or 0
+      cost = info.get("cost", 0)
       timestep_cost += cost or 0
-      if terminated or truncated:
+      if done:
         break
     obs = {}
     obs['image'] = self.render()
@@ -70,100 +72,8 @@ class SafetyGym:
     # plt.show()
     if self._grayscale:
         obs['image'] = obs['image'][..., None]
-    return obs, timestep_reward, timestep_cost, terminated, truncated, info
+    return obs, timestep_reward, timestep_cost, done, info
   
-class EnvConfig:
-  def __init__(self, name) -> None:
-    self.name = name
-
-  def getConstraint(self):
-    '''
-    returns the constraint value of the velocity
-    '''
-    cache = {
-      'Hopper-v4' : 0.7402,
-      'Humanoid-v4' : 1.4149,
-      'Walker2d-v4' : 2.3415,
-      'HalfCheetah-v4' : 3.2096
-    }
-    return cache[self.name]
-  
-  def getEnv(self, render_mode, size):
-    if self.name == 'Hopper-v4':
-      return  gymnasium.make(self.name, render_mode = render_mode, \
-                             width = size[0], height = size[1], terminate_when_unhealthy = False,\
-                                healthy_reward = 1.5  )
-    elif self.name == 'HalfCheetah-v4':
-      return  gymnasium.make(self.name, render_mode = render_mode, \
-                        width = size[0], height = size[1])
-class DMGymnassium:
-  def __init__(self, name, grayscale, size = (64, 64), action_repeat = 1, render_mode = 'rgb_array') -> None:
-    
-    self._size = size
-    self._grayscale = grayscale
-    self.name = name
-    
-    self.env_config = EnvConfig(name)
-    # self._env = gymnasium.make(name, render_mode = render_mode, width = size[0], height = size[1])
-    self._env =  self.env_config.getEnv(render_mode, size)
-    self._action_repeat = action_repeat
-  
-  @property
-  def observation_space(self):
-    spaces = {}
-    spaces['image'] = gym.spaces.Box(
-        0, 255, self._size + (3,), dtype = np.uint8)
-    return gym.spaces.Dict(spaces)
-  
-  @property
-  def action_space(self):
-    return self._env.action_space
-  
-
-  def getConstraint(self, vel):
-    
-    return int(vel > self.env_config.getConstraint())
-
-  
-  def close(self):
-    return self._env.close()
-
-  def render(self):
-    return self._env.render()
-  
-  def reset(self):
-    self._env.reset()
-    obs = {}
-    obs['image'] = self.render()
-    if self._grayscale:
-        obs['image'] = obs['image'][..., None]
-    return obs
-  
-  def step(self, action):
-    timestep_reward = 0
-    timestep_cost = 0
-    for _ in range(self._action_repeat):
-      o, reward, terminated, truncated, info  = self._env.step(action)
-      if 'y_velocity' not in info:
-        agent_velocity = np.abs(info['x_velocity'])
-      else:
-        agent_velocity = np.sqrt(info['x_velocity'] ** 2 + info['y_velocity'] ** 2)
-
-      cost = self.getConstraint(agent_velocity)
-      timestep_reward += reward or 0
-      timestep_cost += cost or 0
-      if terminated or truncated:
-        break
-    obs = {}
-    obs['image'] = self.render()
-    # plt.imshow( obs['image'])
-    # plt.axis('off')
-    # plt.show()
-    if self._grayscale:
-        obs['image'] = obs['image'][..., None]
-    return obs, timestep_reward, timestep_cost, terminated, truncated, info
-
-
 class NormalizeActions:
 
   def __init__(self, env):
@@ -210,8 +120,7 @@ class TimeLimit:
     # return obs, reward, done, info
     self._step += 1
 
-    obs, reward, cost, terminated, truncated, info = self._env.step(action)
-    done = terminated or truncated
+    obs, reward, cost, done, info = self._env.step(action)
     if done:
       if 'discount' not in info:
         info['discount'] = np.array(1.0).astype(np.float32)
