@@ -178,7 +178,7 @@ sgym:
 
   # Multi agent paramters
   use_single_roll_out: False
-  safety_look_ahead_steps: 20 #2 -primr 7 short 3
+  safety_look_ahead_steps: 17 #2 -primr 7 short 3
   cost_threshold: 3 #1 prime 3 short 1
   switch_budget: 200
   cost_threshold_train: 1
