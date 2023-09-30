@@ -175,7 +175,10 @@ class Dreamer(nn.Module):
       constraint_violated = False
       
     elif self.number_of_switches > self._config.switch_budget:
-      constraint_violated = False
+      if not training: #ignore cap
+        constraint_violated = self._is_future_safety_violated(latent)
+      else:
+        constraint_violated = False
 
     elif np.random.uniform(0, 1) < self._task_switch_prob():
       constraint_violated = False
