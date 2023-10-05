@@ -184,11 +184,11 @@ sgym:
   cost_threshold_train: 1
   behavior_clone_scale: 1 # 100, 1.5 0.8 
   num_safety_steps: 3
-  behavior_cloning: 'kl1' #kl1, kl2, log_prob discriminator discriminator_log mse
+  behavior_cloning: '' #kl1, kl2, log_prob discriminator discriminator_log mse
   conditional_cloning: False
   min_behavior_loss: 0.2 # Adjust this value as needed
   clamp_behavior_loss: False
-  alpha1: 0.0 #coeff Reward
+  alpha1: 1.0 #coeff Reward
   alpha2: 1.0 # coeff cost
   safe_actor_entropy: 1e-4 #1e-4 5e-4
 
@@ -226,7 +226,7 @@ sgym:
   lambda_lr: 0.0035  # 0.035 0.0035
   learnable_lagrange: True #default True PID False
   lagrangian_multiplier_fixed: 0.15 # 0.3
-  max_lagrangian : 0.5 # 10 important if using stretched sigmoid PID = 0.75
+  max_lagrangian : 0.75 # 10 important if using stretched sigmoid PID = 0.75
   min_lagrangian: 0.1 #0.5 for curr
 
   #discrimiator parameters
