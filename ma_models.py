@@ -204,6 +204,11 @@ class ImagBehavior(nn.Module):
         [], config.value_layers, config.units, config.act,
         config.value_head)
     
+    if self._config.safe_value:
+      self.value_safe =  networks.DenseHead(
+          feat_size,  # pytorch version
+          [], config.value_layers, config.units, config.act,
+          config.value_head)
 
     self.cost_value = networks.DenseHead(
         feat_size,  # pytorch version
@@ -220,6 +225,10 @@ class ImagBehavior(nn.Module):
     if config.slow_value_target or config.slow_actor_target:
       # target network
         self._slow_value = networks.DenseHead(
+          feat_size,  # pytorch version
+          [], config.value_layers, config.units, config.act)
+        
+        self._slow_value_safe = networks.DenseHead(
           feat_size,  # pytorch version
           [], config.value_layers, config.units, config.act)
 
@@ -244,10 +253,16 @@ class ImagBehavior(nn.Module):
         'value', self.value.parameters(), config.value_lr, config.opt_eps, config.value_grad_clip,
         **kw)
     
+    self._value_safe_opt = tools.Optimizer(
+        'value', self.value_safe.parameters(), config.value_lr, config.opt_eps, config.value_grad_clip,
+        **kw)
+    
     self._cost_value_opt = tools.Optimizer(
           'cost_value', self.cost_value.parameters(), config.cost_value_lr, config.opt_eps, config.value_grad_clip,
           **kw)
     if self._config.learn_discriminator:
+
+      
       self._discriminator_opt = tools.Optimizer(
         'discriminator', self.discriminator.parameters(), config.discrimiator_lr, config.opt_eps, config.discriminator_grad_clip,
           **kw
@@ -301,6 +316,7 @@ class ImagBehavior(nn.Module):
           
         value_input = imag_feat # inputs to value network
 
+    #update Control Value fn
     with tools.RequiresGrad(self.value):
       with torch.cuda.amp.autocast(self._use_amp):
         value = self.value(value_input[:-1].detach())
@@ -310,6 +326,7 @@ class ImagBehavior(nn.Module):
           value_loss += self._config.value_decay * value.mode()
         value_loss = torch.mean(weights[:-1] * value_loss[:,:,None])
 
+    # update Safe Actor
     with tools.RequiresGrad(self.safe_actor):
       with torch.cuda.amp.autocast(self._use_amp): #prcesion
 
@@ -317,6 +334,7 @@ class ImagBehavior(nn.Module):
               start, self.safe_actor, self._config.imag_horizon, repeats)
         #reward under safe policy
         reward_safe_policy = objective(safe_imag_feat, safe_imag_state, safe_imag_action)
+
         cost = constrain(safe_imag_feat, safe_imag_state, safe_imag_action)
 
 
@@ -325,7 +343,7 @@ class ImagBehavior(nn.Module):
         safe_state_ent = self._world_model.dynamics.get_dist(
             safe_imag_state).entropy()
 
-        target_under_safe_policy, _ = self._compute_target(
+        target_under_safe_policy, target_weights_ = self._compute_safe_target(
             safe_imag_feat, safe_imag_state, safe_imag_action, reward_safe_policy, safe_actor_ent, safe_state_ent,
             self._config.slow_actor_target)
         
@@ -334,7 +352,7 @@ class ImagBehavior(nn.Module):
 
         safe_actor_loss, mets = self._compute_safe_actor_loss( \
               safe_imag_feat, safe_imag_state, safe_imag_action, \
-              target_cost, safe_actor_ent, safe_state_ent, weights,\
+              target_cost, safe_actor_ent, safe_state_ent, target_weights_,\
               imag_feat, imag_action, target_under_safe_policy, cost)
         
         metrics.update(mets)
@@ -346,7 +364,18 @@ class ImagBehavior(nn.Module):
         target_cost = torch.stack(target_cost, dim=1)
         cost_value_loss = -cost_value.log_prob(target_cost.detach())
         # multi[ly by weights only if we wish to dsicount the value function
-        cost_value_loss = torch.mean(weights[:-1] * cost_value_loss[:,:,None])
+        cost_value_loss = torch.mean(target_weights_[:-1] * cost_value_loss[:,:,None])
+        
+    #update Control Value fn
+    with tools.RequiresGrad(self.value_safe):
+      with torch.cuda.amp.autocast(self._use_amp):
+        value_safe = self.value_safe(safe_value_input[:-1].detach())
+        target_under_safe_policy = torch.stack(target_under_safe_policy, dim=1)
+        value_safe_loss = -value_safe.log_prob(target_under_safe_policy.detach())
+        if self._config.value_decay:
+          value_safe_loss += self._config.value_decay * value_safe_loss.mode()
+        value_safe_loss = torch.mean(target_weights_[:-1] * value_safe_loss[:,:,None])
+
     if self._config.learn_discriminator:
       with tools.RequiresGrad(self.discriminator):
         with torch.cuda.amp.autocast(self._use_amp):
@@ -373,6 +402,7 @@ class ImagBehavior(nn.Module):
       metrics.update(self._safe_actor_opt(safe_actor_loss, self.safe_actor.parameters()))
       metrics.update(self._value_opt(value_loss, self.value.parameters()))
       metrics.update(self._cost_value_opt(cost_value_loss, self.cost_value.parameters()))
+      metrics.update(self._value_safe_opt(value_safe_loss, self.value_safe.parameters()))
       if self._config.learn_discriminator:
         metrics.update(self._discriminator_opt(discrimiator_loss, self.discriminator.parameters()))
 
@@ -418,6 +448,33 @@ class ImagBehavior(nn.Module):
       value = self._slow_value(imag_feat).mode()
     else:
       value = self.value(imag_feat).mode()
+    target = tools.lambda_return(
+        reward[:-1], value[:-1], discount[:-1],
+        bootstrap = value[-1], lambda_=self._config.discount_lambda, axis=0)
+    weights = torch.cumprod(
+        torch.cat([torch.ones_like(discount[:1]), discount[:-1]], 0), 0).detach()
+    return target, weights
+  
+  def _compute_safe_target( 
+      self, imag_feat, imag_state, imag_action, reward, actor_ent, state_ent,
+      slow,):
+    '''
+    Computes the target under the safe policy and using the safe policy value function
+    '''
+  
+    if 'discount' in self._world_model.heads:
+      inp = self._world_model.dynamics.get_feat(imag_state)
+      discount = self._world_model.heads['discount'](inp).mean
+    else:
+      discount = self._config.discount * torch.ones_like(reward)
+    if self._config.future_entropy and self._config.actor_entropy() > 0:
+      reward += self._config.actor_entropy() * actor_ent
+    if self._config.future_entropy and self._config.actor_state_entropy() > 0:
+      reward += self._config.actor_state_entropy() * state_ent
+    if slow:
+      value = self._slow_value_safe(imag_feat).mode()
+    else:
+      value = self.value_safe(imag_feat).mode()
     target = tools.lambda_return(
         reward[:-1], value[:-1], discount[:-1],
         bootstrap = value[-1], lambda_=self._config.discount_lambda, axis=0)
@@ -600,6 +657,13 @@ class ImagBehavior(nn.Module):
         mix = self._config.slow_target_fraction
         for s, d in zip(self.value.parameters(), self._slow_value.parameters()):
           d.data = mix * s.data + (1 - mix) * d.data
+
+        
+        mix_safe = self._config.slow_target_fraction
+        for s, d in zip(self.value_safe.parameters(), self._slow_value_safe.parameters()):
+          d.data = mix_safe * s.data + (1 - mix) * d.data
+
+        
       #mMOD
       if self._config.solve_cmdp:
         if self._updates % self._config.slow_target_update == 0:
