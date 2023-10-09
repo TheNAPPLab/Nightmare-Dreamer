@@ -22,10 +22,10 @@
 git add .
 git commit -m "$1"
 # git push -u origin master
-git push  origin main
+# git push  origin main
 
 # rm -rf .git
 # git init
 # git remote add origin https://github.com/zhujun3753/Unet_edge_detection.git
 # git pull  origin main --allow-unrelated-histories
-
+git pull  origin dual-optimality  --allow-unrelated-histories

@@ -254,7 +254,7 @@ class ImagBehavior(nn.Module):
         **kw)
     
     self._value_safe_opt = tools.Optimizer(
-        'value', self.value_safe.parameters(), config.value_lr, config.opt_eps, config.value_grad_clip,
+        'value_safe', self.value_safe.parameters(), config.value_lr, config.opt_eps, config.value_grad_clip,
         **kw)
     
     self._cost_value_opt = tools.Optimizer(
