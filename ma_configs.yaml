@@ -211,9 +211,9 @@ sgym:
   safe_signal_prob_decay_min: 0.01
 
   # cost curriculum learning parmaters
-  limit_decay_start: 100_000 # last value: 5_000  30_000
+  limit_decay_start: 60_000 # last value: 5_000  30_000
   limit_decay_freq: 20_000 #10_000 decay every x steps 
-  limit_signal_prob: 100 #100 Not required for stepped decay
+  limit_signal_prob: 80 #100 Not required for stepped decay
   limit_signal_prob_decay: 800 #1450 circle Not required for stepped decay
   limit_signal_prob_decay_min:  12
   decay_cost: True
@@ -227,7 +227,7 @@ sgym:
   lambda_lr: 0.0035  # 0.035 0.0035
   learnable_lagrange: True #default True PID False
   lagrangian_multiplier_fixed: 0.15 # 0.3
-  max_lagrangian : 0.99 # 10 important if using stretched sigmoid PID = 0.75
+  max_lagrangian : 1.2 # 10 important if using stretched sigmoid PID = 0.75
   min_lagrangian: 0.1 #0.5 for curr
 
   #discrimiator parameters
