@@ -189,7 +189,7 @@ sgym:
   conditional_cloning: False
   min_behavior_loss: 0.2 # Adjust this value as needed
   clamp_behavior_loss: False
-  alpha1: 1.0 #coeff Reward
+  alpha1: 3.0 #coeff Reward
   alpha2: 1.0 # coeff cost
   safe_actor_entropy: 1e-4 #1e-4 5e-4
 
@@ -211,8 +211,8 @@ sgym:
   safe_signal_prob_decay_min: 0.01
 
   # cost curriculum learning parmaters
-  limit_decay_start: 60_000 # last value: 5_000  30_000
-  limit_decay_freq: 10_000 #10_000 decay every x steps 
+  limit_decay_start: 80_000 # last value: 5_000  30_000
+  limit_decay_freq: 20_000 #10_000 decay every x steps 
   limit_signal_prob: 80 #100 Not required for stepped decay
   limit_signal_prob_decay: 800 #1450 circle Not required for stepped decay
   limit_signal_prob_decay_min:  12

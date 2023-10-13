@@ -341,8 +341,8 @@ def main(config):
   config.task_type = '' # dmc or eempty string
   #dmc Humanoid-v4 'Hopper-v4'
   # 'Hopper-v4' SafetyWalker2dVelocity 'SafetyHalfCheetahVelocity-v1' 'SafetyPointCircle1-v0' SafetySwimmerVelocity-v1
-  config.task = 'SafetyPointPush1-v0'  #HalfCheetah-v4
-  config.steps = 1e6
+  config.task = 'SafetyPointGoal1-v0'  #HalfCheetah-v4
+  config.steps = 1e7
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
   # print(config_dict)
@@ -351,8 +351,8 @@ def main(config):
     # run =  wandb.init(project='Safe RL via Latent world models Setup mac', config = config_dict) \
     # if sys.platform != 'linux' else wandb.init(project='Safe RL via Latent world models Setup', config = config_dict)
 
-    # run = wandb.init(project='Safe RL via Latent world models Setup', config = config_dict)
-    run = wandb.init(project='Nightmare Dreamer', config = config_dict)
+    run = wandb.init(project='Safe RL via Latent world models Setup', config = config_dict)
+    #run = wandb.init(project='Nightmare Dreamer', config = config_dict)
   logdir = pathlib.Path(config.logdir).expanduser()
   config.traindir = config.traindir or logdir / 'train_eps'
   config.evaldir = config.evaldir or logdir / 'eval_eps'
