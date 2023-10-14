@@ -181,15 +181,15 @@ sgym:
   use_single_roll_out: False
   safety_look_ahead_steps: 15 #2 -primr 7 short 3
   cost_threshold: 3 #1 prime 3 short 1
-  switch_budget: 300
+  switch_budget: 500
   cost_threshold_train: 1
   behavior_clone_scale: 1 # 100, 1.5 0.8 
-  num_safety_steps: 3
+  num_safety_steps: 1
   behavior_cloning: '' #kl1, kl2, log_prob discriminator discriminator_log mse
   conditional_cloning: False
   min_behavior_loss: 0.2 # Adjust this value as needed
   clamp_behavior_loss: False
-  alpha1: 3.0 #coeff Reward
+  alpha1: 5.0 #coeff Reward
   alpha2: 1.0 # coeff cost
   safe_actor_entropy: 1e-4 #1e-4 5e-4
 
@@ -211,7 +211,7 @@ sgym:
   safe_signal_prob_decay_min: 0.01
 
   # cost curriculum learning parmaters
-  limit_decay_start: 80_000 # last value: 5_000  30_000
+  limit_decay_start: 100_000 # last value: 5_000  30_000
   limit_decay_freq: 20_000 #10_000 decay every x steps 
   limit_signal_prob: 80 #100 Not required for stepped decay
   limit_signal_prob_decay: 800 #1450 circle Not required for stepped decay
