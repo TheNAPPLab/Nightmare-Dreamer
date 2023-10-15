@@ -191,13 +191,13 @@ class ImagBehavior(nn.Module):
         feat_size,  # pytorch version
         config.num_actions, config.actor_layers, config.units, config.act,
         config.actor_dist, config.actor_init_std, config.actor_min_std,
-        config.actor_dist, config.actor_temp, config.actor_outscale)
+        config.actor_dist, config.actor_temp, config.actor_outscale, name='Control Actor')
     
     self.safe_actor = networks.ActionHead(
         feat_size,  # pytorch version
         config.num_actions, config.actor_layers, config.units, config.act,
         config.actor_dist, config.actor_init_std, config.actor_min_std,
-        config.actor_dist, config.actor_temp, config.actor_outscale)
+        config.actor_dist, config.actor_temp, config.actor_outscale, name = 'Safe actor')
     
     self.value = networks.DenseHead(
         feat_size,  # pytorch version
@@ -363,7 +363,7 @@ class ImagBehavior(nn.Module):
         cost_value = self.cost_value(safe_value_input[:-1].detach())
         target_cost = torch.stack(target_cost, dim=1)
         cost_value_loss = -cost_value.log_prob(target_cost.detach())
-        # multi[ly by weights only if we wish to dsicount the value function
+        # multily by weights only if we wish to dsicount the value function
         cost_value_loss = torch.mean(target_weights_[:-1] * cost_value_loss[:,:,None])
         
     #update Control Value fn

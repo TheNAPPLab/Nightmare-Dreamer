@@ -373,8 +373,9 @@ class ActionHead(nn.Module):
 
   def __init__(
       self, inp_dim, size, layers, units, act=nn.ELU, dist='trunc_normal',
-      init_std=0.0, min_std=0.1, action_disc=5, temp=0.1, outscale=0):
+      init_std=0.0, min_std=0.1, action_disc=5, temp=0.1, outscale=0, name = 'actor'):
     super(ActionHead, self).__init__()
+    self.name = name
     self._size = size
     self._layers = layers
     self._units = units
