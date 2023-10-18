@@ -187,7 +187,8 @@ class Dreamer(nn.Module):
       constraint_violated = self._is_future_safety_violated(latent)
     # constraint_violated = False if np.random.uniform(0, 1) < self._task_switch_prob() \
     #                               else self._is_future_safety_violated(latent)
-
+    if self._config.only_safe_policy:
+      constraint_violated = True
     self.number_of_switches += 1 if constraint_violated else 0
 
     if not training:

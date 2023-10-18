@@ -161,6 +161,9 @@ class RSSM(nn.Module):
     return post, prior
 
   def img_step(self, prev_state, prev_action, embed=None, sample=True):
+    '''
+    returns succesive states prior
+    '''
     prev_stoch = prev_state['stoch']
     if self._discrete:
       shape = list(prev_stoch.shape[:-2]) + [self._stoch * self._discrete]
