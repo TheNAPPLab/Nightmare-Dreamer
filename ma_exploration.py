@@ -2,7 +2,8 @@ import torch
 from torch import nn
 from torch import distributions as torchd
 
-import ma_models as models
+# import ma_models as models
+import ma_models_default as models
 import ma_networks as networks
 import ma_tools as tools
 
