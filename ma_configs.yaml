@@ -169,7 +169,7 @@ sgym:
   kl_scale: '1.0'
 
   #cmdp
-  solve_cmdp: True
+  solve_cmdp: False
 
   #Cost model parameters
   cost_value_lr: 8e-5
@@ -192,7 +192,7 @@ sgym:
   alpha1: 1.0 #coeff Reward
   alpha2: 0.0 # coeff cost
   safe_actor_entropy: 1e-4 #1e-4 5e-4
-  only_safe_policy: True
+  only_safe_policy: False
 
   # cost_imag_horizon: 5 
 
