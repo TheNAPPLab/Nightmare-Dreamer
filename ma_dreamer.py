@@ -455,10 +455,10 @@ if __name__ == '__main__':
   current_dir = os.path.dirname(os.path.abspath(__file__))
   # For linux running 
   logdir = os.path.join(current_dir, 'logdir', 'safecircle1', '0')
-  # existed_ns = [int(v) for v in os.listdir(os.path.join(current_dir, 'logdir', 'safecircle1'))]
-  # if len(existed_ns) > 0:
-  #   new_n = max(existed_ns)+1
-  #   logdir = os.path.join(current_dir, 'logdir', 'safecircle1', str(new_n))
+  existed_ns = [int(v) for v in os.listdir(os.path.join(current_dir, 'logdir', 'safecircle1'))]
+  if len(existed_ns) > 0:
+    new_n = max(existed_ns)+1
+    logdir = os.path.join(current_dir, 'logdir', 'safecircle1', str(new_n))
 
   # For jason running un comment
   #logdir = os.path.join(current_dir, 'logdir', 'halfcheetah', '0')
