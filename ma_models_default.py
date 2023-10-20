@@ -240,49 +240,49 @@ class ImagBehavior(nn.Module):
           value_loss += self._config.value_decay * value.mode()
         value_loss = torch.mean(weights[:-1] * value_loss[:,:,None])
 
-    with tools.RequiresGrad(self.safe_actor):
-      with torch.cuda.amp.autocast(self._use_amp):
-        safe_imag_feat, safe_imag_state, safe_imag_action = self._imagine(
-            start, self.safe_actor, self._config.imag_horizon, repeats)
-        reward_safep = objective(safe_imag_feat, safe_imag_state, safe_imag_action)
-        safe_actor_ent = self.safe_actor(safe_imag_feat).entropy()
-        safe_state_ent = self._world_model.dynamics.get_dist(
-            safe_imag_state).entropy()
-        target_safep, weights = self._compute_target(
-            safe_imag_feat, safe_imag_state, safe_imag_action, reward_safep, safe_actor_ent, safe_state_ent,
-            self._config.slow_actor_target)
-        safe_actor_loss, safe_mets = self._compute_safe_actor_loss(
-            safe_imag_feat, safe_imag_state, safe_imag_action, target_safep, safe_actor_ent, safe_state_ent,
-            weights)
-        metrics.update(safe_mets)
-        if self._config.slow_value_target != self._config.slow_actor_target:
-          target_safep, weights = self._compute_target(
-              safe_imag_feat, safe_imag_state, safe_imag_action, reward_safep, safe_actor_ent, safe_state_ent,
-              self._config.slow_value_target)
-        value_safep_input = safe_imag_feat
+    # with tools.RequiresGrad(self.safe_actor):
+    #   with torch.cuda.amp.autocast(self._use_amp):
+    #     safe_imag_feat, safe_imag_state, safe_imag_action = self._imagine(
+    #         start, self.safe_actor, self._config.imag_horizon, repeats)
+    #     reward_safep = objective(safe_imag_feat, safe_imag_state, safe_imag_action)
+    #     safe_actor_ent = self.safe_actor(safe_imag_feat).entropy()
+    #     safe_state_ent = self._world_model.dynamics.get_dist(
+    #         safe_imag_state).entropy()
+    #     target_safep, weights = self._compute_target(
+    #         safe_imag_feat, safe_imag_state, safe_imag_action, reward_safep, safe_actor_ent, safe_state_ent,
+    #         self._config.slow_actor_target)
+    #     safe_actor_loss, safe_mets = self._compute_safe_actor_loss(
+    #         safe_imag_feat, safe_imag_state, safe_imag_action, target_safep, safe_actor_ent, safe_state_ent,
+    #         weights)
+    #     metrics.update(safe_mets)
+    #     if self._config.slow_value_target != self._config.slow_actor_target:
+    #       target_safep, weights = self._compute_target(
+    #           safe_imag_feat, safe_imag_state, safe_imag_action, reward_safep, safe_actor_ent, safe_state_ent,
+    #           self._config.slow_value_target)
+    #     value_safep_input = safe_imag_feat
 
-    with tools.RequiresGrad(self.value_safep):
-        with torch.cuda.amp.autocast(self._use_amp):
-            value_safep = self.value_safep(value_safep_input[:-1].detach())
-            target_safep = torch.stack(target_safep, dim=1)
-            value_safep_loss = -value_safep.log_prob(target_safep.detach())
-            if self._config.value_decay:
-                value_safep_loss += self._config.value_decay * value_safep.mode()
-            value_safep_loss = torch.mean(weights[:-1] * value_safep_loss[:,:,None])
+    # with tools.RequiresGrad(self.value_safep):
+    #     with torch.cuda.amp.autocast(self._use_amp):
+    #         value_safep = self.value_safep(value_safep_input[:-1].detach())
+    #         target_safep = torch.stack(target_safep, dim=1)
+    #         value_safep_loss = -value_safep.log_prob(target_safep.detach())
+    #         if self._config.value_decay:
+    #             value_safep_loss += self._config.value_decay * value_safep.mode()
+    #         value_safep_loss = torch.mean(weights[:-1] * value_safep_loss[:,:,None])
 
     metrics['reward_mean'] = to_np(torch.mean(reward))
-    metrics['reward_under_safep_mean'] = to_np(torch.mean(reward_safep))
+    # metrics['reward_under_safep_mean'] = to_np(torch.mean(reward_safep))
     metrics['reward_std'] = to_np(torch.std(reward))
     metrics['actor_ent'] = to_np(torch.mean(actor_ent))
-    metrics['safe_actor_ent'] = to_np(torch.mean(safe_actor_ent))
+    # metrics['safe_actor_ent'] = to_np(torch.mean(safe_actor_ent))
     metrics['mean_target'] = to_np(torch.mean(target.detach()))
     metrics['max_target'] = to_np(torch.max(target.detach()))
     with tools.RequiresGrad(self):
         metrics.update(self._actor_opt(actor_loss, self.actor.parameters()))
         metrics.update(self._value_opt(value_loss, self.value.parameters()))
         #optimise the safe actor and the value function under the safe actor
-        metrics.update(self._safe_actor_opt(safe_actor_loss, self.safe_actor.parameters()))
-        metrics.update(self._value_safep_opt(value_safep_loss, self.value_safep.parameters()))
+        # metrics.update(self._safe_actor_opt(safe_actor_loss, self.safe_actor.parameters()))
+        # metrics.update(self._value_safep_opt(value_safep_loss, self.value_safep.parameters()))
     return imag_feat, imag_state, imag_action, weights, metrics
 
   def _imagine(self, start, policy, horizon, repeats=None):
