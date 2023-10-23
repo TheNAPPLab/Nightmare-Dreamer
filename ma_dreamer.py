@@ -139,6 +139,39 @@ class Dreamer(nn.Module):
       return True
     return False
 
+  def get_safe_action(self, latent):
+    if self._config.sample_safe_action:
+      population = [] # (first_action, cost sum, value[t+H])
+      cost_fn = lambda f, s, a: self._wm.heads['cost'](f).mode()
+      number_candidate = 0 # number of agents that dont violate at all
+      for n in range(self._config.num_sampled_action):
+        total_cost = 0
+        for h in range(self._config.safety_look_ahead_steps):
+            feat = self._wm.dynamics.get_feat(latent)
+            c_t = cost_fn(feat, None , None).item()
+            total_cost += c_t
+            action = self._task_behavior.safe_actor(feat).sample()
+            if h == 0: # first state
+              first_action = action
+            latent_state = self._wm.dynamics.img_step(latent_state, action, sample = self._config.imag_sample)
+            if h == self._config.safety_look_ahead_steps - 1: # last time step
+              #get the value
+              value = self._task_behavior.value(feat)
+              if total_cost <= 2:
+                number_candidate += 1
+              population.append(first_action, value, total_cost)
+
+      population.sort(key= lambda x : x[2])
+      if number_candidate >= self._config.N: # we have enough candidate agents so we just pick action with best value
+        candidates = population[:number_candidate]
+        candidates.sort(candidates, key=[1])
+        return candidates[0]
+      else: # we couldnt find enough candidate action so we select safest action
+        return population[0][0]
+    else:
+      feat = self._wm.dynamics.get_feat(latent)
+      self._task_behavior.safe_actor(feat).sample()
+
   def _task_switch_prob(self):
     '''
     returns the probability of selecting the control policy or forcasting ahead
@@ -153,7 +186,7 @@ class Dreamer(nn.Module):
         expl_amount = max(self._config.safe_signal_prob_decay_min, expl_amount)
     self._logger._scalars['Safe_policy_switch_prob'] =  expl_amount
     return expl_amount
-  
+    
   def _policy(self, obs, state, training):
     if state is None:
       batch_size = len(obs['image'])
@@ -202,6 +235,11 @@ class Dreamer(nn.Module):
       actor =  self._expl_behavior.safe_actor(feat) if constraint_violated \
               else self._expl_behavior.actor(feat)
       action = actor.sample()
+
+      # actor =  self._expl_behavior.safe_actor(feat) if constraint_violated \
+      #         else self._expl_behavior.actor(feat)
+      
+      # action = self.get_safe_action if constraint_violated else actor.sample()
     else:
       actor =  self._task_behavior.safe_actor(feat) if constraint_violated \
               else self._task_behavior.actor(feat)
@@ -343,7 +381,7 @@ def main(config):
   config.task_type = '' # dmc or eempty string
   #dmc Humanoid-v4 'Hopper-v4'
   # 'Hopper-v4' SafetyWalker2dVelocity 'SafetyHalfCheetahVelocity-v1' 'SafetyPointCircle1-v0' SafetySwimmerVelocity-v1
-  config.task = 'SafetyPointGoal1-v0'  #HalfCheetah-v4
+  config.task = 'SafetyPointCircle1-v0'  #HalfCheetah-v4
   config.steps = 1e7
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally

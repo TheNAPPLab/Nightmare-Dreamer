@@ -194,6 +194,9 @@ sgym:
   safe_actor_entropy: 1e-4 #1e-4 5e-4
   only_safe_policy: False
 
+  #safe action sampling
+  sample_safe_action: True
+  num_sampled_action: 20
   # cost_imag_horizon: 5 
 
   #Observation setting
