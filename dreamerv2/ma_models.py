@@ -5,7 +5,7 @@ from collections import  deque
 import torch.optim as optim
 from torch import distributions as torchd
 import ma_networks as networks
-import ma_tools as tools
+import dreamerv2.ma_tools as tools
 import torch.nn.functional as F
 to_np = lambda x: x.detach().cpu().numpy()
 

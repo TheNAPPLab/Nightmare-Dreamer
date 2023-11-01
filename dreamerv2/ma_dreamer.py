@@ -17,7 +17,7 @@ sys.path.append(str(pathlib.Path(__file__).parent))
 import ma_exploration as expl
 # import ma_models as models
 import ma_models_default as models
-import ma_tools as tools
+import dreamerv2.ma_tools as tools
 import ma_wrappers as wrappers
 # import dm_wrapper as wrappers
 
@@ -281,7 +281,8 @@ class Dreamer(nn.Module):
         self._wm.dynamics.get_feat(s)).mode()
     cost = lambda f, s, a: self._wm.heads['cost'](
         self._wm.dynamics.get_feat(s)).mode()
-    metrics.update(self._task_behavior._train(start, reward, cost, mean_ep_cost = online_mean_cost_calc.get_mean(), training_step = self._logger.step )[-1])
+    metrics.update(self._task_behavior._train(start, reward, 
+                                              cost, mean_ep_cost = online_mean_cost_calc.get_mean(), training_step = self._logger.step )[-1])
 
     if self._config.expl_behavior != 'greedy':
       if self._config.pred_discount:
