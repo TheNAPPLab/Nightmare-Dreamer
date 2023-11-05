@@ -7,6 +7,7 @@ import pathlib
 import re
 import time
 import random
+import wandb
 
 import numpy as np
 
@@ -97,6 +98,8 @@ class Logger:
             B, T, H, W, C = value.shape
             value = value.transpose(1, 4, 2, 0, 3).reshape((1, T, C, H, B * W))
             self._writer.add_video(name, value, step, 16)
+        if sys.platform == 'linux': 
+            wandb.log(self._scalars, step = self.step)
 
         self._writer.flush()
         self._scalars = {}

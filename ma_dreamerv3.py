@@ -18,6 +18,7 @@ import ma_explorationv3 as expl
 import ma_modelsv3 as models
 import ma_toolsv3 as tools
 import envs.wrappers as wrappers
+from envs.ma_wrappers import SafetyGym
 from parallel import Parallel, Damy
 
 import torch
@@ -180,16 +181,38 @@ def make_dataset(episodes, config):
 
 
 def make_env(config, mode):
-    env = wrappers.SafetyGym(config.task, config.grayscale, action_repeat = config.action_repeat ) 
+    #TODO: add suite and task  
+    # like suite, task = config.task.split("_", 1)
+    env = SafetyGym(config.task, config.grayscale, action_repeat = config.action_repeat ) 
+    
+    # a variety of wrappers
     env = wrappers.NormalizeActions(env)
     env = wrappers.TimeLimit(env, config.time_limit)
-    env = wrappers.SelectAction(env, key="action")
+    env = wrappers.SelectAction(env, key='action')
+    env = wrappers.RewardObs(env)
+    env = wrappers.CostObs(env)
     env = wrappers.UUID(env)
 
     return env
 
 
 def main(config):
+    config_dict = config.__dict__
+    config.task_type = '' # dmc or eempty string
+    #dmc Humanoid-v4 'Hopper-v4'
+    # 'Hopper-v4' SafetyWalker2dVelocity 'SafetyHalfCheetahVelocity-v1' 'SafetyPointCircle1-v0' SafetySwimmerVelocity-v1
+    config.task = 'SafetyPointGoal1-v0'  #HalfCheetah-v4
+    config.steps = 1e7
+    config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
+    # print(config_dict)
+    if sys.platform == 'linux': #not debugging on mac but running experiment
+
+        # run =  wandb.init(project='Safe RL via Latent world models Setup mac', config = config_dict) \
+        # if sys.platform != 'linux' else wandb.init(project='Safe RL via Latent world models Setup', config = config_dict)
+
+        run = wandb.init(project='Safe RL via Latent world models Setup', config = config_dict)
+        #run = wandb.init(project='Nightmare Dreamer', config = config_dict)
     tools.set_seed_everywhere(config.seed)
     if config.deterministic_run:
         tools.enable_deterministic_run()
@@ -329,7 +352,7 @@ if __name__ == "__main__":
     parser.add_argument("--configs", nargs="+")
     args, remaining = parser.parse_known_args()
     configs = yaml.safe_load(
-        (pathlib.Path(sys.argv[0]).parent / "configs.yaml").read_text()
+        (pathlib.Path(sys.argv[0]).parent / "ma_configs.yaml").read_text()
     )
 
     def recursive_update(base, update):
@@ -347,4 +370,17 @@ if __name__ == "__main__":
     for key, value in sorted(defaults.items(), key=lambda x: x[0]):
         arg_type = tools.args_type(value)
         parser.add_argument(f"--{key}", type=arg_type, default=arg_type(value))
+    
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # For linux running 
+    logdir = os.path.join(current_dir, 'logdir', 'safecircle1', '0')
+    existed_ns = [int(v) for v in os.listdir(os.path.join(current_dir, 'logdir', 'safecircle1'))]
+    if len(existed_ns) > 0:
+        new_n = max(existed_ns)+1
+        logdir = os.path.join(current_dir, 'logdir', 'safecircle1', str(new_n))
+
+    # For jason running un comment
+    #logdir = os.path.join(current_dir, 'logdir', 'halfcheetah', '0')
+    parser.set_defaults(logdir = logdir)    
+    
     main(parser.parse_args(remaining))
