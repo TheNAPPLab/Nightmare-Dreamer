@@ -74,65 +74,65 @@ class SelectAction:
     return self._env.step(action[self._key])
 
 
-class CollectDataset:
+# class CollectDataset:
 
-  def __init__(self, env, callbacks=None, precision=32):
-    self._env = env
-    self._callbacks = callbacks or ()
-    self._precision = precision
-    self._episode = None
+#   def __init__(self, env, callbacks=None, precision=32):
+#     self._env = env
+#     self._callbacks = callbacks or ()
+#     self._precision = precision
+#     self._episode = None
 
-  def __getattr__(self, name):
-    return getattr(self._env, name)
+#   def __getattr__(self, name):
+#     return getattr(self._env, name)
 
-  def step(self, action):
-    obs, reward, cost, done, info = self._env.step(action)
-    obs = {k: self._convert(v) for k, v in obs.items()}
-    transition = obs.copy()
-    if isinstance(action, dict):
-      transition.update(action)
-      transition['task_switch'] = action["task_switch"].item()
-    else:
-      transition['action'] = action
-    transition['reward'] = reward
-    transition['cost'] = cost
-    transition['discount'] = info.get('discount', np.array(1 - float(done)))
-    self._episode.append(transition)
-    if done:
-      for key, value in self._episode[1].items():
-        if key not in self._episode[0]:
-          self._episode[0][key] = 0 * value
-      episode = {k: [t[k] for t in self._episode] for k in self._episode[0]}
-      episode = {k: self._convert(v) for k, v in episode.items()}
-      info['episode'] = episode
-      for callback in self._callbacks:
-        callback(episode)
-    return obs, reward, cost, done, info
+#   def step(self, action):
+#     obs, reward, cost, done, info = self._env.step(action)
+#     obs = {k: self._convert(v) for k, v in obs.items()}
+#     transition = obs.copy()
+#     if isinstance(action, dict):
+#       transition.update(action)
+#       transition['task_switch'] = action["task_switch"].item()
+#     else:
+#       transition['action'] = action
+#     transition['reward'] = reward
+#     transition['cost'] = cost
+#     transition['discount'] = info.get('discount', np.array(1 - float(done)))
+#     self._episode.append(transition)
+#     if done:
+#       for key, value in self._episode[1].items():
+#         if key not in self._episode[0]:
+#           self._episode[0][key] = 0 * value
+#       episode = {k: [t[k] for t in self._episode] for k in self._episode[0]}
+#       episode = {k: self._convert(v) for k, v in episode.items()}
+#       info['episode'] = episode
+#       for callback in self._callbacks:
+#         callback(episode)
+#     return obs, reward, cost, done, info
 
-  def reset(self):
-    obs = self._env.reset()
-    transition = obs.copy()
-    # Missing keys will be filled with a zeroed out version of the first
-    # transition, because we do not know what action information the agent will
-    # pass yet.
-    transition['task_switch'] = 0.0
-    transition['reward'] = 0.0
-    transition['cost'] = 0.0
-    transition['discount'] = 1.0
-    self._episode = [transition]
-    return obs
+#   def reset(self):
+#     obs = self._env.reset()
+#     transition = obs.copy()
+#     # Missing keys will be filled with a zeroed out version of the first
+#     # transition, because we do not know what action information the agent will
+#     # pass yet.
+#     transition['task_switch'] = 0.0
+#     transition['reward'] = 0.0
+#     transition['cost'] = 0.0
+#     transition['discount'] = 1.0
+#     self._episode = [transition]
+#     return obs
 
-  def _convert(self, value):
-    value = np.array(value)
-    if np.issubdtype(value.dtype, np.floating):
-      dtype = {16: np.float16, 32: np.float32, 64: np.float64}[self._precision]
-    elif np.issubdtype(value.dtype, np.signedinteger):
-      dtype = {16: np.int16, 32: np.int32, 64: np.int64}[self._precision]
-    elif np.issubdtype(value.dtype, np.uint8):
-      dtype = np.uint8
-    else:
-      raise NotImplementedError(value.dtype)
-    return value.astype(dtype)
+#   def _convert(self, value):
+#     value = np.array(value)
+#     if np.issubdtype(value.dtype, np.floating):
+#       dtype = {16: np.float16, 32: np.float32, 64: np.float64}[self._precision]
+#     elif np.issubdtype(value.dtype, np.signedinteger):
+#       dtype = {16: np.int16, 32: np.int32, 64: np.int64}[self._precision]
+#     elif np.issubdtype(value.dtype, np.uint8):
+#       dtype = np.uint8
+#     else:
+#       raise NotImplementedError(value.dtype)
+#     return value.astype(dtype)
 
 
 class RewardObs:

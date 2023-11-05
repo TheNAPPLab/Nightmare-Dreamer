@@ -8,7 +8,7 @@ import re
 import time
 import random
 import wandb
-
+import sys
 import numpy as np
 
 import torch
@@ -16,10 +16,79 @@ from torch import nn
 from torch.nn import functional as F
 from torch import distributions as torchd
 from torch.utils.tensorboard import SummaryWriter
-
+from PIL import Image, ImageDraw, ImageFont
+import imageio
 
 to_np = lambda x: x.detach().cpu().numpy()
 
+class SaveVideoInteraction:
+  def __init__(self) -> None:
+    self.best_reward = -100
+    self.best_cost = 100_000
+    self.log_dir = ""
+    self.desired_size = (255, 255)
+    self.delay = 150
+    self.rect_width = 30
+    self.rect_height = 30
+    self.green_ = (0, 255, 0)
+    self.red_ = (255, 0, 0)
+    self.font = ImageFont.load_default()
+    self.count = 0
+  def set_video_dir(self, weird_path, log_dir):
+    self.log_dir = log_dir
+    self.weird_path = weird_path
+    # create folder in dir if it doesnt exist
+    # logdir.mkdir(parents = True, exist_ok = True)
+  def save_video(self, video, reward, cost, violation_detected):
+  #   timestamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
+  #   output_path = "UpscaledVideo.gif"
+  # imageio.mimsave(output_path, upscaled_images, duration=0.2)
+    self.count += 1
+    #self.count > 5 and
+    if self.count > 3  and cost <= self.best_cost and reward >= self.best_reward:
+      # self.best_cost = cost
+      # self.best_reward = reward
+      print("Found new best saving video")
+      upscaled_images = []
+      for i in range(len(video)):
+        image = video[i]
+        original_image = Image.fromarray(image)
+        upscaled_image = original_image.resize(self.desired_size, Image.BILINEAR)
+         # Create a copy of the upscaled image to draw on
+        modified_image = upscaled_image.copy()
+        rect_color = self.green_
+        if violation_detected[i] > 0.0:
+          rect_color = self.red_
+        draw = ImageDraw.Draw(modified_image)
+        top_right_x = modified_image.width - self.rect_width
+        top_right_y = 0
+        bottom_left_x = modified_image.width
+        bottom_left_y = self.rect_height
+        draw.rectangle(
+                [top_right_x, top_right_y, bottom_left_x, bottom_left_y],
+                fill=rect_color)
+        
+        score_text = f"Score: {reward:.2f}"
+        cost_text = f"Cost: {cost:.2f}"
+        text_position = (10, 10)  # Adjust position as needed
+        draw.text(text_position, score_text, font=self.font, fill=(255, 255, 255))  # White text
+        draw.text((text_position[0], text_position[1] + 20), cost_text, font=self.font, fill=(255, 255, 255))
+        upscaled_images.append(np.array(modified_image))
+      dir = self.log_dir + "/eval_video.gif"
+      imageio.mimsave(dir, upscaled_images, duration = 1.0 ) 
+
+class OnlineMeanCalculator:
+    def __init__(self):
+        self.count = 0
+        self.mean = 0.0
+
+    def update(self, value):
+        self.count += 1
+        delta = value - self.mean
+        self.mean += delta / self.count
+
+    def get_mean(self):
+        return self.mean
 
 def symlog(x):
     return torch.sign(x) * torch.log(torch.abs(x) + 1.0)
@@ -89,15 +158,15 @@ class Logger:
                 self._writer.add_scalar("scalars/" + name, value, step)
             else:
                 self._writer.add_scalar(name, value, step)
-        for name, value in self._images.items():
-            self._writer.add_image(name, value, step)
-        for name, value in self._videos.items():
-            name = name if isinstance(name, str) else name.decode("utf-8")
-            if np.issubdtype(value.dtype, np.floating):
-                value = np.clip(255 * value, 0, 255).astype(np.uint8)
-            B, T, H, W, C = value.shape
-            value = value.transpose(1, 4, 2, 0, 3).reshape((1, T, C, H, B * W))
-            self._writer.add_video(name, value, step, 16)
+        # for name, value in self._images.items():
+        #     self._writer.add_image(name, value, step)
+        # for name, value in self._videos.items():
+        #     name = name if isinstance(name, str) else name.decode("utf-8")
+        #     if np.issubdtype(value.dtype, np.floating):
+        #         value = np.clip(255 * value, 0, 255).astype(np.uint8)
+        #     B, T, H, W, C = value.shape
+        #     value = value.transpose(1, 4, 2, 0, 3).reshape((1, T, C, H, B * W))
+        #     self._writer.add_video(name, value, step, 16)
         if sys.platform == 'linux': 
             wandb.log(self._scalars, step = self.step)
 
@@ -148,8 +217,9 @@ def simulate(
         obs = [None] * len(envs)
         agent_state = None
         reward = [0] * len(envs)
+        cost = [0] * len(envs)
     else:
-        step, episode, done, length, obs, agent_state, reward = state
+        step, episode, done, length, obs, agent_state, reward, cost = state
     while (steps and step < steps) or (episodes and episode < episodes):
         # reset envs if necessary
         if done.any():
@@ -161,6 +231,7 @@ def simulate(
                 t = {k: convert(v) for k, v in t.items()}
                 # action will be added to transition in add_to_cache
                 t["reward"] = 0.0
+                t["cost"] = 0.0
                 t["discount"] = 1.0
                 # initial state should be added to cache
                 add_to_cache(cache, envs[index].id, t)
@@ -180,9 +251,10 @@ def simulate(
         # step envs
         results = [e.step(a) for e, a in zip(envs, action)]
         results = [r() for r in results]
-        obs, reward, done = zip(*[p[:3] for p in results])
+        obs, reward, cost, done = zip(*[p[:4] for p in results])
         obs = list(obs)
         reward = list(reward)
+        cost = list(cost)
         done = np.stack(done)
         episode += int(done.sum())
         length += 1
@@ -190,7 +262,7 @@ def simulate(
         length *= 1 - done
         # add to cache
         for a, result, env in zip(action, results, envs):
-            o, r, d, info = result
+            o, r, c, d, info = result
             o = {k: convert(v) for k, v in o.items()}
             transition = o.copy()
             if isinstance(a, dict):
@@ -198,6 +270,7 @@ def simulate(
             else:
                 transition["action"] = a
             transition["reward"] = r
+            transition["cost"] = cost
             transition["discount"] = info.get("discount", np.array(1 - float(d)))
             add_to_cache(cache, env.id, transition)
 
@@ -208,6 +281,7 @@ def simulate(
                 save_episodes(directory, {envs[i].id: cache[envs[i].id]})
                 length = len(cache[envs[i].id]["reward"]) - 1
                 score = float(np.array(cache[envs[i].id]["reward"]).sum())
+                score_cost = float(np.array(cache[envs[i].id]["cost"]).sum())
                 video = cache[envs[i].id]["image"]
                 # record logs given from environments
                 for key in list(cache[envs[i].id].keys()):
@@ -222,6 +296,7 @@ def simulate(
                     step_in_dataset = erase_over_episodes(cache, limit)
                     logger.scalar(f"dataset_size", step_in_dataset)
                     logger.scalar(f"train_return", score)
+                    logger.scalar(f"train_cost", score_cost)
                     logger.scalar(f"train_length", length)
                     logger.scalar(f"train_episodes", len(cache))
                     logger.write(step=logger.step)
@@ -229,17 +304,21 @@ def simulate(
                     if not "eval_lengths" in locals():
                         eval_lengths = []
                         eval_scores = []
+                        eval_scores_cost = []
                         eval_done = False
                     # start counting scores for evaluation
                     eval_scores.append(score)
+                    eval_scores_cost.append(score_cost)
                     eval_lengths.append(length)
 
                     score = sum(eval_scores) / len(eval_scores)
+                    score_cost = sum(eval_scores_cost) / len(eval_scores_cost)
                     length = sum(eval_lengths) / len(eval_lengths)
                     logger.video(f"eval_policy", np.array(video)[None])
 
                     if len(eval_scores) >= episodes and not eval_done:
                         logger.scalar(f"eval_return", score)
+                        logger.scalar(f"eval_cost", score_cost)
                         logger.scalar(f"eval_length", length)
                         logger.scalar(f"eval_episodes", len(eval_scores))
                         logger.write(step=logger.step)
@@ -249,7 +328,7 @@ def simulate(
         while len(cache) > 1:
             # FIFO
             cache.popitem(last=False)
-    return (step - steps, episode - episodes, done, length, obs, agent_state, reward)
+    return (step - steps, episode - episodes, done, length, obs, agent_state, reward, cost)
 
 
 def add_to_cache(cache, id, transition):

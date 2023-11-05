@@ -48,7 +48,8 @@ class SafetyGym:
   
   def reset(self):
     self._env.reset()
-    obs = {}
+    obs = {"is_terminal": False,
+           'is_first':True}
     obs['image'] = self.render()
     if self._grayscale:
         obs['image'] = obs['image'][..., None]
@@ -65,6 +66,8 @@ class SafetyGym:
         break
     obs = {}
     obs['image'] = self.render()
+    obs['is_first'] = False
+    obs['is_terminal'] = terminated
     # plt.imshow( obs['image'])
     # plt.axis('off')
     # plt.show()

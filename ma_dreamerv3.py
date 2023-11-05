@@ -189,22 +189,31 @@ def make_env(config, mode):
     env = wrappers.NormalizeActions(env)
     env = wrappers.TimeLimit(env, config.time_limit)
     env = wrappers.SelectAction(env, key='action')
-    env = wrappers.RewardObs(env)
-    env = wrappers.CostObs(env)
+    # env = wrappers.RewardObs(env)
+    # env = wrappers.CostObs(env)
     env = wrappers.UUID(env)
-
     return env
 
+def set_test_paramters(config):
+  # For testing on my mac to prevent high ram usage
+  config.debug = True
+  config.pretrain =  1
+  config.prefill = 1
+  config.train_steps = 1
+  config.batch_size = 10
+  config.batch_length = 20
 
 def main(config):
     config_dict = config.__dict__
+    print(config_dict)
     config.task_type = '' # dmc or eempty string
     #dmc Humanoid-v4 'Hopper-v4'
     # 'Hopper-v4' SafetyWalker2dVelocity 'SafetyHalfCheetahVelocity-v1' 'SafetyPointCircle1-v0' SafetySwimmerVelocity-v1
     config.task = 'SafetyPointGoal1-v0'  #HalfCheetah-v4
     config.steps = 1e7
     config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-    if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
+    if sys.platform != 'linux': 
+        set_test_paramters(config)# if not zhuzun running so parameters for testing locally
     # print(config_dict)
     if sys.platform == 'linux': #not debugging on mac but running experiment
 
@@ -352,9 +361,8 @@ if __name__ == "__main__":
     parser.add_argument("--configs", nargs="+")
     args, remaining = parser.parse_known_args()
     configs = yaml.safe_load(
-        (pathlib.Path(sys.argv[0]).parent / "ma_configs.yaml").read_text()
+        (pathlib.Path(sys.argv[0]).parent / "ma_configsv3.yaml").read_text()
     )
-
     def recursive_update(base, update):
         for key, value in update.items():
             if isinstance(value, dict) and key in base:
