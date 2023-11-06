@@ -270,7 +270,7 @@ def simulate(
             else:
                 transition["action"] = a
             transition["reward"] = r
-            transition["cost"] = cost
+            transition["cost"] = c
             transition["discount"] = info.get("discount", np.array(1 - float(d)))
             add_to_cache(cache, env.id, transition)
 
@@ -386,7 +386,6 @@ def save_episodes(directory, episodes):
             with filename.open("wb") as f2:
                 f2.write(f1.read())
     return True
-
 
 def from_generator(generator, batch_size):
     while True:
