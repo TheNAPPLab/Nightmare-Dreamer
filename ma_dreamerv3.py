@@ -299,6 +299,7 @@ def main(config):
             logger,
             limit=config.dataset_size,
             steps=prefill,
+            online_mean_cost_calc = online_mean_cost_calc
         )
         logger.step += prefill * config.action_repeat
         print(f"Logger: ({logger.step} steps).")
