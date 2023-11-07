@@ -2,7 +2,7 @@ import datetime
 import gym
 import numpy as np
 import uuid
-
+import sys
 class NormalizeActions:
 
   def __init__(self, env):
@@ -188,8 +188,11 @@ class CostObs:
 
 
 class UUID(gym.Wrapper):
-    def __init__(self, env):
-        super().__init__(env)
+    def __init__(self, env, new_step_api=False):
+        if sys.platform == 'linux': 
+          super().__init__(env, new_step_api=new_step_api)   #* this
+        else:
+          super().__init__(env)
         timestamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
         self.id = f"{timestamp}-{str(uuid.uuid4().hex)}"
 

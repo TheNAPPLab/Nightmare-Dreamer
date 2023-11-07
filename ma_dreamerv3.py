@@ -193,7 +193,10 @@ def make_env(config, mode):
     env = wrappers.SelectAction(env, key='action')
     # env = wrappers.RewardObs(env)
     # env = wrappers.CostObs(env)
-    env = wrappers.UUID(env)
+    if sys.platform == 'linux': 
+        env = wrappers.UUID(env, True)
+    else:
+        env = wrappers.UUID(env)
     return env
 
 def set_test_paramters(config):
