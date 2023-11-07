@@ -77,19 +77,20 @@ class SaveVideoInteraction:
       dir = self.log_dir + "/eval_video.gif"
       imageio.mimsave(dir, upscaled_images, duration = 1.0 ) 
 
-class OnlineMeanCalculator:
-    def __init__(self):
-        self.count = 0
+class RollingMeanCalculator:
+    def __init__(self, window_size):
+        self.window_size = window_size
+        self.values = deque(maxlen=window_size)
         self.mean = 0.0
 
     def update(self, value):
-        self.count += 1
-        delta = value - self.mean
-        self.mean += delta / self.count
+        if len(self.values) == self.window_size:
+            self.mean -= self.values.popleft() / self.window_size
+        self.values.append(value)
+        self.mean += value / self.window_size
 
     def get_mean(self):
         return self.mean
-
 def symlog(x):
     return torch.sign(x) * torch.log(torch.abs(x) + 1.0)
 
