@@ -76,7 +76,7 @@ class SaveVideoInteraction:
         upscaled_images.append(np.array(modified_image))
       dir = self.log_dir + "/eval_video.gif"
       imageio.mimsave(dir, upscaled_images, duration = 1.0 ) 
-
+from collections import deque
 class RollingMeanCalculator:
     def __init__(self, window_size):
         self.window_size = window_size
