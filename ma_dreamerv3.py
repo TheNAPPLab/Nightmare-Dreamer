@@ -331,7 +331,7 @@ def main(config):
                 logger,
                 is_eval=True,
                 episodes=config.eval_episode_num,
-                online_cost_calculator = online_mean_cost_calc
+                online_mean_cost_calc = online_mean_cost_calc
             )
             if config.video_pred_log:
                 video_pred = agent._wm.video_pred(next(eval_dataset))
@@ -346,7 +346,7 @@ def main(config):
             limit=config.dataset_size,
             steps=config.eval_every,
             state=state,
-            online_cost_calculator = online_mean_cost_calc
+            online_mean_cost_calc = online_mean_cost_calc
         )
         items_to_save = {
             "agent_state_dict": agent.state_dict(),
