@@ -451,47 +451,47 @@ class ImagBehavior(nn.Module):
         
         if self._config.learn_safe_policy:
             with tools.RequiresGrad(self.safe_actor):
-            with torch.cuda.amp.autocast(self._use_amp):
-                safe_imag_feat, safe_imag_state, safe_imag_action = self._imagine(
-                    start, self.safe_actor, self._config.imag_horizon, repeats
-                )
-                reward_safe = objective(imag_feat, imag_state, imag_action)
-                cost = constrain(safe_imag_feat, safe_imag_state, safe_imag_action)
-                safe_actor_ent = self.safe_actor(safe_imag_feat).entropy()
-                safe_state_ent = self._world_model.dynamics.get_dist(safe_imag_state).entropy()
-                # this target is not scaled
-                # slow is flag to indicate whether slow_target is used for lambda-return
-                target_cost, weights_safe, base_safe = self._compute_target_cost(
-                    safe_imag_feat, safe_imag_state, safe_imag_action, cost, safe_actor_ent, safe_state_ent
-                )
-                safe_actor_loss, mets = self._compute_safe_actor_loss(
-                    safe_imag_feat,
-                    safe_imag_state,
-                    safe_imag_action,
-                    target_cost,
-                    safe_actor_ent,
-                    safe_state_ent,
-                    weights_safe,
-                    base_safe,
-                )
-                metrics.update(mets)
-                cost_value_input = safe_imag_feat
+                with torch.cuda.amp.autocast(self._use_amp):
+                    safe_imag_feat, safe_imag_state, safe_imag_action = self._imagine(
+                        start, self.safe_actor, self._config.imag_horizon, repeats
+                    )
+                    reward_safe = objective(imag_feat, imag_state, imag_action)
+                    cost = constrain(safe_imag_feat, safe_imag_state, safe_imag_action)
+                    safe_actor_ent = self.safe_actor(safe_imag_feat).entropy()
+                    safe_state_ent = self._world_model.dynamics.get_dist(safe_imag_state).entropy()
+                    # this target is not scaled
+                    # slow is flag to indicate whether slow_target is used for lambda-return
+                    target_cost, weights_safe, base_safe = self._compute_target_cost(
+                        safe_imag_feat, safe_imag_state, safe_imag_action, cost, safe_actor_ent, safe_state_ent
+                    )
+                    safe_actor_loss, mets = self._compute_safe_actor_loss(
+                        safe_imag_feat,
+                        safe_imag_state,
+                        safe_imag_action,
+                        target_cost,
+                        safe_actor_ent,
+                        safe_state_ent,
+                        weights_safe,
+                        base_safe,
+                    )
+                    metrics.update(mets)
+                    cost_value_input = safe_imag_feat
 
             with tools.RequiresGrad(self.cost_value):
-            with torch.cuda.amp.autocast(self._use_amp):
-                cost_value = self.cost_value(cost_value_input[:-1].detach())
-                target_cost = torch.stack(target_cost, dim=1)
-                # (time, batch, 1), (time, batch, 1) -> (time, batch)
-                cost_value_loss = -cost_value.log_prob(target_cost.detach())
-                slow_target_cost = self._slow_cost_value(cost_value_input[:-1].detach())
-                if self._config.slow_cost_value_target:
-                    cost_value_loss = cost_value_loss - cost_value.log_prob(
-                        slow_target_cost.mode().detach()
-                    )
-                if self._config.cost_value_decay:
-                    cost_value_loss += self._config.cost_value_decay * cost_value.mode()
-                # (time, batch, 1), (time, batch, 1) -> (1,)
-                cost_value_loss = torch.mean(weights_safe[:-1] * cost_value_loss[:, :, None])
+                with torch.cuda.amp.autocast(self._use_amp):
+                    cost_value = self.cost_value(cost_value_input[:-1].detach())
+                    target_cost = torch.stack(target_cost, dim=1)
+                    # (time, batch, 1), (time, batch, 1) -> (time, batch)
+                    cost_value_loss = -cost_value.log_prob(target_cost.detach())
+                    slow_target_cost = self._slow_cost_value(cost_value_input[:-1].detach())
+                    if self._config.slow_cost_value_target:
+                        cost_value_loss = cost_value_loss - cost_value.log_prob(
+                            slow_target_cost.mode().detach()
+                        )
+                    if self._config.cost_value_decay:
+                        cost_value_loss += self._config.cost_value_decay * cost_value.mode()
+                    # (time, batch, 1), (time, batch, 1) -> (1,)
+                    cost_value_loss = torch.mean(weights_safe[:-1] * cost_value_loss[:, :, None])
         
         metrics.update(tools.tensorstats(value.mode(), "value"))
         metrics.update(tools.tensorstats(target, "target"))
