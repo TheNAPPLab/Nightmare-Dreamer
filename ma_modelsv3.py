@@ -449,7 +449,8 @@ class ImagBehavior(nn.Module):
                 # (time, batch, 1), (time, batch, 1) -> (1,)
                 value_loss = torch.mean(weights[:-1] * value_loss[:, :, None])
         
-        with tools.RequiresGrad(self.safe_actor):
+        if self._config.learn_safe_policy:
+            with tools.RequiresGrad(self.safe_actor):
             with torch.cuda.amp.autocast(self._use_amp):
                 safe_imag_feat, safe_imag_state, safe_imag_action = self._imagine(
                     start, self.safe_actor, self._config.imag_horizon, repeats
@@ -476,7 +477,7 @@ class ImagBehavior(nn.Module):
                 metrics.update(mets)
                 cost_value_input = safe_imag_feat
 
-        with tools.RequiresGrad(self.cost_value):
+            with tools.RequiresGrad(self.cost_value):
             with torch.cuda.amp.autocast(self._use_amp):
                 cost_value = self.cost_value(cost_value_input[:-1].detach())
                 target_cost = torch.stack(target_cost, dim=1)
@@ -493,11 +494,15 @@ class ImagBehavior(nn.Module):
                 cost_value_loss = torch.mean(weights_safe[:-1] * cost_value_loss[:, :, None])
         
         metrics.update(tools.tensorstats(value.mode(), "value"))
-        metrics.update(tools.tensorstats(cost_value.mode(), "cost_value"))
         metrics.update(tools.tensorstats(target, "target"))
-        metrics.update(tools.tensorstats(target_cost, "target_cost"))
         metrics.update(tools.tensorstats(reward, "imag_reward"))
-        metrics.update(tools.tensorstats(cost, "imag_cost"))
+       
+        if self._config.learn_safe_policy:
+            metrics.update(tools.tensorstats(cost_value.mode(), "cost_value"))
+            metrics.update(tools.tensorstats(target_cost, "target_cost"))
+            metrics.update(tools.tensorstats(cost, "imag_cost"))
+            metrics["safe_actor_entropy"] = to_np(torch.mean(safe_actor_ent))
+
         if self._config.actor_dist in ["onehot"]:
             metrics.update(
                 tools.tensorstats(
@@ -506,15 +511,18 @@ class ImagBehavior(nn.Module):
             )
         else:
             metrics.update(tools.tensorstats(imag_action, "imag_action"))
+            if self._config.learn_safe_policy:
+                metrics.update(tools.tensorstats(safe_imag_action, "safe_imag_action"))
         metrics["actor_entropy"] = to_np(torch.mean(actor_ent))
-        metrics["safe_actor_entropy"] = to_np(torch.mean(safe_actor_ent))
+       
         with tools.RequiresGrad(self):
             metrics.update(self._actor_opt(actor_loss, self.actor.parameters()))
             metrics.update(self._value_opt(value_loss, self.value.parameters()))
 
             #safe actor parameters
-            metrics.update(self._safe_actor_opt(safe_actor_loss, self.safe_actor.parameters()))
-            metrics.update(self._value_opt(cost_value_loss, self.cost_value.parameters()))
+            if self._config.learn_safe_policy:
+                metrics.update(self._safe_actor_opt(safe_actor_loss, self.safe_actor.parameters()))
+                metrics.update(self._cost_value_opt(cost_value_loss, self.cost_value.parameters()))
         return imag_feat, imag_state, imag_action, weights, metrics
 
     def _imagine(self, start, policy, horizon, repeats=None):

@@ -140,6 +140,7 @@ safetygym:
   slow_cost_value_target : True
   safe_actor_state_entropy: 0.0
   safe_actor_entropy: 3e-4
+  learn_safe_policy: True
   
 
 debug:
