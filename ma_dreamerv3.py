@@ -118,15 +118,19 @@ class Dreamer(nn.Module):
         if self._config.eval_state_mean:
             latent["stoch"] = latent["mean"]
         feat = self._wm.dynamics.get_feat(latent)
+        constraint_violated = self._is_future_safety_violated(latent)
         # insert safe actor here
         if not training:
-            actor = self._task_behavior.actor(feat)
+            actor = self._task_behavior.safe_actor(feat) if self._config.use_safe_actor and constraint_violated \
+               else self._task_behavior.actor(feat) 
             action = actor.mode()
         elif self._should_expl(self._step):
-            actor = self._expl_behavior.actor(feat)
+            actor = self._expl_behavior.safe_actor(feat) if self._config.use_safe_actor and constraint_violated \
+                else self._expl_behavior.actor(feat)
             action = actor.sample()
         else:
-            actor = self._task_behavior.actor(feat)
+            actor = self._task_behavior.safe_actor(feat) if self._config.use_safe_actor and constraint_violated \
+                else self._task_behavior.actor(feat)
             action = actor.sample()
         logprob = actor.log_prob(action)
         latent = {k: v.detach() for k, v in latent.items()}
@@ -136,7 +140,8 @@ class Dreamer(nn.Module):
                 torch.argmax(action, dim=-1), self._config.num_actions
             )
         action = self._exploration(action, training)
-        policy_output = {"action": action, "logprob": logprob}
+        c_violated = 1 if constraint_violated else 0
+        policy_output = {"action": action, "logprob": logprob, 'constraint_violated': torch.tensor([c_violated])}
         state = (latent, action)
         return policy_output, state
 
@@ -171,6 +176,24 @@ class Dreamer(nn.Module):
             else:
                 self._metrics[name].append(value)
 
+    def _is_future_safety_violated(self, posterior_t, is_eval = False):
+        '''
+        Starting from current state we roll out using learned model
+        to forcast constraint violation under control policy
+        '''
+        total_cost = 0
+        cost_fn = lambda f, s, a: self._wm.heads['cost'](f).mode()
+        with torch.no_grad():
+            latent_state = posterior_t
+            for _ in range(self._config.safety_look_ahead_steps):
+                feat = self._wm.dynamics.get_feat(latent_state)
+                c_t = cost_fn(feat,_,_).item()
+                total_cost += c_t
+                control_actor = self._task_behavior.actor(feat)
+                control_action = control_actor.sample() if not is_eval  else control_actor.mode()
+                latent_state = self._wm.dynamics.img_step(latent_state, control_action, sample = self._config.imag_sample)
+        is_violation = total_cost >= self._config.cost_threshold
+        return is_violation
 
 def count_steps(folder):
     return sum(int(str(n).split("-")[-1][:-4]) - 1 for n in folder.glob("*.npz"))
@@ -289,7 +312,7 @@ def main(config):
         def random_agent(o, d, s):
             action = random_actor.sample()
             logprob = random_actor.log_prob(action)
-            return {"action": action, "logprob": logprob}, None
+            return {"action": action, "logprob": logprob, 'constraint_violated': torch.tensor([0])}, None
 
         state = tools.simulate(
             random_agent,

@@ -238,6 +238,7 @@ def simulate(
                 # action will be added to transition in add_to_cache
                 t["reward"] = 0.0
                 t["cost"] = 0.0
+                t['detect_violation'] = 0
                 t["discount"] = 1.0
                 # initial state should be added to cache
                 add_to_cache(cache, envs[index].id, t)
@@ -277,6 +278,7 @@ def simulate(
                 transition["action"] = a
             transition["reward"] = r
             transition["cost"] = c
+            transition["detect_violation"] = a['constraint_violated'].item()
             transition["discount"] = info.get("discount", np.array(1 - float(d)))
             add_to_cache(cache, env.id, transition)
 
@@ -288,7 +290,8 @@ def simulate(
                 length = len(cache[envs[i].id]["reward"]) - 1
                 score = float(np.array(cache[envs[i].id]["reward"]).sum())
                 score_cost = float(np.array(cache[envs[i].id]["cost"]).sum())
-                video = cache[envs[i].id]["image"]
+                violation_detection = float(np.array(cache[envs[i].id]["detect_violation"]).sum())
+                #video = cache[envs[i].id]["image"]
                 # record logs given from environments
                 for key in list(cache[envs[i].id].keys()):
                     if "log_" in key:
@@ -306,6 +309,7 @@ def simulate(
                     logger.scalar(f"train_cost", score_cost)
                     logger.scalar(f"train_length", length)
                     logger.scalar(f"train_episodes", len(cache))
+                    logger.scalar(f"violation_detection", violation_detection)
                     logger.scalar(f"online_cost", online_mean_cost_calc.get_mean())
                     logger.write(step=logger.step)
                 else:
@@ -322,7 +326,7 @@ def simulate(
                     score = sum(eval_scores) / len(eval_scores)
                     score_cost = sum(eval_scores_cost) / len(eval_scores_cost)
                     length = sum(eval_lengths) / len(eval_lengths)
-                    logger.video(f"eval_policy", np.array(video)[None])
+                    # logger.video(f"eval_policy", np.array(video)[None])
 
                     if len(eval_scores) >= episodes and not eval_done:
                         logger.scalar(f"eval_return", score)

@@ -143,6 +143,11 @@ safetygym:
   learn_safe_policy: True
   
 
+  #Env interaction
+  safety_look_ahead_steps: 15
+  use_safe_actor: False
+  cost_threshold: 3
+
 debug:
   debug: True
   pretrain: 1
