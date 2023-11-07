@@ -109,6 +109,31 @@ class WorldModel(nn.Module):
                 outscale=0.0,
                 device=config.device,
             )
+        #cost model
+        if config.cost_head == "symlog_disc":
+            self.heads["cost"] = networks.MLP(
+                feat_size,  # pytorch version
+                (255,),
+                config.cost_layers,
+                config.units,
+                config.act,
+                config.norm,
+                dist=config.cost_head,
+                outscale=0.0,
+                device=config.device,
+            )
+        else:
+            self.heads["reward"] = networks.MLP(
+                feat_size,  # pytorch version
+                [],
+                config.cost_layers,
+                config.units,
+                config.act,
+                config.norm,
+                dist=config.cost_layers,
+                outscale=0.0,
+                device=config.device,
+            )
         self.heads["cont"] = networks.MLP(
             feat_size,  # pytorch version
             [],
@@ -131,12 +156,13 @@ class WorldModel(nn.Module):
             opt=config.opt,
             use_amp=self._use_amp,
         )
-        self._scales = dict(reward=config.reward_scale, cont=config.cont_scale)
+        self._scales = dict(reward=config.reward_scale, cost = config.cost_scale, cont=config.cont_scale)
 
     def _train(self, data):
         # action (batch_size, batch_length, act_dim)
         # image (batch_size, batch_length, h, w, ch)
         # reward (batch_size, batch_length)
+        # cost (batch_size, batch_length)
         # discount (batch_size, batch_length)
         data = self.preprocess(data)
 
@@ -233,18 +259,34 @@ class WorldModel(nn.Module):
 
 
 class ImagBehavior(nn.Module):
-    def __init__(self, config, world_model, stop_grad_actor=True, reward=None):
+    def __init__(self, config, world_model, stop_grad_actor=True, reward=None, cost=None):
         super(ImagBehavior, self).__init__()
         self._use_amp = True if config.precision == 16 else False
         self._config = config
         self._world_model = world_model
         self._stop_grad_actor = stop_grad_actor
         self._reward = reward
+        self._cost = cost
         if config.dyn_discrete:
             feat_size = config.dyn_stoch * config.dyn_discrete + config.dyn_deter
         else:
             feat_size = config.dyn_stoch + config.dyn_deter
         self.actor = networks.ActionHead(
+            feat_size,
+            config.num_actions,
+            config.actor_layers,
+            config.units,
+            config.act,
+            config.norm,
+            config.actor_dist,
+            config.actor_init_std,
+            config.actor_min_std,
+            config.actor_max_std,
+            config.actor_temp,
+            outscale=1.0,
+            unimix_ratio=config.action_unimix_ratio,
+        )
+        self.safe_actor = networks.ActionHead(
             feat_size,
             config.num_actions,
             config.actor_layers,
@@ -283,13 +325,46 @@ class ImagBehavior(nn.Module):
                 outscale=0.0,
                 device=config.device,
             )
+        if config.cost_value_head == "symlog_disc":
+            self.cost_value = networks.MLP(
+                feat_size,
+                (255,),
+                config.cost_value_layers,
+                config.units,
+                config.act,
+                config.norm,
+                config.cost_value_head,
+                outscale=0.0,
+                device=config.device,
+            )
+        else:
+            self.value = networks.MLP(
+                feat_size,
+                [],
+                config.cost_value_layers,
+                config.units,
+                config.act,
+                config.norm,
+                config.cost_value_head,
+                outscale=0.0,
+                device=config.device,
+            )
         if config.slow_value_target:
             self._slow_value = copy.deepcopy(self.value)
+            self._slow_cost_value = copy.deepcopy(self.cost_value)
             self._updates = 0
         kw = dict(wd=config.weight_decay, opt=config.opt, use_amp=self._use_amp)
         self._actor_opt = tools.Optimizer(
             "actor",
             self.actor.parameters(),
+            config.actor_lr,
+            config.ac_opt_eps,
+            config.actor_grad_clip,
+            **kw,
+        )
+        self._safe_actor_opt = tools.Optimizer(
+            "safe_actor",
+            self.safe_actor.parameters(),
             config.actor_lr,
             config.ac_opt_eps,
             config.actor_grad_clip,
@@ -303,13 +378,24 @@ class ImagBehavior(nn.Module):
             config.value_grad_clip,
             **kw,
         )
+        self._cost_value_opt = tools.Optimizer(
+            "cost_value",
+            self.value.parameters(),
+            config.value_lr,
+            config.ac_opt_eps,
+            config.value_grad_clip,
+            **kw,
+        )
         if self._config.reward_EMA:
             self.reward_ema = RewardEMA(device=self._config.device)
+        if self._config.cost_EMA:
+            self.cost_ema = CostEMA(device=self._config.device)
 
     def _train(
         self,
         start,
         objective=None,
+        constrain=None,
         action=None,
         reward=None,
         imagine=None,
@@ -317,6 +403,7 @@ class ImagBehavior(nn.Module):
         repeats=None,
     ):
         objective = objective or self._reward
+        constrain = constrain or self._cost
         self._update_slow_target()
         metrics = {}
 
@@ -361,10 +448,56 @@ class ImagBehavior(nn.Module):
                     value_loss += self._config.value_decay * value.mode()
                 # (time, batch, 1), (time, batch, 1) -> (1,)
                 value_loss = torch.mean(weights[:-1] * value_loss[:, :, None])
+        
+        with tools.RequiresGrad(self.safe_actor):
+            with torch.cuda.amp.autocast(self._use_amp):
+                safe_imag_feat, safe_imag_state, safe_imag_action = self._imagine(
+                    start, self.safe_actor, self._config.imag_horizon, repeats
+                )
+                reward_safe = objective(imag_feat, imag_state, imag_action)
+                cost = constrain(safe_imag_feat, safe_imag_state, safe_imag_action)
+                safe_actor_ent = self.safe_actor(safe_imag_feat).entropy()
+                safe_state_ent = self._world_model.dynamics.get_dist(safe_imag_state).entropy()
+                # this target is not scaled
+                # slow is flag to indicate whether slow_target is used for lambda-return
+                target_cost, weights_safe, base_safe = self._compute_target_cost(
+                    safe_imag_feat, safe_imag_state, safe_imag_action, cost, safe_actor_ent, safe_state_ent
+                )
+                safe_actor_loss, mets = self._compute_safe_actor_loss(
+                    safe_imag_feat,
+                    safe_imag_state,
+                    safe_imag_action,
+                    target_cost,
+                    safe_actor_ent,
+                    safe_state_ent,
+                    weights_safe,
+                    base_safe,
+                )
+                metrics.update(mets)
+                cost_value_input = safe_imag_feat
 
+        with tools.RequiresGrad(self.cost_value):
+            with torch.cuda.amp.autocast(self._use_amp):
+                cost_value = self.cost_value(cost_value_input[:-1].detach())
+                target_cost = torch.stack(target_cost, dim=1)
+                # (time, batch, 1), (time, batch, 1) -> (time, batch)
+                cost_value_loss = -cost_value.log_prob(target_cost.detach())
+                slow_target_cost = self._slow_cost_value(cost_value_input[:-1].detach())
+                if self._config.slow_cost_value_target:
+                    cost_value_loss = cost_value_loss - cost_value.log_prob(
+                        slow_target_cost.mode().detach()
+                    )
+                if self._config.cost_value_decay:
+                    cost_value_loss += self._config.cost_value_decay * cost_value.mode()
+                # (time, batch, 1), (time, batch, 1) -> (1,)
+                cost_value_loss = torch.mean(weights_safe[:-1] * cost_value_loss[:, :, None])
+        
         metrics.update(tools.tensorstats(value.mode(), "value"))
+        metrics.update(tools.tensorstats(cost_value.mode(), "cost_value"))
         metrics.update(tools.tensorstats(target, "target"))
+        metrics.update(tools.tensorstats(target_cost, "target_cost"))
         metrics.update(tools.tensorstats(reward, "imag_reward"))
+        metrics.update(tools.tensorstats(cost, "imag_cost"))
         if self._config.actor_dist in ["onehot"]:
             metrics.update(
                 tools.tensorstats(
@@ -374,9 +507,14 @@ class ImagBehavior(nn.Module):
         else:
             metrics.update(tools.tensorstats(imag_action, "imag_action"))
         metrics["actor_entropy"] = to_np(torch.mean(actor_ent))
+        metrics["safe_actor_entropy"] = to_np(torch.mean(safe_actor_ent))
         with tools.RequiresGrad(self):
             metrics.update(self._actor_opt(actor_loss, self.actor.parameters()))
             metrics.update(self._value_opt(value_loss, self.value.parameters()))
+
+            #safe actor parameters
+            metrics.update(self._safe_actor_opt(safe_actor_loss, self.safe_actor.parameters()))
+            metrics.update(self._value_opt(cost_value_loss, self.cost_value.parameters()))
         return imag_feat, imag_state, imag_action, weights, metrics
 
     def _imagine(self, start, policy, horizon, repeats=None):
@@ -428,6 +566,32 @@ class ImagBehavior(nn.Module):
             torch.cat([torch.ones_like(discount[:1]), discount[:-1]], 0), 0
         ).detach()
         return target, weights, value[:-1]
+    
+    def _compute_target_cost(
+        self, safe_imag_feat, safe_imag_state, safe_imag_action, cost, safe_actor_ent, safe_state_ent
+    ):
+        if "cont" in self._world_model.heads:
+            inp = self._world_model.dynamics.get_feat(safe_imag_state)
+            discount = self._config.discount * self._world_model.heads["cont"](inp).mean
+        else:
+            discount = self._config.discount * torch.ones_like(cost)
+        if self._config.future_entropy and self._config.actor_entropy > 0:
+            cost += self._config.safe_actor_entropy * safe_actor_ent
+        if self._config.future_entropy and self._config.actor_state_entropy > 0:
+            cost += self._config.safe_actor_state_entropy * safe_state_ent
+        cost_value = self.cost_value(safe_imag_feat).mode()
+        target_cost = tools.lambda_return(
+            cost[1:],
+            cost_value[:-1],
+            discount[1:],
+            bootstrap=cost_value[-1],
+            lambda_=self._config.discount_lambda,
+            axis=0,
+        )
+        weights = torch.cumprod(
+            torch.cat([torch.ones_like(discount[:1]), discount[:-1]], 0), 0
+        ).detach()
+        return target_cost, weights, cost_value[:-1]
 
     def _compute_actor_loss(
         self,
@@ -483,10 +647,53 @@ class ImagBehavior(nn.Module):
         actor_loss = -torch.mean(weights[:-1] * actor_target)
         return actor_loss, metrics
 
+    def _compute_safe_actor_loss(
+        self,
+        safe_imag_feat,
+        safe_imag_state,
+        safe_imag_action,
+        target_cost,
+        safe_actor_ent,
+        safe_state_ent,
+        weights,
+        base,
+    ):
+        metrics = {}
+        inp = safe_imag_feat.detach() if self._stop_grad_actor else safe_imag_feat
+        safe_policy = self.safe_actor(inp)
+        safe_actor_ent = safe_policy.entropy()
+        # Q-val for actor is not transformed using symlog
+        target_cost = torch.stack(target_cost, dim=1)
+        if self._config.cost_EMA:
+            offset, scale = self.cost_ema(target_cost)
+            normed_target_cost = (target_cost - offset) / scale
+            normed_base = (base - offset) / scale
+            cost_adv = normed_target_cost - normed_base
+            metrics.update(tools.tensorstats(normed_target_cost, "normed_target_cost"))
+            cost_values = self.cost_ema.values
+            metrics["EMA_005"] = to_np(cost_values[0])
+            metrics["EMA_095"] = to_np(cost_values[1])
+
+        
+        safe_actor_target = cost_adv
+
+        if not self._config.future_entropy and self._config.actor_entropy > 0:
+            safe_actor_entropy = self._config.actor_entropy * safe_actor_ent[:-1][:, :, None]
+            safe_actor_target += safe_actor_entropy
+        if not self._config.future_entropy and (self._config.actor_state_entropy > 0):
+            safe_state_entropy = self._config.actor_state_entropy * safe_state_ent[:-1]
+            safe_actor_target += safe_state_entropy
+            metrics["safe_actor_state_entropy"] = to_np(torch.mean(safe_state_entropy))
+        safe_actor_loss = -torch.mean(weights[:-1] * safe_actor_target)
+        return safe_actor_loss, metrics
+
     def _update_slow_target(self):
         if self._config.slow_value_target:
             if self._updates % self._config.slow_target_update == 0:
                 mix = self._config.slow_target_fraction
                 for s, d in zip(self.value.parameters(), self._slow_value.parameters()):
+                    d.data = mix * s.data + (1 - mix) * d.data
+
+                for s, d in zip(self.cost_value.parameters(), self._slow_cost_value.parameters()):
                     d.data = mix * s.data + (1 - mix) * d.data
             self._updates += 1

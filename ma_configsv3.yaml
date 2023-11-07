@@ -124,8 +124,23 @@ defaults:
 
 
 
+safetygym:
+  # Safe Model
+  cost_head: 'symlog_disc'
+  cost_value_head: 'symlog_disc'
+  cost_layers: 2
+  cost_value_layers: 2
+  cost_EMA: True
+  grad_heads: ['decoder', 'reward', 'cont', 'cost']
+  cost_scale: 1.0
 
 
+  #Safe Behavior
+  cost_value_decay: 0.0
+  slow_cost_value_target : True
+  safe_actor_state_entropy: 0.0
+  safe_actor_entropy: 3e-4
+  
 
 debug:
   debug: True

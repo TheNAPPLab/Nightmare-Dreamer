@@ -2,7 +2,7 @@ import numpy as np
 import gym
 import safety_gymnasium
 import gymnasium
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 '''
 The camera_name parameter can be chosen from:

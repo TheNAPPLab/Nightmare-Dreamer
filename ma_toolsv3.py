@@ -15,7 +15,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from torch import distributions as torchd
-from torch.utils.tensorboard import SummaryWriter
+#from torch.utils.tensorboard import SummaryWriter
 from PIL import Image, ImageDraw, ImageFont
 import imageio
 
@@ -127,7 +127,7 @@ class TimeRecording:
 class Logger:
     def __init__(self, logdir, step):
         self._logdir = logdir
-        self._writer = SummaryWriter(log_dir=str(logdir), max_queue=1000)
+        # self._writer = SummaryWriter(log_dir=str(logdir), max_queue=1000)
         self._last_step = None
         self._last_time = None
         self._scalars = {}
@@ -153,11 +153,15 @@ class Logger:
         print(f"[{step}]", " / ".join(f"{k} {v:.1f}" for k, v in scalars))
         with (self._logdir / "metrics.jsonl").open("a") as f:
             f.write(json.dumps({"step": step, **dict(scalars)}) + "\n")
-        for name, value in scalars:
-            if "/" not in name:
-                self._writer.add_scalar("scalars/" + name, value, step)
-            else:
-                self._writer.add_scalar(name, value, step)
+
+        #tensorboard code
+        # for name, value in scalars:
+            # if "/" not in name:
+            #     self._writer.add_scalar("scalars/" + name, value, step)
+            # else:
+            #     self._writer.add_scalar(name, value, step)
+
+
         # for name, value in self._images.items():
         #     self._writer.add_image(name, value, step)
         # for name, value in self._videos.items():
@@ -170,7 +174,7 @@ class Logger:
         if sys.platform == 'linux': 
             wandb.log(self._scalars, step = self.step)
 
-        self._writer.flush()
+        #self._writer.flush()
         self._scalars = {}
         self._images = {}
         self._videos = {}
@@ -208,6 +212,7 @@ def simulate(
     steps=0,
     episodes=0,
     state=None,
+    online_mean_cost_calc = None
 ):
     # initialize or unpack simulation state
     if state is None:
@@ -293,12 +298,14 @@ def simulate(
                         cache[envs[i].id].pop(key)
 
                 if not is_eval:
+                    online_mean_cost_calc.update(score_cost)
                     step_in_dataset = erase_over_episodes(cache, limit)
                     logger.scalar(f"dataset_size", step_in_dataset)
                     logger.scalar(f"train_return", score)
                     logger.scalar(f"train_cost", score_cost)
                     logger.scalar(f"train_length", length)
                     logger.scalar(f"train_episodes", len(cache))
+                    logger.scalar(f"online_cost", online_mean_cost_calc.get_mean())
                     logger.write(step=logger.step)
                 else:
                     if not "eval_lengths" in locals():

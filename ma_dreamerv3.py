@@ -28,6 +28,8 @@ from torch import distributions as torchd
 
 to_np = lambda x: x.detach().cpu().numpy()
 
+online_mean_cost_calc = tools.RollingMeanCalculator(50)
+VideoInteractionSaver = tools.SaveVideoInteraction()
 
 class Dreamer(nn.Module):
     def __init__(self, obs_space, act_space, config, logger, dataset):
@@ -159,7 +161,7 @@ class Dreamer(nn.Module):
         cost = lambda f, s, a: self._wm.heads["cost"](
             self._wm.dynamics.get_feat(s)
         ).mode()
-        metrics.update(self._task_behavior._train(start, reward)[-1])
+        metrics.update(self._task_behavior._train(start, reward, cost)[-1])
         if self._config.expl_behavior != "greedy":
             mets = self._expl_behavior.train(start, context, data)[-1]
             metrics.update({"expl_" + key: value for key, value in mets.items()})
@@ -329,6 +331,7 @@ def main(config):
                 logger,
                 is_eval=True,
                 episodes=config.eval_episode_num,
+                online_cost_calculator = online_mean_cost_calc
             )
             if config.video_pred_log:
                 video_pred = agent._wm.video_pred(next(eval_dataset))
@@ -343,6 +346,7 @@ def main(config):
             limit=config.dataset_size,
             steps=config.eval_every,
             state=state,
+            online_cost_calculator = online_mean_cost_calc
         )
         items_to_save = {
             "agent_state_dict": agent.state_dict(),
@@ -370,7 +374,8 @@ if __name__ == "__main__":
             else:
                 base[key] = value
 
-    name_list = ["defaults", *args.configs] if args.configs else ["defaults"]
+    #name_list = ["defaults", *args.configs] if args.configs else ["defaults"]
+    name_list = ["defaults", "safetygym"] 
     defaults = {}
     for name in name_list:
         recursive_update(defaults, configs[name])
