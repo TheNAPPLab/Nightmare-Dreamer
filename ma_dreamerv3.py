@@ -6,6 +6,7 @@ import sys
 import wandb
 
 if sys.platform == 'linux':
+    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
     os.environ['MUJOCO_GL'] = 'egl'
     #os.environ["MUJOCO_GL"] = "osmesa"
 

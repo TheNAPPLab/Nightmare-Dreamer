@@ -162,8 +162,8 @@ safetygym:
   #Lagrange and cost Budget
   init_cost_limit: 80
   min_cost_budget: 12
-  start_cost_decay_step: 100_000
-  cost_decay_freq: 20_000
+  start_cost_decay_step: 80_000
+  cost_decay_freq: 10_000
 
   lamda_projection: 'relu'
   lambda_lr: 0.0035
