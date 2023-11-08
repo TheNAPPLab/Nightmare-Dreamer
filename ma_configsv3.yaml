@@ -21,7 +21,7 @@ defaults:
   video_pred_log: False
 
   # Environment
-  task: 'dmc_walker_walk'
+  task: 'SafetyPointCircle1-v0' #'Hopper-v4' SafetyWalker2dVelocity 'SafetyHalfCheetahVelocity-v1' 'SafetyPointCircle1-v0' SafetySwimmerVelocity-v1
   size: [64, 64]
   envs: 1
   action_repeat: 2
@@ -154,7 +154,7 @@ safetygym:
   discriminator_units: 200
   discrimiator_lr: 1e-3
   discriminator_grad_clip: 100
-  
+
   #Behavior Cloning
   behavior_cloning: 'discriminator'
   behavior_clone_scale: 1
