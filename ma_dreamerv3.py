@@ -166,7 +166,8 @@ class Dreamer(nn.Module):
         cost = lambda f, s, a: self._wm.heads["cost"](
             self._wm.dynamics.get_feat(s)
         ).mode()
-        metrics.update(self._task_behavior._train(start, reward, cost)[-1])
+        metrics.update(self._task_behavior._train(start, reward, cost, \
+                            mean_ep_cost=online_mean_cost_calc.get_mean(), training_step = self._logger.step )[-1])
         if self._config.expl_behavior != "greedy":
             mets = self._expl_behavior.train(start, context, data)[-1]
             metrics.update({"expl_" + key: value for key, value in mets.items()})
@@ -237,17 +238,12 @@ def main(config):
     config.task_type = '' # dmc or eempty string
     #dmc Humanoid-v4 'Hopper-v4'
     # 'Hopper-v4' SafetyWalker2dVelocity 'SafetyHalfCheetahVelocity-v1' 'SafetyPointCircle1-v0' SafetySwimmerVelocity-v1
-    config.task = 'SafetyPointGoal1-v0'  #HalfCheetah-v4
+    config.task = 'SafetyPointCircle1-v0'  #HalfCheetah-v4
     config.steps = 1e7
     config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     if sys.platform != 'linux': 
         set_test_paramters(config)# if not zhuzun running so parameters for testing locally
-    # print(config_dict)
     if sys.platform == 'linux': #not debugging on mac but running experiment
-
-        # run =  wandb.init(project='Safe RL via Latent world models Setup mac', config = config_dict) \
-        # if sys.platform != 'linux' else wandb.init(project='Safe RL via Latent world models Setup', config = config_dict)
-
         run = wandb.init(project='Safe RL via Latent world models Setup', config = config_dict)
         #run = wandb.init(project='Nightmare Dreamer', config = config_dict)
     tools.set_seed_everywhere(config.seed)

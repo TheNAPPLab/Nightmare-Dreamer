@@ -148,6 +148,29 @@ safetygym:
   use_safe_actor: False
   cost_threshold: 3
 
+  # discriminator
+  learn_discriminator: True
+  
+  #Behavior Cloning
+  behavior_cloning: 'discriminator'
+  behavior_clone_scale: 1
+  discriminator_layers: 2
+  discriminator_units: 200
+  discrimiator_lr: 1e-3
+  discriminator_grad_clip: 100
+
+  #Lagrange and cost Budget
+  init_cost_limit: 80
+  min_cost_budget: 25
+  start_cost_decay_step: 100_000
+  cost_decay_freq: 20_000
+
+  lamda_projection: 'relu'
+  lambda_lr: 0.0035
+  lagrangian_multiplier_init: 0.001 
+  max_lagrangian: 0.5
+  min_lagrangian: 0.1
+
 debug:
   debug: True
   pretrain: 1

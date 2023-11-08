@@ -3,6 +3,8 @@ import torch
 from torch import nn
 import numpy as np
 from PIL import ImageColor, Image, ImageDraw, ImageFont
+import torch.nn.functional as F
+import torch.optim as optim
 
 import ma_networksv3 as networks
 import ma_toolsv3 as tools
@@ -257,7 +259,6 @@ class WorldModel(nn.Module):
 
         return torch.cat([truth, model, error], 2)
 
-
 class ImagBehavior(nn.Module):
     def __init__(self, config, world_model, stop_grad_actor=True, reward=None, cost=None):
         super(ImagBehavior, self).__init__()
@@ -338,7 +339,7 @@ class ImagBehavior(nn.Module):
                 device=config.device,
             )
         else:
-            self.value = networks.MLP(
+            self.cost_value = networks.MLP(
                 feat_size,
                 [],
                 config.cost_value_layers,
@@ -349,6 +350,10 @@ class ImagBehavior(nn.Module):
                 outscale=0.0,
                 device=config.device,
             )
+        if self._config.learn_discriminator:
+            self.discriminator = networks.Discriminator(
+                feat_size +  config.num_actions,
+                [], config.discriminator_layers, config.discriminator_units)
         if config.slow_value_target:
             self._slow_value = copy.deepcopy(self.value)
             self._slow_cost_value = copy.deepcopy(self.cost_value)
@@ -386,10 +391,17 @@ class ImagBehavior(nn.Module):
             config.value_grad_clip,
             **kw,
         )
+        if self._config.learn_discriminator:
+            self._discriminator_opt = tools.Optimizer(
+            'discriminator', self.discriminator.parameters(), config.discrimiator_lr, config.ac_opt_eps, config.discriminator_grad_clip,
+            **kw
+        )
         if self._config.reward_EMA:
             self.reward_ema = RewardEMA(device=self._config.device)
         if self._config.cost_EMA:
             self.cost_ema = CostEMA(device=self._config.device)
+        self._declare_lagrnagian()
+        self.cost_limit = self._config.init_cost_limit
 
     def _train(
         self,
@@ -401,11 +413,16 @@ class ImagBehavior(nn.Module):
         imagine=None,
         tape=None,
         repeats=None,
+        mean_ep_cost = 0, 
+        training_step = 0
     ):
         objective = objective or self._reward
         constrain = constrain or self._cost
         self._update_slow_target()
         metrics = {}
+
+        mets_lag = self._update_lag(training_step, mean_ep_cost)
+        metrics.update(mets_lag)
 
         with tools.RequiresGrad(self.actor):
             with torch.cuda.amp.autocast(self._use_amp):
@@ -493,6 +510,11 @@ class ImagBehavior(nn.Module):
                     # (time, batch, 1), (time, batch, 1) -> (1,)
                     cost_value_loss = torch.mean(weights_safe[:-1] * cost_value_loss[:, :, None])
         
+            if self._config.learn_discriminator:
+                with tools.RequiresGrad(self.discriminator):
+                    with torch.cuda.amp.autocast(self._use_amp):
+                        discrimiator_loss = self._compute_discrimiator_loss(safe_imag_action, safe_imag_feat,\
+                                                    imag_action, imag_feat )
         metrics.update(tools.tensorstats(value.mode(), "value"))
         metrics.update(tools.tensorstats(target, "target"))
         metrics.update(tools.tensorstats(reward, "imag_reward"))
@@ -523,6 +545,9 @@ class ImagBehavior(nn.Module):
             if self._config.learn_safe_policy:
                 metrics.update(self._safe_actor_opt(safe_actor_loss, self.safe_actor.parameters()))
                 metrics.update(self._cost_value_opt(cost_value_loss, self.cost_value.parameters()))
+
+            if self._config.learn_discriminator:
+                metrics.update(self._discriminator_opt(discrimiator_loss, self.discriminator.parameters()))
         return imag_feat, imag_state, imag_action, weights, metrics
 
     def _imagine(self, start, policy, horizon, repeats=None):
@@ -679,11 +704,17 @@ class ImagBehavior(nn.Module):
             cost_adv = normed_target_cost - normed_base
             metrics.update(tools.tensorstats(normed_target_cost, "normed_target_cost"))
             cost_values = self.cost_ema.values
-            metrics["EMA_005"] = to_np(cost_values[0])
-            metrics["EMA_095"] = to_np(cost_values[1])
+            metrics["Cost_EMA_005"] = to_np(cost_values[0])
+            metrics["Cost_EMA_095"] = to_np(cost_values[1])
 
-        
-        safe_actor_target = cost_adv
+        penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item()
+        safe_actor_target = penalty * -cost_adv
+
+        if self._config.behavior_cloning == 'discriminator':
+            behavior_loss = self.discriminator(inp[:-1], safe_imag_action[:-1])
+            scaled_behavior_loss = self._config.behavior_clone_scale  * behavior_loss
+            safe_actor_target += scaled_behavior_loss
+
 
         if not self._config.future_entropy and self._config.actor_entropy > 0:
             safe_actor_entropy = self._config.actor_entropy * safe_actor_ent[:-1][:, :, None]
@@ -692,6 +723,9 @@ class ImagBehavior(nn.Module):
             safe_state_entropy = self._config.actor_state_entropy * safe_state_ent[:-1]
             safe_actor_target += safe_state_entropy
             metrics["safe_actor_state_entropy"] = to_np(torch.mean(safe_state_entropy))
+
+        if self._config.behavior_cloning != "":
+            metrics.update(tools.tensorstats(behavior_loss, "behavior_loss"))
         safe_actor_loss = -torch.mean(weights[:-1] * safe_actor_target)
         return safe_actor_loss, metrics
 
@@ -705,3 +739,67 @@ class ImagBehavior(nn.Module):
                 for s, d in zip(self.cost_value.parameters(), self._slow_cost_value.parameters()):
                     d.data = mix * s.data + (1 - mix) * d.data
             self._updates += 1
+
+    def _compute_discrimiator_loss(self, safe_actions, states_under_safe_policy,\
+                                  control_action, states_under_control_policy ):
+        statesGenerated_under_safe_policy = states_under_safe_policy.detach()
+        safe_actions = safe_actions.detach()
+        statesGenerated_under_control_policy = states_under_control_policy.detach()
+        control_action = control_action.detach()
+
+        safe_actions_under_GenratedControl_states =  self.safe_actor(statesGenerated_under_control_policy).sample().detach()
+
+        control_actions_under_GenratedSafe_states =  self.actor(statesGenerated_under_safe_policy).sample().detach()
+
+        pred_safe1 = self.discriminator(statesGenerated_under_safe_policy, safe_actions)
+        pred_safe2 = self.discriminator(statesGenerated_under_control_policy, safe_actions_under_GenratedControl_states)
+
+        pred_control1 = self.discriminator(statesGenerated_under_control_policy, control_action)
+        pred_control2 = self.discriminator(statesGenerated_under_safe_policy, control_actions_under_GenratedSafe_states)
+
+        output_shape = (safe_actions.shape[0], safe_actions.shape[1], 1)
+        control_labels = torch.ones(output_shape, device=self._config.device)
+        safe_labels = torch.zeros(output_shape, device=self._config.device)
+
+        control_loss_pred = F.binary_cross_entropy_with_logits(pred_control1, control_labels) + F.binary_cross_entropy_with_logits(pred_control2, control_labels) 
+        safe_loss_pred = F.binary_cross_entropy_with_logits(pred_safe1, safe_labels ) + F.binary_cross_entropy_with_logits(pred_safe2, safe_labels )
+
+        loss = (control_loss_pred + safe_loss_pred)/4
+        return loss
+
+    def _update_lag(self, training_step, mean_ep_cost, target_cost = None):
+        metrics = {}
+        metrics['lagrangian_multiplier'] = self._lagrangian_multiplier.detach().item()
+        metrics['lagrangian_multiplier_projected'] = self._lambda_range_projection(self._lagrangian_multiplier).detach().item()
+        if training_step > self._config.start_cost_decay_step and training_step % self._config.cost_decay_freq == 0 and  mean_ep_cost < self.cost_limit:
+            self.cost_limit = max(self._config.min_cost_budget, self.cost_limit-10)
+        metrics["cost_limit"] = self.cost_limit
+        self._update_lagrange_multiplier(mean_ep_cost,  self.cost_limit)
+        return metrics
+    
+    def _update_lagrange_multiplier(self, ep_costs, cost_limit):
+        self._lamda_optimizer.zero_grad()
+        lambda_loss = self._compute_lamda_loss(ep_costs, cost_limit)
+        lambda_loss.backward()
+        self._lamda_optimizer.step()
+        if self._config.lamda_projection == 'relu':
+            self._lagrangian_multiplier.data.clamp_(self._config.min_lagrangian)  # enforce: lambda in [0, inf]
+            self._lagrangian_multiplier.data.clamp_max_(self._config.max_lagrangian) #prevent explosion
+       
+    def _compute_lamda_loss(self, mean_cost, cost_limit):
+        self._lagrangian_multiplier.requires_grad = True
+        diff = mean_cost - cost_limit
+        loss = -self._lagrangian_multiplier * diff
+        return loss
+
+    def _declare_lagrnagian(self):
+        init_value = max(self._config.lagrangian_multiplier_init, 1e-5)
+        self._lagrangian_multiplier = torch.nn.Parameter(
+                torch.as_tensor( init_value ),
+                requires_grad = True)
+            
+        if self._config.lamda_projection == 'relu':
+            self._lambda_range_projection = torch.nn.ReLU()
+        torch_opt = getattr(optim, 'Adam')
+        self._lamda_optimizer = torch_opt([self._lagrangian_multiplier, ],
+                                        lr = self._config.lambda_lr )
