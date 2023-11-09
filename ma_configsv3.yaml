@@ -157,7 +157,7 @@ safetygym:
 
   #Behavior Cloning
   behavior_cloning: 'discriminator'
-  behavior_clone_scale: 1
+  behavior_clone_scale: 2.6
 
   #Lagrange and cost Budget
   init_cost_limit: 500
