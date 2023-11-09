@@ -303,7 +303,8 @@ def simulate(
                         cache[envs[i].id].pop(key)
 
                 if not is_eval:
-                    online_mean_cost_calc.update(score_cost)
+                    if online_mean_cost_calc:
+                        online_mean_cost_calc.update(score_cost)
                     step_in_dataset = erase_over_episodes(cache, limit)
                     logger.scalar(f"dataset_size", step_in_dataset)
                     logger.scalar(f"train_return", score)
