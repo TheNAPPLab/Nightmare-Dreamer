@@ -255,6 +255,7 @@ def main(config):
 
     print("Logdir", logdir)
     logdir.mkdir(parents=True, exist_ok=True)
+    VideoInteractionSaver.set_video_dir(logdir, config.logdir)
     config.traindir.mkdir(parents=True, exist_ok=True)
     config.evaldir.mkdir(parents=True, exist_ok=True)
     step = count_steps(config.traindir)
@@ -314,7 +315,6 @@ def main(config):
             logger,
             limit=config.dataset_size,
             steps=prefill,
-            online_mean_cost_calc = online_mean_cost_calc
         )
         logger.step += prefill * config.action_repeat
         print(f"Logger: ({logger.step} steps).")
@@ -350,7 +350,7 @@ def main(config):
                 logger,
                 is_eval=True,
                 episodes=config.eval_episode_num,
-                online_mean_cost_calc = online_mean_cost_calc
+                video_logger=VideoInteractionSaver
             )
             if config.video_pred_log:
                 video_pred = agent._wm.video_pred(next(eval_dataset))
@@ -365,7 +365,7 @@ def main(config):
             limit=config.dataset_size,
             steps=config.eval_every,
             state=state,
-            online_mean_cost_calc = online_mean_cost_calc
+            online_mean_cost_calc = online_mean_cost_calc,
         )
         items_to_save = {
             "agent_state_dict": agent.state_dict(),

@@ -43,12 +43,12 @@ class SaveVideoInteraction:
   #   timestamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
   #   output_path = "UpscaledVideo.gif"
   # imageio.mimsave(output_path, upscaled_images, duration=0.2)
+
     self.count += 1
-    #self.count > 5 and
     if self.count > 3  and cost <= self.best_cost and reward >= self.best_reward:
       # self.best_cost = cost
       # self.best_reward = reward
-      print("Found new best saving video")
+      print("Saving video")
       upscaled_images = []
       for i in range(len(video)):
         image = video[i]
@@ -213,7 +213,8 @@ def simulate(
     steps=0,
     episodes=0,
     state=None,
-    online_mean_cost_calc = None
+    online_mean_cost_calc = None,
+    video_logger = None
 ):
     # initialize or unpack simulation state
     if state is None:
@@ -291,7 +292,7 @@ def simulate(
                 score = float(np.array(cache[envs[i].id]["reward"]).sum())
                 score_cost = float(np.array(cache[envs[i].id]["cost"]).sum())
                 violation_detection = float(np.array(cache[envs[i].id]["detect_violation"]).sum())
-                #video = cache[envs[i].id]["image"]
+                video = cache[envs[i].id]["image"]
                 # record logs given from environments
                 for key in list(cache[envs[i].id].keys()):
                     if "log_" in key:
@@ -310,9 +311,12 @@ def simulate(
                     logger.scalar(f"train_length", length)
                     logger.scalar(f"train_episodes", len(cache))
                     logger.scalar(f"violation_detection", violation_detection)
-                    logger.scalar(f"online_cost", online_mean_cost_calc.get_mean())
+                    if online_mean_cost_calc:
+                        logger.scalar(f"online_cost", online_mean_cost_calc.get_mean())
                     logger.write(step=logger.step)
                 else:
+                    if video_logger:
+                        video_logger.save_video(video, score, score_cost, cache[envs[i].id]["detect_violation"])
                     if not "eval_lengths" in locals():
                         eval_lengths = []
                         eval_scores = []

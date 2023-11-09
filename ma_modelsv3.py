@@ -726,6 +726,8 @@ class ImagBehavior(nn.Module):
 
         if self._config.behavior_cloning != "":
             metrics.update(tools.tensorstats(behavior_loss, "behavior_loss"))
+        if penalty > 1.0:
+            safe_actor_target /= penalty
         safe_actor_loss = -torch.mean(weights[:-1] * safe_actor_target)
         return safe_actor_loss, metrics
 
