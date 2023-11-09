@@ -308,12 +308,12 @@ def simulate(
                     step_in_dataset = erase_over_episodes(cache, limit)
                     logger.scalar(f"dataset_size", step_in_dataset)
                     logger.scalar(f"train_return", score)
-                    logger.scalar(f"train_cost", score_cost)
+                    logger.scalar(f"train_cost_return", score_cost)
                     logger.scalar(f"train_length", length)
                     logger.scalar(f"train_episodes", len(cache))
-                    logger.scalar(f"violation_detection", violation_detection)
+                    logger.scalar(f"train_num_task_switch", violation_detection)
                     if online_mean_cost_calc:
-                        logger.scalar(f"online_cost", online_mean_cost_calc.get_mean())
+                        logger.scalar(f"Online Mean Cost", online_mean_cost_calc.get_mean())
                     logger.write(step=logger.step)
                 else:
                     if video_logger:
@@ -335,7 +335,7 @@ def simulate(
 
                     if len(eval_scores) >= episodes and not eval_done:
                         logger.scalar(f"eval_return", score)
-                        logger.scalar(f"eval_cost", score_cost)
+                        logger.scalar(f"eval_cost_return", score_cost)
                         logger.scalar(f"eval_length", length)
                         logger.scalar(f"eval_episodes", len(eval_scores))
                         logger.write(step=logger.step)

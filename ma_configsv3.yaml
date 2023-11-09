@@ -160,7 +160,7 @@ safetygym:
   behavior_clone_scale: 1
 
   #Lagrange and cost Budget
-  init_cost_limit: 10
+  init_cost_limit: 100
   min_cost_budget: 12
   start_cost_decay_step: 80_000
   cost_decay_freq: 10_000
