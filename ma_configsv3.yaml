@@ -155,21 +155,22 @@ safetygym:
   discrimiator_lr: 1e-3
   discriminator_grad_clip: 100
 
-  #Behavior Cloning
-  behavior_cloning: 'discriminator'
-  behavior_clone_scale: 2.6
+  #Behavior Cloning and safe actor loss
+  behavior_cloning: 'kl1' #kl1 discriminator
+  behavior_clone_scale: 1.0
+  use_cost_adv: False
 
   #Lagrange and cost Budget
   init_cost_limit: 500
   min_cost_budget: 12
-  start_cost_decay_step: 30_000
-  cost_decay_freq: 10_000
+  start_cost_decay_step: 100
+  cost_decay_freq: 1
 
   lamda_projection: 'relu'
   lambda_lr: 0.0035
   lagrangian_multiplier_init: 0.001 
-  max_lagrangian: 3.0
-  min_lagrangian: 0.5
+  max_lagrangian: 0.75
+  min_lagrangian: 0.1
 
 debug:
   debug: True

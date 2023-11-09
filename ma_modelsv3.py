@@ -5,7 +5,7 @@ import numpy as np
 from PIL import ImageColor, Image, ImageDraw, ImageFont
 import torch.nn.functional as F
 import torch.optim as optim
-
+from torch import distributions as torchd
 import ma_networksv3 as networks
 import ma_toolsv3 as tools
 
@@ -708,13 +708,20 @@ class ImagBehavior(nn.Module):
             metrics["Cost_EMA_095"] = to_np(cost_values[1])
         safe_actor_target = 0 
         penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item()
-        #safe_actor_target = penalty * -cost_adv
-        # safe_actor_target = penalty * -target_cost
+        if self._config.use_cost_adv:
+            safe_actor_target = penalty * -cost_adv
+        
+        #safe_actor_target = penalty * -target_cost
 
         if self._config.behavior_cloning == 'discriminator':
             behavior_loss = self.discriminator(inp[:-1], safe_imag_action[:-1])
             scaled_behavior_loss = self._config.behavior_clone_scale  * behavior_loss
             safe_actor_target += scaled_behavior_loss
+        elif self._config.behavior_cloning == 'kl1':
+            behavior_loss = self._action_kl_loss(self.actor(inp[:-1]), self.safe_actor(inp[:-1]))
+            scaled_behavior_loss = self._config.behavior_clone_scale * behavior_loss    
+            safe_actor_target -= scaled_behavior_loss
+  
 
 
         if not self._config.future_entropy and self._config.actor_entropy > 0:
@@ -770,6 +777,12 @@ class ImagBehavior(nn.Module):
         loss = (control_loss_pred + safe_loss_pred)/4
         return loss
 
+    def _action_kl_loss(self, control_policy, safe_policy):
+        kld = torchd.kl.kl_divergence
+        control_dist = control_policy._dist
+        safe_dist = safe_policy._dist
+        return kld(control_dist, safe_dist ).unsqueeze(-1)
+    
     def _update_lag(self, training_step, mean_ep_cost, target_cost = None):
         metrics = {}
         metrics['lagrangian_multiplier'] = self._lagrangian_multiplier.detach().item()
@@ -777,6 +790,7 @@ class ImagBehavior(nn.Module):
         if training_step > self._config.start_cost_decay_step and training_step % self._config.cost_decay_freq == 0 and  mean_ep_cost < self.cost_limit:
             self.cost_limit = max(self._config.min_cost_budget, self.cost_limit-10)
         metrics["cost_limit"] = self.cost_limit
+        metrics['training_step'] = training_step
         self._update_lagrange_multiplier(mean_ep_cost,  self.cost_limit)
         return metrics
     
