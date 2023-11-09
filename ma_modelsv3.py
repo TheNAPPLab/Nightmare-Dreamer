@@ -706,9 +706,10 @@ class ImagBehavior(nn.Module):
             cost_values = self.cost_ema.values
             metrics["Cost_EMA_005"] = to_np(cost_values[0])
             metrics["Cost_EMA_095"] = to_np(cost_values[1])
-
+        safe_actor_target = 0 
         penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item()
-        safe_actor_target = penalty * -cost_adv
+        #safe_actor_target = penalty * -cost_adv
+        # safe_actor_target = penalty * -target_cost
 
         if self._config.behavior_cloning == 'discriminator':
             behavior_loss = self.discriminator(inp[:-1], safe_imag_action[:-1])
