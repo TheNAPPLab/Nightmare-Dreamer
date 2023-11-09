@@ -45,7 +45,7 @@ class SaveVideoInteraction:
   # imageio.mimsave(output_path, upscaled_images, duration=0.2)
 
     self.count += 1
-    if self.count > 3  and cost <= self.best_cost and reward >= self.best_reward:
+    if self.count > 10  and cost <= self.best_cost and reward >= self.best_reward:
       # self.best_cost = cost
       # self.best_reward = reward
       print("Saving video")
