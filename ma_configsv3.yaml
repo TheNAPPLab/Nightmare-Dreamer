@@ -157,7 +157,7 @@ safetygym:
 
   #Behavior Cloning and safe actor loss
   behavior_cloning: 'kl1' #kl1 discriminator
-  behavior_clone_scale: 0.5
+  behavior_clone_scale: 0.01
   use_cost_adv: True
 
   #Lagrange and cost Budget

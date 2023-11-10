@@ -734,6 +734,7 @@ class ImagBehavior(nn.Module):
 
         if self._config.behavior_cloning != "":
             metrics.update(tools.tensorstats(behavior_loss, "behavior_loss"))
+            metrics.update(tools.tensorstats(scaled_behavior_loss, "scaled_behavior_loss"))
         if penalty > 1.0:
             safe_actor_target /= penalty
         safe_actor_loss = -torch.mean(weights[:-1] * safe_actor_target)
@@ -781,7 +782,8 @@ class ImagBehavior(nn.Module):
         kld = torchd.kl.kl_divergence
         control_dist = control_policy._dist
         safe_dist = safe_policy._dist
-        return kld(control_dist, safe_dist ).unsqueeze(-1)
+        kl_loss =  kld(control_dist, safe_dist ).unsqueeze(-1)
+        return torch.max(kl_loss, torch.tensor(1, dtype=kl_loss.dtype, device=kl_loss.device))
     
     def _update_lag(self, training_step, mean_ep_cost, target_cost = None):
         metrics = {}
