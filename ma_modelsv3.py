@@ -422,7 +422,13 @@ class ImagBehavior(nn.Module):
         metrics = {}
 
         mets_lag = self._update_lag(training_step, mean_ep_cost)
+        if training_step > 80_000 and mean_ep_cost < self.cost_limit:
+            self.cost_limit = max(12, self.cost_limit - 10)
+        met_limit = {}
+        met_limit["cost_limit"] = self.cost_limit
+
         metrics.update(mets_lag)
+        metrics.update(met_limit)
 
         with tools.RequiresGrad(self.actor):
             with torch.cuda.amp.autocast(self._use_amp):
@@ -789,9 +795,9 @@ class ImagBehavior(nn.Module):
         metrics = {}
         metrics['lagrangian_multiplier'] = self._lagrangian_multiplier.detach().item()
         metrics['lagrangian_multiplier_projected'] = self._lambda_range_projection(self._lagrangian_multiplier).detach().item()
-        if training_step > self._config.start_cost_decay_step and training_step % self._config.cost_decay_freq == 0 and  mean_ep_cost < self.cost_limit:
-            self.cost_limit = max(self._config.min_cost_budget, self.cost_limit-10)
-        metrics["cost_limit"] = self.cost_limit
+        # if training_step > self._config.start_cost_decay_step and training_step % self._config.cost_decay_freq == 0 and  mean_ep_cost < self.cost_limit:
+        #     self.cost_limit = max(self._config.min_cost_budget, self.cost_limit-10)
+        # metrics["cost_limit"] = self.cost_limit
         metrics['training_step'] = training_step
         self._update_lagrange_multiplier(mean_ep_cost,  self.cost_limit)
         return metrics
