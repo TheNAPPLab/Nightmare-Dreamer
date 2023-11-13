@@ -125,19 +125,35 @@ class Dreamer(nn.Module):
         feat = self._wm.dynamics.get_feat(latent)
         constraint_violated = self._is_future_safety_violated(latent)
         # insert safe actor here
-        safe_action, _ = self._task_behavior.get_safe_action(copy.deepcopy(latent), self._wm, None)
+        #compute safe action
+        if self._config.use_safe_actor and self._config.mpc and constraint_violated:
+            safe_action, _ = self._task_behavior.get_safe_action(copy.deepcopy(latent), self._wm, None)
         if not training:
-            actor = self._task_behavior.safe_actor(feat) if self._config.use_safe_actor and constraint_violated \
-               else self._task_behavior.actor(feat) 
-            action = actor.mode()
+            if not self._config.mpc:
+                actor = self._task_behavior.safe_actor(feat) if self._config.use_safe_actor and constraint_violated \
+                else self._task_behavior.actor(feat) 
+                action = actor.mode() 
+            else:
+                actor = self._task_behavior.actor(feat)
+                action =  safe_action if self._config.use_safe_actor and constraint_violated else  actor.mode()
+
         elif self._should_expl(self._step):
-            actor = self._expl_behavior.safe_actor(feat) if self._config.use_safe_actor and constraint_violated \
-                else self._expl_behavior.actor(feat)
-            action = actor.sample()
+            if not self._config.mpc:
+                actor = self._expl_behavior.safe_actor(feat) if self._config.use_safe_actor and constraint_violated \
+                    else self._expl_behavior.actor(feat)
+                action = actor.sample()
+            else:
+                actor = self._expl_behavior.actor(feat)
+                action = safe_action if self._config.use_safe_actor and constraint_violated  else actor.mode()
         else:
-            actor = self._task_behavior.safe_actor(feat) if self._config.use_safe_actor and constraint_violated \
-                else self._task_behavior.actor(feat)
-            action = actor.sample()
+            if not self._config.mpc:
+                actor = self._task_behavior.safe_actor(feat) if self._config.use_safe_actor and constraint_violated \
+                    else self._task_behavior.actor(feat)
+                action = actor.sample()
+            else:
+                actor = self._task_behavior.actor(feat)
+                action = safe_action if self._config.use_safe_actor and constraint_violated  else actor.sample()
+
         logprob = actor.log_prob(action)
         latent = {k: v.detach() for k, v in latent.items()}
         action = action.detach()
