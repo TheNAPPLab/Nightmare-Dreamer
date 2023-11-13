@@ -831,22 +831,28 @@ class ImagBehavior(nn.Module):
         
     @torch.no_grad()
     def get_safe_action(self, z, model : WorldModel, prev_mean=None ):
-        safe_pi_action = torch.empty(self._config.imag_horizon, self._config.num_pi_trajs, self._config.num_actions, device=self._config.device)
-        _z = [copy.deepcopy(z) for _ in range(self._config.num_pi_trajs)]
+        # Sample policy trajectories
+        if self._config.num_pi_trajs > 0:
+            _z = {}
+            safe_pi_action = torch.empty(self._config.imag_horizon, self._config.num_pi_trajs, self._config.num_actions, device=self._config.device)
+            _z['stoch'] = z['stoch'].repeat(self._config.num_pi_trajs, 1, 1 )
+            _z['deter'] = z['deter'].repeat(self._config.num_pi_trajs, 1,)
+            _z['logit'] = z['logit'].repeat(self._config.num_pi_trajs, 1,1 )
+            import ipdb
+            ipdb.set_trace()
 
-        for t in range(self._config.imag_horizon-1):
-            for i in range(len(_z)):
-                feat = model.dynamics.get_feat(_z[i])
-                safe_pi_action[t, i] = self.safe_actor(feat).sample()
-                _z[i] = model.dynamics.img_step(_z[i], safe_pi_action[t,i].unsqueeze(0), sample = self._config.imag_sample)
+            for t in range(self._config.imag_horizon-1):
+                feat = model.dynamics.get_feat(_z)
+                safe_pi_action[t] = self.safe_actor(feat).sample()
+                _z = model.dynamics.img_step(_z, safe_pi_action[t].unsqueeze(0), sample = self._config.imag_sample)
 
-        for i in range(len(_z)):
-            feat = model.dynamics.get_feat(_z[i])
-            safe_pi_action[-1, i] = self.safe_actor(feat).sample()
-        
-
+            feat = model.dynamics.get_feat(_z)
+            safe_pi_action[-1] = self.safe_actor(feat).sample()
+            
         #reinitalise z
-        z = [copy.deepcopy(z) for _ in range(self._config.num_samples)]
+        z['stoch'] = z['stoch'].repeat(self._config.num_samples, 1)
+        z['deter'] = z['deter'].repeat(self._config.num_samples, 1)
+        z['logit'] = z['logit'].repeat(self._config.num_samples, 1)
         mean = torch.zeros(self._config.imag_horizon, self._config.num_actions, device=self._config.device)
         std = self._config.max_std*torch.ones(self._config.imag_horizon, self._config.num_actions, device=self._config.device)
         actions = torch.empty(self._config.imag_horizon, self._config.num_samples, self._config.num_actions, device=self._config.device)
