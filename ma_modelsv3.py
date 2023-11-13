@@ -838,8 +838,6 @@ class ImagBehavior(nn.Module):
             _z['stoch'] = z['stoch'].repeat(self._config.num_pi_trajs, 1, 1 )
             _z['deter'] = z['deter'].repeat(self._config.num_pi_trajs, 1,)
             _z['logit'] = z['logit'].repeat(self._config.num_pi_trajs, 1,1 )
-            import ipdb
-            ipdb.set_trace()
 
             for t in range(self._config.imag_horizon-1):
                 feat = model.dynamics.get_feat(_z)
@@ -850,9 +848,9 @@ class ImagBehavior(nn.Module):
             safe_pi_action[-1] = self.safe_actor(feat).sample()
             
         #reinitalise z
-        z['stoch'] = z['stoch'].repeat(self._config.num_samples, 1)
+        z['stoch'] = z['stoch'].repeat(self._config.num_samples, 1, 1 )
         z['deter'] = z['deter'].repeat(self._config.num_samples, 1)
-        z['logit'] = z['logit'].repeat(self._config.num_samples, 1)
+        z['logit'] = z['logit'].repeat(self._config.num_samples, 1, 1 )
         mean = torch.zeros(self._config.imag_horizon, self._config.num_actions, device=self._config.device)
         std = self._config.max_std*torch.ones(self._config.imag_horizon, self._config.num_actions, device=self._config.device)
         actions = torch.empty(self._config.imag_horizon, self._config.num_samples, self._config.num_actions, device=self._config.device)
