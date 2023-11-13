@@ -121,6 +121,7 @@ class Dreamer(nn.Module):
         feat = self._wm.dynamics.get_feat(latent)
         constraint_violated = self._is_future_safety_violated(latent)
         # insert safe actor here
+        safe_action = self._task_behavior.get_safe_action(latent, self._wm)
         if not training:
             actor = self._task_behavior.safe_actor(feat) if self._config.use_safe_actor and constraint_violated \
                else self._task_behavior.actor(feat) 
@@ -191,6 +192,8 @@ class Dreamer(nn.Module):
                 feat = self._wm.dynamics.get_feat(latent_state)
                 c_t = cost_fn(feat,_,_).item()
                 total_cost += c_t
+                if total_cost >= self._config.cost_threshold:
+                    return True
                 control_actor = self._task_behavior.actor(feat)
                 control_action = control_actor.sample() if not is_eval  else control_actor.mode()
                 latent_state = self._wm.dynamics.img_step(latent_state, control_action, sample = self._config.imag_sample)

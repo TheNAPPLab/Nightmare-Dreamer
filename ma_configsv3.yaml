@@ -172,6 +172,12 @@ safetygym:
   max_lagrangian: 0.75
   min_lagrangian: 0.3
 
+
+  #mpc
+  mpc: True
+  num_pi_trajs: 24
+  num_samples:  512
+  max_std: 2
 debug:
   debug: True
   pretrain: 1

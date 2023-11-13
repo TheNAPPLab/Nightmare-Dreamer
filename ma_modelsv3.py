@@ -828,3 +828,28 @@ class ImagBehavior(nn.Module):
         torch_opt = getattr(optim, 'Adam')
         self._lamda_optimizer = torch_opt([self._lagrangian_multiplier, ],
                                         lr = self._config.lambda_lr )
+        
+    @torch.no_grad()
+    def get_safe_action(self, z, model : WorldModel, ):
+        safe_pi_action = torch.empty(self._config.imag_horizon, self._config.num_pi_trajs, self._config.num_actions, device=self._config.device)
+        _z = [copy.deepcopy(z) for _ in range(self._config.num_pi_trajs)]
+
+        for t in range(self._config.imag_horizon-1):
+            for i in range(len(_z)):
+                feat = model.dynamics.get_feat(_z[i])
+                safe_pi_action[t, i] = self.safe_actor(feat).sample()
+                _z[i] = model.dynamics.img_step(_z[i], safe_pi_action[t,i].unsqueeze(0), sample = self._config.imag_sample)
+
+        for i in range(len(_z)):
+            feat = model.dynamics.get_feat(_z[i])
+            safe_pi_action[-1, i] = self.safe_actor(feat).sample()
+        
+
+        #reinitalise z
+        z = [copy.deepcopy(z) for _ in range(self._config.num_samples)]
+        mean = torch.zeros(self._config.imag_horizon, self._config.num_actions, device=self._config.device)
+        std = self._config.max_std*torch.ones(self._config.imag_horizon, self._config.num_actions, device=self._config.device)
+        actions = torch.empty(self._config.imag_horizon, self._config.num_samples, self._config.num_actions, device=self._config.device)
+
+
+
