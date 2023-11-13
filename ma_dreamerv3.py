@@ -4,6 +4,7 @@ import os
 import pathlib
 import sys
 import wandb
+import copy
 
 if sys.platform == 'linux':
     os.environ['CUDA_VISIBLE_DEVICES'] = '1'
@@ -124,7 +125,7 @@ class Dreamer(nn.Module):
         feat = self._wm.dynamics.get_feat(latent)
         constraint_violated = self._is_future_safety_violated(latent)
         # insert safe actor here
-        safe_action, prev_mean = self._task_behavior.get_safe_action(latent, self._wm, prev_mean)
+        safe_action, _ = self._task_behavior.get_safe_action(copy.deepcopy(latent), self._wm, None)
         if not training:
             actor = self._task_behavior.safe_actor(feat) if self._config.use_safe_actor and constraint_violated \
                else self._task_behavior.actor(feat) 

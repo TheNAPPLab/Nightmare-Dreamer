@@ -268,6 +268,7 @@ class ImagBehavior(nn.Module):
         self._stop_grad_actor = stop_grad_actor
         self._reward = reward
         self._cost = cost
+        self._initalise_safe_actor_buffer()
         if config.dyn_discrete:
             feat_size = config.dyn_stoch * config.dyn_discrete + config.dyn_deter
         else:
@@ -420,6 +421,7 @@ class ImagBehavior(nn.Module):
         constrain = constrain or self._cost
         self._update_slow_target()
         metrics = {}
+        
 
         mets_lag = self._update_lag(training_step, mean_ep_cost)
         if training_step > 80_000 and mean_ep_cost < self.cost_limit:
@@ -475,46 +477,50 @@ class ImagBehavior(nn.Module):
         if self._config.learn_safe_policy:
             with tools.RequiresGrad(self.safe_actor):
                 with torch.cuda.amp.autocast(self._use_amp):
-                    safe_imag_feat, safe_imag_state, safe_imag_action = self._imagine(
-                        start, self.safe_actor, self._config.imag_horizon, repeats
-                    )
-                    reward_safe = objective(imag_feat, imag_state, imag_action)
-                    cost = constrain(safe_imag_feat, safe_imag_state, safe_imag_action)
-                    safe_actor_ent = self.safe_actor(safe_imag_feat).entropy()
-                    safe_state_ent = self._world_model.dynamics.get_dist(safe_imag_state).entropy()
-                    # this target is not scaled
-                    # slow is flag to indicate whether slow_target is used for lambda-return
-                    target_cost, weights_safe, base_safe = self._compute_target_cost(
-                        safe_imag_feat, safe_imag_state, safe_imag_action, cost, safe_actor_ent, safe_state_ent
-                    )
-                    safe_actor_loss, mets = self._compute_safe_actor_loss(
-                        safe_imag_feat,
-                        safe_imag_state,
-                        safe_imag_action,
-                        target_cost,
-                        safe_actor_ent,
-                        safe_state_ent,
-                        weights_safe,
-                        base_safe,
-                    )
-                    metrics.update(mets)
-                    cost_value_input = safe_imag_feat
-
-            with tools.RequiresGrad(self.cost_value):
-                with torch.cuda.amp.autocast(self._use_amp):
-                    cost_value = self.cost_value(cost_value_input[:-1].detach())
-                    target_cost = torch.stack(target_cost, dim=1)
-                    # (time, batch, 1), (time, batch, 1) -> (time, batch)
-                    cost_value_loss = -cost_value.log_prob(target_cost.detach())
-                    slow_target_cost = self._slow_cost_value(cost_value_input[:-1].detach())
-                    if self._config.slow_cost_value_target:
-                        cost_value_loss = cost_value_loss - cost_value.log_prob(
-                            slow_target_cost.mode().detach()
+                    if not self._config.mpc:
+                        safe_imag_feat, safe_imag_state, safe_imag_action = self._imagine(
+                            start, self.safe_actor, self._config.imag_horizon, repeats
                         )
-                    if self._config.cost_value_decay:
-                        cost_value_loss += self._config.cost_value_decay * cost_value.mode()
-                    # (time, batch, 1), (time, batch, 1) -> (1,)
-                    cost_value_loss = torch.mean(weights_safe[:-1] * cost_value_loss[:, :, None])
+                        reward_safe = objective(imag_feat, imag_state, imag_action)
+                        cost = constrain(safe_imag_feat, safe_imag_state, safe_imag_action)
+                        safe_actor_ent = self.safe_actor(safe_imag_feat).entropy()
+                        safe_state_ent = self._world_model.dynamics.get_dist(safe_imag_state).entropy()
+                        # this target is not scaled
+                        # slow is flag to indicate whether slow_target is used for lambda-return
+                        target_cost, weights_safe, base_safe = self._compute_target_cost(
+                            safe_imag_feat, safe_imag_state, safe_imag_action, cost, safe_actor_ent, safe_state_ent
+                        )
+                        safe_actor_loss, mets = self._compute_safe_actor_loss(
+                            safe_imag_feat,
+                            safe_imag_state,
+                            safe_imag_action,
+                            target_cost,
+                            safe_actor_ent,
+                            safe_state_ent,
+                            weights_safe,
+                            base_safe,
+                        )
+                        metrics.update(mets)
+                        cost_value_input = safe_imag_feat
+                    else:
+                        safe_actor_loss, mets = self._compute_mpc_safe_actor_loss()
+
+            if not self._config.mpc:
+                with tools.RequiresGrad(self.cost_value):
+                    with torch.cuda.amp.autocast(self._use_amp):
+                        cost_value = self.cost_value(cost_value_input[:-1].detach())
+                        target_cost = torch.stack(target_cost, dim=1)
+                        # (time, batch, 1), (time, batch, 1) -> (time, batch)
+                        cost_value_loss = -cost_value.log_prob(target_cost.detach())
+                        slow_target_cost = self._slow_cost_value(cost_value_input[:-1].detach())
+                        if self._config.slow_cost_value_target:
+                            cost_value_loss = cost_value_loss - cost_value.log_prob(
+                                slow_target_cost.mode().detach()
+                            )
+                        if self._config.cost_value_decay:
+                            cost_value_loss += self._config.cost_value_decay * cost_value.mode()
+                        # (time, batch, 1), (time, batch, 1) -> (1,)
+                        cost_value_loss = torch.mean(weights_safe[:-1] * cost_value_loss[:, :, None])
         
             if self._config.learn_discriminator:
                 with tools.RequiresGrad(self.discriminator):
@@ -525,7 +531,7 @@ class ImagBehavior(nn.Module):
         metrics.update(tools.tensorstats(target, "target"))
         metrics.update(tools.tensorstats(reward, "imag_reward"))
        
-        if self._config.learn_safe_policy:
+        if self._config.learn_safe_policy and not self._config.mpc:
             metrics.update(tools.tensorstats(cost_value.mode(), "cost_value"))
             metrics.update(tools.tensorstats(target_cost, "target_cost"))
             metrics.update(tools.tensorstats(cost, "imag_cost"))
@@ -550,7 +556,8 @@ class ImagBehavior(nn.Module):
             #safe actor parameters
             if self._config.learn_safe_policy:
                 metrics.update(self._safe_actor_opt(safe_actor_loss, self.safe_actor.parameters()))
-                metrics.update(self._cost_value_opt(cost_value_loss, self.cost_value.parameters()))
+                if not self._config.mpc:
+                    metrics.update(self._cost_value_opt(cost_value_loss, self.cost_value.parameters()))
 
             if self._config.learn_discriminator:
                 metrics.update(self._discriminator_opt(discrimiator_loss, self.discriminator.parameters()))
@@ -828,21 +835,70 @@ class ImagBehavior(nn.Module):
         torch_opt = getattr(optim, 'Adam')
         self._lamda_optimizer = torch_opt([self._lagrangian_multiplier, ],
                                         lr = self._config.lambda_lr )
-        
+
+    def _compute_mpc_safe_actor_loss(self,):
+        metrics = {}
+        batch_size = 256 #256
+        if self.curr_buffer_size >= batch_size:
+            sample_indices = torch.randint(0, self.curr_buffer_size, (batch_size,))
+            sampled_states = self.state_buffer[sample_indices]
+            sampled_actions = self.action_buffer[sample_indices]
+            safe_policy = self.safe_actor(sampled_states)
+
+            safe_actor_ent = safe_policy.entropy()
+
+            behavior_loss = -safe_policy.log_prob(sampled_actions)[:,:,None]
+            actor_loss = behavior_loss
+
+            actor_ent = self._config.safe_actor_entropy * safe_actor_ent[:,:,None]
+            actor_loss -= actor_ent
+            metrics.update(tools.tensorstats(behavior_loss, "behavior_loss"))
+            metrics["safe_actor_entropy"] = to_np(torch.mean(actor_ent))
+            return actor_loss, metrics
+
+
+
+
+    @torch.no_grad()
+    def _estimate_value(self, z, safe_action, model: WorldModel):
+        reward_fn = lambda f, s, a: model.heads["reward"](f).mean()
+        G, discount = 0, 1
+        for t in range(self._config.horizon_mpc):
+            feat = model.dynamics.get_feat(z)
+            r_t = reward_fn(feat, None, None)
+            z = model.dynamics.img_step(z, safe_action[t], sample = self._config.imag_sample)
+            G += discount * r_t
+            discount *= 0.99
+        feat = model.dynamics.get_feat(z)
+        V_t = self.value(feat).mode()
+        return G + (discount * V_t)
+
+    def _estimate_cost(self, z, safe_action, model: WorldModel):
+        cost_fn = lambda f, s, a: model.heads["cost"](f).mean()
+        total_cost = 0
+        for t in range(self._config.horizon_mpc):
+            feat = model.dynamics.get_feat(z)
+            c_t = cost_fn(feat, None, None)
+            z = model.dynamics.img_step(z, safe_action[t], sample = self._config.imag_sample)
+            total_cost += c_t
+        feat = model.dynamics.get_feat(z)
+        return total_cost +  cost_fn(feat, None, None)
+   
     @torch.no_grad()
     def get_safe_action(self, z, model : WorldModel, prev_mean=None ):
+        state_ =  copy.deepcopy(model.dynamics.get_feat(z))
         # Sample policy trajectories
         if self._config.num_pi_trajs > 0:
             _z = {}
-            safe_pi_action = torch.empty(self._config.imag_horizon, self._config.num_pi_trajs, self._config.num_actions, device=self._config.device)
+            safe_pi_action = torch.empty(self._config.horizon_mpc, self._config.num_pi_trajs, self._config.num_actions, device=self._config.device)
             _z['stoch'] = z['stoch'].repeat(self._config.num_pi_trajs, 1, 1 )
             _z['deter'] = z['deter'].repeat(self._config.num_pi_trajs, 1,)
             _z['logit'] = z['logit'].repeat(self._config.num_pi_trajs, 1,1 )
 
-            for t in range(self._config.imag_horizon-1):
+            for t in range(self._config.horizon_mpc-1):
                 feat = model.dynamics.get_feat(_z)
                 safe_pi_action[t] = self.safe_actor(feat).sample()
-                _z = model.dynamics.img_step(_z, safe_pi_action[t].unsqueeze(0), sample = self._config.imag_sample)
+                _z = model.dynamics.img_step(_z, safe_pi_action[t], sample = self._config.imag_sample)
 
             feat = model.dynamics.get_feat(_z)
             safe_pi_action[-1] = self.safe_actor(feat).sample()
@@ -851,32 +907,36 @@ class ImagBehavior(nn.Module):
         z['stoch'] = z['stoch'].repeat(self._config.num_samples, 1, 1 )
         z['deter'] = z['deter'].repeat(self._config.num_samples, 1)
         z['logit'] = z['logit'].repeat(self._config.num_samples, 1, 1 )
-        mean = torch.zeros(self._config.imag_horizon, self._config.num_actions, device=self._config.device)
-        std = self._config.max_std*torch.ones(self._config.imag_horizon, self._config.num_actions, device=self._config.device)
-        actions = torch.empty(self._config.imag_horizon, self._config.num_samples, self._config.num_actions, device=self._config.device)
+        mean = torch.zeros(self._config.horizon_mpc, self._config.num_actions, device=self._config.device)
+        std = self._config.max_std*torch.ones(self._config.horizon_mpc, self._config.num_actions, device=self._config.device)
+        actions = torch.empty(self._config.horizon_mpc, self._config.num_samples, self._config.num_actions, device=self._config.device)
 
         if prev_mean is not None: # not t0
             mean[:-1] = prev_mean[1:].cuda().float()
 
         if self._config.num_pi_trajs > 0:
-            actions[:, :self._config.num_pi_trajs] = safe_pi_action.view(self._config.imag_horizon,self._config.num_pi_trajs,-1)
+            # actions[:, :self._config.num_pi_trajs] = safe_pi_action.view(self._config.imag_horizon,self._config.num_pi_trajs,-1)
+            actions[:, :self._config.num_pi_trajs] = safe_pi_action
 
         # Iterate MPPI
-        for i in range(self._config.iterations):
+        for i in range(self._config.mpc_iterations):
 
             # Sample actions
             actions[:, self._config.num_pi_trajs:] = (mean.unsqueeze(1) + std.unsqueeze(1) * \
-				torch.randn(self._config.horizon, self._config.num_samples-self._config.num_pi_trajs, self._config.action_dim, device=std.device)) \
+				torch.randn(self._config.horizon_mpc, self._config.num_samples-self._config.num_pi_trajs, self._config.num_actions, device=std.device)) \
 				.clamp(-1, 1)
 
 			# Compute elite actions
-            value = self.estimate_value(z, actions).nan_to_num_(0)
-            cost_value =  self.estimate_cost_value(z, actions).nan_to_num_(0)
+            value = self._estimate_value(z, actions, model).nan_to_num_(0)
+            cost =  self._estimate_cost(z, actions, model).nan_to_num_(0)
 
-            lowerCL_idxs = cost_value <= self._config.cost_threshold
-            lowerCL_value, lowerCL_actions = value[lowerCL_idxs], actions[:, lowerCL_idxs]
+            #prune cost rollouts that meet the cost requirement
+            lowerCL_idxs = cost <= self._config.cost_threshold_mpc
+            lowerCL_value, lowerCL_actions = value[lowerCL_idxs].view(-1, 1), actions[:, lowerCL_idxs.squeeze(), :]
 
-            elite_idxs = torch.topk(lowerCL_value.squeeze(1), self._config.num_elites, dim=0).indices
+            num_safe_candidates = torch.sum(lowerCL_idxs).item() 
+            topk = self._config.num_elites if num_safe_candidates >= self._config.num_elites  else num_safe_candidates
+            elite_idxs = torch.topk(lowerCL_value.squeeze(1), topk, dim=0).indices
             elite_value, elite_actions = lowerCL_value[elite_idxs], lowerCL_actions[:, elite_idxs]     
 
             # Update parameters
@@ -885,10 +945,28 @@ class ImagBehavior(nn.Module):
             score /= score.sum(0)
             mean = torch.sum(score.unsqueeze(0) * elite_actions, dim=1) / (score.sum(0) + 1e-9)
             std = torch.sqrt(torch.sum(score.unsqueeze(0) * (elite_actions - mean.unsqueeze(1)) ** 2, dim=1) / (score.sum(0) + 1e-9)) \
-                .clamp_(self._config.min_std, self._config.max_std)
+                .clamp_(self._config.mpc_min_std, self._config.mpc_max_std)
 
         # Select action
         score = score.squeeze(1).cpu().numpy()
         actions = elite_actions[:, np.random.choice(np.arange(score.shape[0]), p=score)]
+        action = actions[0].clamp_(-1, 1)
+        self._add_buffer(state_, action)
+        return action, mean
 
-        return actions[0].clamp_(-1, 1), mean
+    def _initalise_safe_actor_buffer(self):
+        self.buffer_size = 10000
+        state_shape = (1, 1536)
+        action_shape = (self._config.num_actions,)
+        self.state_buffer = torch.empty((self.buffer_size,) + state_shape)
+        self.action_buffer = torch.empty((self.buffer_size,) + action_shape)
+        self.cursor = 0
+        self.curr_buffer_size = 0
+    
+    def _add_buffer(self,state, action):
+        self.action_buffer[self.cursor % self.buffer_size] = action
+        self.state_buffer[self.cursor % self.buffer_size] = state
+        self.curr_buffer_size += 1
+        self.cursor += 1
+        self.curr_buffer_size =  min(self.buffer_size, self.curr_buffer_size)
+       
