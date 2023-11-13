@@ -63,11 +63,14 @@ class Dreamer(nn.Module):
             random=lambda: expl.Random(config, act_space),
             plan2explore=lambda: expl.Plan2Explore(config, self._wm, reward),
         )[config.expl_behavior]().to(self._config.device)
+        # prev_mean in mpc
+        self.prev_mean = None
 
     def __call__(self, obs, reset, state=None, training=True):
         step = self._step
         if self._should_reset(step):
             state = None
+            self.prev_mean = None
         if state is not None and reset.any():
             mask = 1 - reset
             for key in state[0].keys():
@@ -94,14 +97,14 @@ class Dreamer(nn.Module):
                     self._logger.video("train_openl", to_np(openl))
                 self._logger.write(fps=True)
 
-        policy_output, state = self._policy(obs, state, training)
+        policy_output, state, self.prev_mean = self._policy(obs, state, training, self.prev_mean)
 
         if training:
             self._step += len(reset)
             self._logger.step = self._config.action_repeat * self._step
         return policy_output, state
 
-    def _policy(self, obs, state, training):
+    def _policy(self, obs, state, training, prev_mean):
         if state is None:
             batch_size = len(obs["image"])
             latent = self._wm.dynamics.initial(len(obs["image"]))
@@ -121,7 +124,7 @@ class Dreamer(nn.Module):
         feat = self._wm.dynamics.get_feat(latent)
         constraint_violated = self._is_future_safety_violated(latent)
         # insert safe actor here
-        safe_action = self._task_behavior.get_safe_action(latent, self._wm)
+        safe_action, prev_mean = self._task_behavior.get_safe_action(latent, self._wm, prev_mean)
         if not training:
             actor = self._task_behavior.safe_actor(feat) if self._config.use_safe_actor and constraint_violated \
                else self._task_behavior.actor(feat) 
@@ -145,7 +148,7 @@ class Dreamer(nn.Module):
         c_violated = 1 if constraint_violated else 0
         policy_output = {"action": action, "logprob": logprob, 'constraint_violated': torch.tensor([c_violated])}
         state = (latent, action)
-        return policy_output, state
+        return policy_output, state, prev_mean
 
     def _exploration(self, action, training):
         amount = self._config.expl_amount if training else self._config.eval_noise

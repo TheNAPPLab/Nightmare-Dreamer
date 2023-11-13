@@ -830,7 +830,7 @@ class ImagBehavior(nn.Module):
                                         lr = self._config.lambda_lr )
         
     @torch.no_grad()
-    def get_safe_action(self, z, model : WorldModel, ):
+    def get_safe_action(self, z, model : WorldModel, prev_mean=None ):
         safe_pi_action = torch.empty(self._config.imag_horizon, self._config.num_pi_trajs, self._config.num_actions, device=self._config.device)
         _z = [copy.deepcopy(z) for _ in range(self._config.num_pi_trajs)]
 
@@ -851,5 +851,40 @@ class ImagBehavior(nn.Module):
         std = self._config.max_std*torch.ones(self._config.imag_horizon, self._config.num_actions, device=self._config.device)
         actions = torch.empty(self._config.imag_horizon, self._config.num_samples, self._config.num_actions, device=self._config.device)
 
+        if prev_mean is not None: # not t0
+            mean[:-1] = prev_mean[1:].cuda().float()
 
+        if self._config.num_pi_trajs > 0:
+            actions[:, :self._config.num_pi_trajs] = safe_pi_action.view(self._config.imag_horizon,self._config.num_pi_trajs,-1)
 
+        # Iterate MPPI
+        for i in range(self._config.iterations):
+
+            # Sample actions
+            actions[:, self._config.num_pi_trajs:] = (mean.unsqueeze(1) + std.unsqueeze(1) * \
+				torch.randn(self._config.horizon, self._config.num_samples-self._config.num_pi_trajs, self._config.action_dim, device=std.device)) \
+				.clamp(-1, 1)
+
+			# Compute elite actions
+            value = self.estimate_value(z, actions).nan_to_num_(0)
+            cost_value =  self.estimate_cost_value(z, actions).nan_to_num_(0)
+
+            lowerCL_idxs = cost_value <= self._config.cost_threshold
+            lowerCL_value, lowerCL_actions = value[lowerCL_idxs], actions[:, lowerCL_idxs]
+
+            elite_idxs = torch.topk(lowerCL_value.squeeze(1), self._config.num_elites, dim=0).indices
+            elite_value, elite_actions = lowerCL_value[elite_idxs], lowerCL_actions[:, elite_idxs]     
+
+            # Update parameters
+            max_value = elite_value.max(0)[0]
+            score = torch.exp(self._config.temperature*(elite_value - max_value))
+            score /= score.sum(0)
+            mean = torch.sum(score.unsqueeze(0) * elite_actions, dim=1) / (score.sum(0) + 1e-9)
+            std = torch.sqrt(torch.sum(score.unsqueeze(0) * (elite_actions - mean.unsqueeze(1)) ** 2, dim=1) / (score.sum(0) + 1e-9)) \
+                .clamp_(self._config.min_std, self._config.max_std)
+
+        # Select action
+        score = score.squeeze(1).cpu().numpy()
+        actions = elite_actions[:, np.random.choice(np.arange(score.shape[0]), p=score)]
+
+        return actions[0].clamp_(-1, 1), mean
