@@ -555,7 +555,8 @@ class ImagBehavior(nn.Module):
 
             #safe actor parameters
             if self._config.learn_safe_policy:
-                metrics.update(self._safe_actor_opt(safe_actor_loss, self.safe_actor.parameters()))
+                if self._can_update_via_mpc(): #prevent code from breaking
+                    metrics.update(self._safe_actor_opt(safe_actor_loss, self.safe_actor.parameters()))
                 if not self._config.mpc:
                     metrics.update(self._cost_value_opt(cost_value_loss, self.cost_value.parameters()))
 
@@ -838,9 +839,8 @@ class ImagBehavior(nn.Module):
 
     def _compute_mpc_safe_actor_loss(self,):
         metrics = {}
-        batch_size = 256 #256
-        if self.curr_buffer_size >= batch_size:
-            sample_indices = torch.randint(0, self.curr_buffer_size, (batch_size,))
+        if self._can_update_via_mpc():
+            sample_indices = torch.randint(0, self.curr_buffer_size, (self.batch_size,))
             sampled_states = self.state_buffer[sample_indices]
             sampled_actions = self.action_buffer[sample_indices]
             safe_policy = self.safe_actor(sampled_states)
@@ -855,7 +855,10 @@ class ImagBehavior(nn.Module):
             metrics.update(tools.tensorstats(behavior_loss, "behavior_loss"))
             metrics["safe_actor_entropy"] = to_np(torch.mean(actor_ent))
             return actor_loss, metrics
+        return None, None # update wont be called 
 
+    def _can_update_via_mpc(self):
+        return self.buffer_size >= 256
 
 
 
@@ -962,6 +965,7 @@ class ImagBehavior(nn.Module):
         self.action_buffer = torch.empty((self.buffer_size,) + action_shape)
         self.cursor = 0
         self.curr_buffer_size = 0
+        self.mpc_batch_size = self._config.mpc_batch_size
     
     def _add_buffer(self,state, action):
         self.action_buffer[self.cursor % self.buffer_size] = action

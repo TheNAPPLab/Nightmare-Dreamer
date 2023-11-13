@@ -185,6 +185,7 @@ safetygym:
   temperature: 0.5
   mpc_min_std: 0.05
   mpc_max_std: 2
+  mpc_batch_size: 256
 debug:
   debug: True
   pretrain: 1
