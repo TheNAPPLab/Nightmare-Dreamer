@@ -546,7 +546,8 @@ class ImagBehavior(nn.Module):
         else:
             metrics.update(tools.tensorstats(imag_action, "imag_action"))
             if self._config.learn_safe_policy:
-                metrics.update(tools.tensorstats(safe_imag_action, "safe_imag_action"))
+                if not self._config.mpc:
+                    metrics.update(tools.tensorstats(safe_imag_action, "safe_imag_action"))
         metrics["actor_entropy"] = to_np(torch.mean(actor_ent))
        
         with tools.RequiresGrad(self):
@@ -840,7 +841,7 @@ class ImagBehavior(nn.Module):
     def _compute_mpc_safe_actor_loss(self,):
         metrics = {}
         if self._can_update_via_mpc():
-            sample_indices = torch.randint(0, self.curr_buffer_size, (self.batch_size,))
+            sample_indices = torch.randint(0, self.curr_buffer_size, (self.mpc_batch_size,))
             sampled_states = self.state_buffer[sample_indices]
             sampled_actions = self.action_buffer[sample_indices]
             safe_policy = self.safe_actor(sampled_states)
@@ -854,11 +855,11 @@ class ImagBehavior(nn.Module):
             actor_loss -= actor_ent
             metrics.update(tools.tensorstats(behavior_loss, "behavior_loss"))
             metrics["safe_actor_entropy"] = to_np(torch.mean(actor_ent))
-            return actor_loss, metrics
+            return torch.mean(actor_loss), metrics
         return None, None # update wont be called 
 
     def _can_update_via_mpc(self):
-        return self.buffer_size >= 256
+        return self.curr_buffer_size >= 256
 
 
 
