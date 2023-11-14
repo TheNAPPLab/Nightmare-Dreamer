@@ -937,8 +937,16 @@ class ImagBehavior(nn.Module):
             #prune cost rollouts that meet the cost requirement
             lowerCL_idxs = cost <= self._config.cost_threshold_mpc
             lowerCL_value, lowerCL_actions = value[lowerCL_idxs].view(-1, 1), actions[:, lowerCL_idxs.squeeze(), :]
-
             num_safe_candidates = torch.sum(lowerCL_idxs).item() 
+
+            # generate enough safe actions
+            ratio = 0.9
+            while num_safe_candidates < 20:
+                lowerCL_idxs = cost <= (self._config.cost_threshold_mpc * ratio)
+                num_safe_candidates = torch.sum(lowerCL_idxs).item() 
+                ratio *= 0.9
+                
+            lowerCL_value, lowerCL_actions = value[lowerCL_idxs].view(-1, 1), actions[:, lowerCL_idxs.squeeze(), :]
             topk = self._config.num_elites if num_safe_candidates >= self._config.num_elites  else num_safe_candidates
             elite_idxs = torch.topk(lowerCL_value.squeeze(1), topk, dim=0).indices
             elite_value, elite_actions = lowerCL_value[elite_idxs], lowerCL_actions[:, elite_idxs]     
