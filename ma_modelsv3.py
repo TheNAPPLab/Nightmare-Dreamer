@@ -962,7 +962,7 @@ class ImagBehavior(nn.Module):
         # Select action
         score = score.squeeze(1).cpu().numpy()
         actions = elite_actions[:, np.random.choice(np.arange(score.shape[0]), p=score)]
-        action = actions[0].clamp_(-1, 1)
+        action = actions[0].clamp_(-1, 1).unsqueeze(0)
         self._add_buffer(state_, action)
         return action, mean
 

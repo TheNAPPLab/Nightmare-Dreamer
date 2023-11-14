@@ -128,6 +128,7 @@ class Dreamer(nn.Module):
         #compute safe action
         if self._config.use_safe_actor and self._config.mpc and constraint_violated:
             safe_action, _ = self._task_behavior.get_safe_action(copy.deepcopy(latent), self._wm, None)
+            
         if not training:
             if not self._config.mpc:
                 actor = self._task_behavior.safe_actor(feat) if self._config.use_safe_actor and constraint_violated \
