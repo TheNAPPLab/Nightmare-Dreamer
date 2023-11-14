@@ -190,7 +190,7 @@ class CostObs:
 class UUID(gym.Wrapper):
     def __init__(self, env, new_step_api=False):
         if sys.platform == 'linux': 
-          super().__init__(env)   #* this
+          super().__init__(env,new_step_api=new_step_api)   #* this
         else:
           super().__init__(env)
         timestamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
