@@ -890,7 +890,9 @@ class ImagBehavior(nn.Module):
    
     @torch.no_grad()
     def get_safe_action(self, z, model : WorldModel, prev_mean=None ):
+        self._add_buffer(state_, torch.tensor([[-1, -1]]))
         state_ =  copy.deepcopy(model.dynamics.get_feat(z))
+        return torch.tensor([[-1, -1]]) , None
         # Sample policy trajectories
         if self._config.num_pi_trajs > 0:
             _z = {}
