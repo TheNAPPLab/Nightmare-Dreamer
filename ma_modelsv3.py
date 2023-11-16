@@ -842,8 +842,8 @@ class ImagBehavior(nn.Module):
         metrics = {}
         if self._can_update_via_mpc():
             sample_indices = torch.randint(0, self.curr_buffer_size, (self.mpc_batch_size,))
-            sampled_states = self.state_buffer[sample_indices]
-            sampled_actions = self.action_buffer[sample_indices]
+            sampled_states = self.state_buffer[sample_indices].to(self._config.device) 
+            sampled_actions = self.action_buffer[sample_indices].to(self._config.device) 
             safe_policy = self.safe_actor(sampled_states)
 
             safe_actor_ent = safe_policy.entropy()
@@ -944,6 +944,7 @@ class ImagBehavior(nn.Module):
                 percent_k = int(cost.size(0) * percentile / 100)
                 threshold_cost, _ = torch.kthvalue(cost, percent_k, dim = 0)
                 lowerCL_idxs = cost <= threshold_cost
+                num_safe_candidates = torch.sum(lowerCL_idxs).item()
 
             # # generate enough safe actions
             # ratio = 0.9
