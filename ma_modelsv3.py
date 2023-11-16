@@ -890,9 +890,7 @@ class ImagBehavior(nn.Module):
    
     @torch.no_grad()
     def get_safe_action(self, z, model : WorldModel, prev_mean=None ):
-        self._add_buffer(state_, torch.tensor([[-1, -1]]))
         state_ =  copy.deepcopy(model.dynamics.get_feat(z))
-        return torch.tensor([[-1, -1]]) , None
         # Sample policy trajectories
         if self._config.num_pi_trajs > 0:
             _z = {}
@@ -925,7 +923,7 @@ class ImagBehavior(nn.Module):
             actions[:, :self._config.num_pi_trajs] = safe_pi_action
 
         # Iterate MPPI
-        for i in range(self._config.mpc_iterations):
+        for _ in range(self._config.mpc_iterations):
 
             # Sample actions
             actions[:, self._config.num_pi_trajs:] = (mean.unsqueeze(1) + std.unsqueeze(1) * \
@@ -939,14 +937,20 @@ class ImagBehavior(nn.Module):
             #prune cost rollouts that meet the cost requirement
             lowerCL_idxs = cost <= self._config.cost_threshold_mpc
             lowerCL_value, lowerCL_actions = value[lowerCL_idxs].view(-1, 1), actions[:, lowerCL_idxs.squeeze(), :]
-            num_safe_candidates = torch.sum(lowerCL_idxs).item() 
+            num_safe_candidates = torch.sum(lowerCL_idxs).item()
+            # lower cost percentile
+            if num_safe_candidates < 20:
+                percentile = 20
+                percent_k = int(cost.size(0) * percentile / 100)
+                threshold_cost, _ = torch.kthvalue(cost, percent_k, dim = 0)
+                lowerCL_idxs = cost <= threshold_cost
 
-            # generate enough safe actions
-            ratio = 0.9
-            while num_safe_candidates < 20:
-                lowerCL_idxs = cost <= (self._config.cost_threshold_mpc * ratio)
-                num_safe_candidates = torch.sum(lowerCL_idxs).item() 
-                ratio *= 0.9
+            # # generate enough safe actions
+            # ratio = 0.9
+            # while num_safe_candidates < 20:
+            #     lowerCL_idxs = cost <= (self._config.cost_threshold_mpc * ratio)
+            #     num_safe_candidates = torch.sum(lowerCL_idxs).item() 
+            #     ratio *= 0.9
                 
             lowerCL_value, lowerCL_actions = value[lowerCL_idxs].view(-1, 1), actions[:, lowerCL_idxs.squeeze(), :]
             topk = self._config.num_elites if num_safe_candidates >= self._config.num_elites  else num_safe_candidates
