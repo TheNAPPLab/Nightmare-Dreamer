@@ -10,8 +10,10 @@ python ma_dreamer.py
 ```
 Videos will Log in the logdir and be named eval_video
 
-## NightMAre Dreamer Agent Solving Goal and Circle
+## NightMare Dreamer Agent Solving Goal and Circle
 |                                  |                                                |
 | :------------------------------: | :--------------------------------------------: |
 |         `Goal`          |              `Circle`                    |
 | ![Goal-v1](videos/eval_video_goal.gif) | ![Circle](videos/eval_video.gif) |
+
+Will add other tasks and plots soon.
