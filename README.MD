@@ -8,7 +8,13 @@ git clone https://github.com/tohsin/Nightmare-Dreamer.git
 pip install requirements.txt
 python ma_dreamer.py
 ```
-Videos will Log in the logdir and be named eval_video
+
+### Important Information:
+
+1. Videos will Log in the logdir and be named eval_video
+2. The green on the top right corner means no constraint detected and agent uses Control Policy
+3. The red on top right means Constraint detected and agent had switched to a Safe Policy
+4. Circle doesn't switch because intrestingly the control polciy eventually converges to a safe and optimal policy
 
 ## NightMare Dreamer Agent Solving Goal and Circle
 |                                  |                                                |
