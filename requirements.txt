@@ -12,12 +12,12 @@
 # wandb
 
 
-torch
+# torch
 numpy
-torchvision
+# torchvision
 pandas
 ruamel.yaml
-gym[atari]
+# gym[atari]
 wandb
 numpngw
 imageio

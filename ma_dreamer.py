@@ -381,17 +381,13 @@ def main(config):
   config.task_type = '' # dmc or eempty string
   #dmc Humanoid-v4 'Hopper-v4'
   # 'Hopper-v4' SafetyWalker2dVelocity 'SafetyHalfCheetahVelocity-v1' 'SafetyPointCircle1-v0' SafetySwimmerVelocity-v1
-  config.task = 'SafetyPointPush1-v0'  #HalfCheetah-v4
+  config.task = 'SafetyPointCircle1-v0'  #HalfCheetah-v4
   config.steps = 1e7
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
   # print(config_dict)
   if sys.platform == 'linux': #not debugging on mac but running experiment
-
-    # run =  wandb.init(project='Safe RL via Latent world models Setup mac', config = config_dict) \
-    # if sys.platform != 'linux' else wandb.init(project='Safe RL via Latent world models Setup', config = config_dict)
-
-    run = wandb.init(project='Safe RL via Latent world models Setup', config = config_dict)
+    run = wandb.init(project='Nightmare Dreamer Experiments', config = config_dict)
     #run = wandb.init(project='Nightmare Dreamer', config = config_dict)
   logdir = pathlib.Path(config.logdir).expanduser()
   config.traindir = config.traindir or logdir / 'train_eps'
@@ -481,8 +477,9 @@ if __name__ == '__main__':
   # parser.add_argument('--configs', nargs='+', required=True)
   parser.add_argument('--configs', nargs='+', default=['defaults', 'sgym'], required=False)
   args, remaining = parser.parse_known_args()
-  configs = yaml.safe_load(
-      (pathlib.Path(sys.argv[0]).parent / 'ma_configs.yaml').read_text())
+  configs = yaml.load(
+      (pathlib.Path(sys.argv[0]).parent / 'ma_configs.yaml').read_text()
+      )
   defaults = {}
   for name in args.configs:
     defaults.update(configs[name])

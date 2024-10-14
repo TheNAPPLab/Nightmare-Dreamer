@@ -766,7 +766,7 @@ class ImagBehavior(nn.Module):
     # if training_step > self._config.limit_decay_start and training_step % 20_000 == 0 and (abs(self.cost_limit - mean_ep_cost) == 5 or mean_ep_cost <= self.cost_limit):
       if training_step > self._config.limit_decay_start and training_step % self._config.limit_decay_freq == 0 and  mean_ep_cost < self.cost_limit:
         # self.cost_limit = self._cost_limit(training_step)
-        self.cost_limit = max(self._config.limit_signal_prob_decay_min, self.cost_limit-10)
+        self.cost_limit = max(self._config.limit_signal_prob_decay_min, self.cost_limit - 10)
 
       metrics["cost_limit"] = self.cost_limit
 
