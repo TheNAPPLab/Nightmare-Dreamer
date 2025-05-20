@@ -15,8 +15,7 @@ import ruamel.yaml as yaml
 sys.path.append(str(pathlib.Path(__file__).parent))
 
 import ma_exploration as expl
-# import ma_models as models
-import ma_models_default as models
+import ma_models as models
 import ma_tools as tools
 import ma_wrappers as wrappers
 # import dm_wrapper as wrappers
@@ -378,9 +377,8 @@ def set_test_paramters(config):
 
 def main(config):
   config_dict = config.__dict__
-  config.task_type = '' # dmc or eempty string
-  #dmc Humanoid-v4 'Hopper-v4'
-  # 'Hopper-v4' SafetyWalker2dVelocity 'SafetyHalfCheetahVelocity-v1' 'SafetyPointCircle1-v0' SafetySwimmerVelocity-v1
+  config.task_type = '' # dmc or eempty strin
+
   config.task = 'SafetyPointCircle1-v0'  #HalfCheetah-v4
   config.steps = 1e7
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'

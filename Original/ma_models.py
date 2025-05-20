@@ -199,7 +199,6 @@ class ImagBehavior(nn.Module):
         config.actor_dist, config.actor_init_std, config.actor_min_std,
         config.actor_dist, config.actor_temp, config.actor_outscale, name = 'Safe actor')
     
-    # Value functions - 1) Control Actor 2) Safe Actor
     self.value = networks.DenseHead(
         feat_size,  # pytorch version
         [], config.value_layers, config.units, config.act,
@@ -211,7 +210,6 @@ class ImagBehavior(nn.Module):
           [], config.value_layers, config.units, config.act,
           config.value_head)
 
-    # Cost Value Function``
     self.cost_value = networks.DenseHead(
         feat_size,  # pytorch version
         [], config.value_layers, config.units, config.act,
@@ -222,10 +220,10 @@ class ImagBehavior(nn.Module):
         feat_size +  config.num_actions,
         [], config.discriminator_layers, config.discriminator_units, config.act)
       
-      self.discriminator_criterion = nn.BCELoss() # discriminator loss fn
+      self.discriminator_criterion = nn.BCELoss() # discriminator
 
     if config.slow_value_target or config.slow_actor_target:
-        # target networks 1) Reward Value Fns Control Actor 2) Reward Value Fns Safe Actor 3) Cost Value Fns Safe Actor
+      # target network
         self._slow_value = networks.DenseHead(
           feat_size,  # pytorch version
           [], config.value_layers, config.units, config.act)
@@ -241,7 +239,7 @@ class ImagBehavior(nn.Module):
         self._updates = 0
 
     kw = dict(wd = config.weight_decay, opt = config.opt, use_amp=self._use_amp) 
-    # Actors Optimisers 1) Control Actor 2) Safe Actor
+    # Actors Optimisers
     self._actor_opt = tools.Optimizer(
         'actor', self.actor.parameters(), config.actor_lr, config.opt_eps, config.actor_grad_clip,
         **kw)
@@ -250,7 +248,7 @@ class ImagBehavior(nn.Module):
         'safe_actor', self.safe_actor.parameters(), config.safe_actor_lr, config.opt_eps, config.actor_grad_clip,
         **kw)
     
-    # Values Optimisers 1) R Value fn Controller 2) R value fn safe Actor 3) 
+    # Values Optimisers
     self._value_opt = tools.Optimizer(
         'value', self.value.parameters(), config.value_lr, config.opt_eps, config.value_grad_clip,
         **kw)
@@ -262,9 +260,9 @@ class ImagBehavior(nn.Module):
     self._cost_value_opt = tools.Optimizer(
           'cost_value', self.cost_value.parameters(), config.cost_value_lr, config.opt_eps, config.value_grad_clip,
           **kw)
-    
-    #Ad
     if self._config.learn_discriminator:
+
+      
       self._discriminator_opt = tools.Optimizer(
         'discriminator', self.discriminator.parameters(), config.discrimiator_lr, config.opt_eps, config.discriminator_grad_clip,
           **kw
@@ -550,7 +548,6 @@ class ImagBehavior(nn.Module):
     target_under_safe_policy = torch.stack(target_under_safe_policy, dim = 1)
     safe_actor_target = 0
     penalty = 0
-
     if self._config.cost_imag_gradient == 'dynamics':
       penalty =  self._lambda_range_projection(self._lagrangian_multiplier).item() if self._config.learnable_lagrange else self._lagrangian_multiplier
       safe_actor_target += penalty *  self._config.alpha2 * target_cost
@@ -579,10 +576,36 @@ class ImagBehavior(nn.Module):
     if self._config.conditional_cloning:
         future_cost = torch.sum(cost.detach(), dim = 0)
         threshold_mask = future_cost < self._config.cost_threshold_train
-
     #behavior cloning loss
+    if self._config.behavior_cloning == 'kl1':
+      behavior_loss = self._action_kl_loss(self.actor(inp[:-1]), self.safe_actor(inp[:-1]))
+      scaled_behavior_loss = self._config.behavior_clone_scale * behavior_loss    
+      safe_actor_target += threshold_mask * scaled_behavior_loss if self._config.conditional_cloning else scaled_behavior_loss
+  
 
-    if self._config.behavior_cloning == 'discriminator':
+    elif self._config.behavior_cloning == 'kl2':
+      '''
+      inp is states from Safe policy
+      inp_ is states from Control policy
+      '''
+      behavior_loss1 = self._action_kl_loss(self.actor(inp[:-1]), self.safe_actor(inp[:-1]))
+      inp_ = imag_feat.detach() if self._stop_grad_actor else imag_feat
+      behavior_loss2 = self._action_kl_loss(self.actor(inp_[:-1]), self.safe_actor(inp_[:-1])) # use control states
+      behavior_loss = (behavior_loss1 + behavior_loss2) / 2
+      scaled_behavior_loss = self._config.behavior_clone_scale * behavior_loss
+      safe_actor_target += scaled_behavior_loss
+
+    elif self._config.behavior_cloning == 'log_prob':
+      inp_ = imag_feat.detach() if self._stop_grad_actor else imag_feat
+      action_inp_ = imag_action.detach() if self._stop_grad_actor else imag_action
+      safe_policy_ = self.safe_actor(inp_) # safe policy under control state
+      behavior_loss =  -safe_policy_.log_prob(action_inp_)[:-1][:, :, None]
+      if self._config.clamp_behavior_loss:
+        behavior_loss = torch.clamp(behavior_loss, min = self._config.min_behavior_loss)
+      scaled_behavior_loss = self._config.behavior_clone_scale * behavior_loss
+      safe_actor_target += scaled_behavior_loss
+
+    elif self._config.behavior_cloning == 'discriminator':
       behavior_loss = -self.discriminator(inp[:-1], safe_imag_action[:-1])
       scaled_behavior_loss = self._config.behavior_clone_scale  * behavior_loss
       safe_actor_target += scaled_behavior_loss
@@ -592,6 +615,14 @@ class ImagBehavior(nn.Module):
       output_shape = (safe_imag_action.shape[0]-1, safe_imag_action.shape[1], 1)
       control_labels = torch.ones(output_shape, device=self._config.device)
       behavior_loss = -F.binary_cross_entropy_with_logits(discriminator_predictions, control_labels)
+      scaled_behavior_loss = self._config.behavior_clone_scale  * behavior_loss
+      safe_actor_target += scaled_behavior_loss
+
+    elif self._config.behavior_cloning == 'mse':
+      cntrl_actions = imag_action.detach()[:-1]
+      safe_actions = self.safe_actor(imag_feat.detach()).sample()[:-1] #safe actions given  states from control policy
+      squared_diff = (safe_actions - cntrl_actions)**2
+      behavior_loss = torch.mean(squared_diff, dim = 2)[:,:,None]
       scaled_behavior_loss = self._config.behavior_clone_scale  * behavior_loss
       safe_actor_target += scaled_behavior_loss
 
@@ -714,14 +745,11 @@ class ImagBehavior(nn.Module):
     self._cost_d = 0
 
   def _cost_limit(self, step):
-    #  return a fixed cost budget if we arent decaying
+    #  limit_signal_prob_decay_min:  12
     if not self._config.decay_cost:
       return self._config.limit_signal_prob_decay_min
-    
-    #clipping 
     if step <= self._config.limit_decay_start:
         expl_amount = self._config.limit_signal_prob
-
     else:
         expl_amount =  self._config.limit_signal_prob
         ir = step  - self._config.limit_decay_start + 1
