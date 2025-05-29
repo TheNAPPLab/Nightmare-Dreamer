@@ -379,8 +379,8 @@ def main(config):
   config_dict = config.__dict__
   config.task_type = '' # dmc or eempty strin
 
-  config.task = 'SafetyPointCircle1-v0'  #HalfCheetah-v4
-  config.steps = 1e7
+  config.task = 'SafetyPointCircle2-v0'  #HalfCheetah-v4
+  config.steps = 1e6
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
   # print(config_dict)
@@ -487,11 +487,11 @@ if __name__ == '__main__':
     parser.add_argument(f'--{key}', type=arg_type, default=arg_type(value))
   current_dir = os.path.dirname(os.path.abspath(__file__))
   # For linux running 
-  logdir = os.path.join(current_dir, 'logdir', 'safecircle1', '0')
-  existed_ns = [int(v) for v in os.listdir(os.path.join(current_dir, 'logdir', 'safecircle1'))]
+  logdir = os.path.join(current_dir, 'logdir', 'SafetyPointCircle2', '0')
+  existed_ns = [int(v) for v in os.listdir(os.path.join(current_dir, 'logdir', 'SafetyPointCircle2'))]
   if len(existed_ns) > 0:
     new_n = max(existed_ns)+1
-    logdir = os.path.join(current_dir, 'logdir', 'safecircle1', str(new_n))
+    logdir = os.path.join(current_dir, 'logdir', 'SafetyPointCircle2', str(new_n))
 
   # For jason running un comment
   #logdir = os.path.join(current_dir, 'logdir', 'halfcheetah', '0')
