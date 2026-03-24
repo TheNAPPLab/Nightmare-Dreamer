@@ -77,7 +77,7 @@ class WorldModel(nn.Module):
     data = self.preprocess(data)
 
     with tools.RequiresGrad(self):
-      with torch.cuda.amp.autocast(self._use_amp):
+      with torch.amp.autocast('cuda', enabled=self._use_amp):
         embed = self.encoder(data)
         post, prior = self.dynamics.observe(embed, data['action'])
         kl_balance = tools.schedule(self._config.kl_balance, self._step)
@@ -115,7 +115,7 @@ class WorldModel(nn.Module):
     metrics['kl'] = to_np(torch.mean(kl_value))
     # if self._config.learnable_lagrange:
     #   metrics['lagrangian_multiplier'] = to_np(self._lagrangian_multiplier)
-    with torch.cuda.amp.autocast(self._use_amp):
+    with torch.amp.autocast('cuda', enabled=self._use_amp):
       metrics['prior_ent'] = to_np(torch.mean(self.dynamics.get_dist(prior).entropy()))
       metrics['post_ent'] = to_np(torch.mean(self.dynamics.get_dist(post).entropy()))
       context = dict(
@@ -288,7 +288,7 @@ class ImagBehavior(nn.Module):
     metrics.update(mets_lag)
 
     with tools.RequiresGrad(self.actor):
-      with torch.cuda.amp.autocast(self._use_amp): #prcesion
+      with torch.amp.autocast('cuda', enabled=self._use_amp): #prcesion
         #imagination roll out
         imag_feat, imag_state, imag_action = self._imagine(
             start, self.actor, self._config.imag_horizon, repeats)
@@ -320,7 +320,7 @@ class ImagBehavior(nn.Module):
 
     #update Control Value fn
     with tools.RequiresGrad(self.value):
-      with torch.cuda.amp.autocast(self._use_amp):
+      with torch.amp.autocast('cuda', enabled=self._use_amp):
         value = self.value(value_input[:-1].detach())
         target = torch.stack(target, dim=1)
         value_loss = -value.log_prob(target.detach())
@@ -330,7 +330,7 @@ class ImagBehavior(nn.Module):
 
     # update Safe Actor
     with tools.RequiresGrad(self.safe_actor):
-      with torch.cuda.amp.autocast(self._use_amp): #prcesion
+      with torch.amp.autocast('cuda', enabled=self._use_amp): #prcesion
 
         safe_imag_feat, safe_imag_state, safe_imag_action = self._imagine(
               start, self.safe_actor, self._config.imag_horizon, repeats)
@@ -361,7 +361,7 @@ class ImagBehavior(nn.Module):
         safe_value_input = safe_imag_feat
 
     with tools.RequiresGrad(self.cost_value):
-      with torch.cuda.amp.autocast(self._use_amp):
+      with torch.amp.autocast('cuda', enabled=self._use_amp):
         cost_value = self.cost_value(safe_value_input[:-1].detach())
         target_cost = torch.stack(target_cost, dim=1)
         cost_value_loss = -cost_value.log_prob(target_cost.detach())
@@ -370,7 +370,7 @@ class ImagBehavior(nn.Module):
         
     #update Control Value fn
     with tools.RequiresGrad(self.value_safe):
-      with torch.cuda.amp.autocast(self._use_amp):
+      with torch.amp.autocast('cuda', enabled=self._use_amp):
         value_safe = self.value_safe(safe_value_input[:-1].detach())
         target_under_safe_policy = torch.stack(target_under_safe_policy, dim=1)
         value_safe_loss = -value_safe.log_prob(target_under_safe_policy.detach())
@@ -380,7 +380,7 @@ class ImagBehavior(nn.Module):
 
     if self._config.learn_discriminator:
       with tools.RequiresGrad(self.discriminator):
-        with torch.cuda.amp.autocast(self._use_amp):
+        with torch.amp.autocast('cuda', enabled=self._use_amp):
           discrimiator_loss = self._compute_discrimiator_loss(safe_imag_action, safe_imag_feat,\
                                     imag_action, imag_feat )
         

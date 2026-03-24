@@ -168,7 +168,7 @@ class Logger:
     scalars = list(self._scalars.items())
     if fps:
       scalars.append(('fps', self._compute_fps(self.step)))
-    print(f'[{self.step}]', ' / '.join(f'{k} {v:.1f}' for k, v in scalars))
+    # print(f'[{self.step}]', ' / '.join(f'{k} {v:.1f}' for k, v in scalars))
     with (self._logdir / 'metrics.jsonl').open('a') as f:
       f.write(json.dumps({'step': self.step, ** dict(scalars)}) + '\n')
     if sys.platform == 'linux': 
@@ -649,7 +649,7 @@ class Optimizer():
                                 lr=lr,
                                 momentum=0.9),
     }[opt]()
-    self._scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+    self._scaler = torch.amp.GradScaler('cuda', enabled=use_amp)
 
   def __call__(self, loss, params, retain_graph=False):
     assert len(loss.shape) == 0, loss.shape

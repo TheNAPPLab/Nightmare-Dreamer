@@ -1,7 +1,3 @@
-set -ex
-
-export CUDA_DEVICE_ORDER='PCI_BUS_ID'
-export OMP_NUM_THREADS=1
-
+conda activate dreamer
 
 python ma_dreamer.py 

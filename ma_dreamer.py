@@ -352,7 +352,7 @@ def process_episode(config, logger, mode, train_eps, eval_eps, episode):
         del cache[key]
     logger.scalar('dataset_size', total + length)
   cache[str(filename)] = episode
-  print(f'{mode.title()} episode has {length} steps, return {score:.1f}, cost {score_cost:.1f} and algorithm switched task {num_task_switch:.1f} times to safe agent.')
+  # print(f'{mode.title()} episode has {length} steps, return {score:.1f}, cost {score_cost:.1f} and algorithm switched task {num_task_switch:.1f} times to safe agent.')
   if mode == 'train':
     online_mean_cost_calc.update(score_cost)
   logger.scalar('Online Mean Cost', online_mean_cost_calc.get_mean())
@@ -379,7 +379,7 @@ def main(config):
   config_dict = config.__dict__
   config.task_type = '' # dmc or eempty strin
 
-  config.task = 'SafetyPointCircle2-v0'  #HalfCheetah-v4
+  config.task = 'SafetyPointCircle1-v0'  #HalfCheetah-v4
   config.steps = 1e6
   config.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
   if sys.platform != 'linux': set_test_paramters(config)# if not zhuzun running so parameters for testing locally
@@ -475,7 +475,8 @@ if __name__ == '__main__':
   # parser.add_argument('--configs', nargs='+', required=True)
   parser.add_argument('--configs', nargs='+', default=['defaults', 'sgym'], required=False)
   args, remaining = parser.parse_known_args()
-  configs = yaml.load(
+  yml = yaml.YAML(typ='safe')
+  configs = yml.load(
       (pathlib.Path(sys.argv[0]).parent / 'ma_configs.yaml').read_text()
       )
   defaults = {}
@@ -488,6 +489,7 @@ if __name__ == '__main__':
   current_dir = os.path.dirname(os.path.abspath(__file__))
   # For linux running 
   logdir = os.path.join(current_dir, 'logdir', 'SafetyPointCircle2', '0')
+  os.makedirs(os.path.join(current_dir, 'logdir', 'SafetyPointCircle2'), exist_ok=True)
   existed_ns = [int(v) for v in os.listdir(os.path.join(current_dir, 'logdir', 'SafetyPointCircle2'))]
   if len(existed_ns) > 0:
     new_n = max(existed_ns)+1
