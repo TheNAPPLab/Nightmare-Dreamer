@@ -514,3 +514,60 @@ class Discriminator(nn.Module):
     logits = self._mean_layers(x)
     probabilities = torch.sigmoid(logits)
     return probabilities
+
+class SinusoidalPosEmb(nn.Module):
+  def __init__(self, dim):
+    super().__init__()
+    self.dim = dim
+
+  def forward(self, x):
+    device = x.device
+    half_dim = self.dim // 2
+    emb = torch.log(torch.tensor(10000.0, device=device)) / (half_dim - 1)
+    emb = torch.exp(torch.arange(half_dim, dtype=torch.float32, device=device) * -emb)
+    emb = x[:, None].float() * emb[None, :]
+    emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
+    return emb
+
+class Conv1DBlock(nn.Module):
+  def __init__(self, inp, out, time_emb_dim):
+    super().__init__()
+    self.conv = nn.Conv1d(inp, out, kernel_size=3, padding=1)
+    self.act = nn.ELU()
+    self.time_proj = nn.Linear(time_emb_dim, out)
+      
+  def forward(self, x, t_emb):
+    x = self.conv(x)
+    x = x + self.time_proj(t_emb).unsqueeze(-1)
+    return self.act(x)
+
+class ConditionalDiffusionModel(nn.Module):
+  def __init__(self, state_dim, action_dim, time_dim=64, hidden_dim=256, layers=3, act=nn.ELU):
+    super(ConditionalDiffusionModel, self).__init__()
+    self.action_dim = action_dim
+    self.time_mlp = nn.Sequential(
+      SinusoidalPosEmb(time_dim),
+      nn.Linear(time_dim, time_dim * 2),
+      act(),
+      nn.Linear(time_dim * 2, time_dim * 2)
+    )
+    t_dim = time_dim * 2
+    
+    self.blocks = nn.ModuleList()
+    inp_dim = state_dim + action_dim
+    for i in range(layers):
+      self.blocks.append(Conv1DBlock(inp_dim if i==0 else hidden_dim, hidden_dim, t_dim))
+        
+    self.final = nn.Conv1d(hidden_dim, action_dim, kernel_size=1)
+
+  def forward(self, state_seq, action_seq, time):
+    # expected: state_seq [Batch, Horizon, SDim], action_seq [Batch, Horizon, ADim]
+    t_emb = self.time_mlp(time)
+    x = torch.cat([state_seq, action_seq], dim=-1) # [B, H, dim]
+    x = x.transpose(1, 2) # [B, dim, H]
+    
+    for block in self.blocks:
+        x = block(x, t_emb)
+        
+    out = self.final(x) # [B, ADim, H]
+    return out.transpose(1, 2) # [B, H, ADim]

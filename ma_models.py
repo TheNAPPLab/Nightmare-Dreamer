@@ -216,13 +216,26 @@ class ImagBehavior(nn.Module):
         feat_size,  # pytorch version
         [], config.value_layers, config.units, config.act,
         config.value_head)
-    #discriminator network
+    #diffusion model for behavior cloning
     if self._config.learn_discriminator:
-      self.discriminator = networks.Discriminator(
-        feat_size +  config.num_actions,
-        [], config.discriminator_layers, config.discriminator_units, config.act)
+      self.diffusion_model = networks.ConditionalDiffusionModel(
+          state_dim=feat_size,
+          action_dim=config.num_actions,
+          hidden_dim=config.discriminator_units,
+          layers=config.discriminator_layers,
+          act=config.act)
       
-      self.discriminator_criterion = nn.BCELoss() # discriminator loss fn
+      self.diffusion_criterion = nn.MSELoss() 
+      
+      # Diffusion hyperparameters
+      self.diffusion_steps = 100
+      beta_start, beta_end = 1e-4, 0.02
+      betas = torch.linspace(beta_start, beta_end, self.diffusion_steps, dtype=torch.float32)
+      alphas = 1.0 - betas
+      alphas_cumprod = torch.cumprod(alphas, dim=0)
+      
+      self.register_buffer('diffusion_betas', betas)
+      self.register_buffer('diffusion_alphas_cumprod', alphas_cumprod)
 
     if config.slow_value_target or config.slow_actor_target:
         # target networks 1) Reward Value Fns Control Actor 2) Reward Value Fns Safe Actor 3) Cost Value Fns Safe Actor
@@ -265,8 +278,8 @@ class ImagBehavior(nn.Module):
     
     #Ad
     if self._config.learn_discriminator:
-      self._discriminator_opt = tools.Optimizer(
-        'discriminator', self.discriminator.parameters(), config.discrimiator_lr, config.opt_eps, config.discriminator_grad_clip,
+      self._diffusion_opt = tools.Optimizer(
+        'diffusion_model', self.diffusion_model.parameters(), config.discrimiator_lr, config.opt_eps, config.discriminator_grad_clip,
           **kw
       )
 
@@ -379,10 +392,9 @@ class ImagBehavior(nn.Module):
         value_safe_loss = torch.mean(target_weights_[:-1] * value_safe_loss[:,:,None])
 
     if self._config.learn_discriminator:
-      with tools.RequiresGrad(self.discriminator):
+      with tools.RequiresGrad(self.diffusion_model):
         with torch.amp.autocast('cuda', enabled=self._use_amp):
-          discrimiator_loss = self._compute_discrimiator_loss(safe_imag_action, safe_imag_feat,\
-                                    imag_action, imag_feat )
+          diffusion_loss = self._compute_diffusion_loss(imag_action, imag_feat)
         
 
     metrics['reward_mean'] = to_np(torch.mean(reward))
@@ -406,7 +418,14 @@ class ImagBehavior(nn.Module):
       metrics.update(self._cost_value_opt(cost_value_loss, self.cost_value.parameters()))
       metrics.update(self._value_safe_opt(value_safe_loss, self.value_safe.parameters()))
       if self._config.learn_discriminator:
-        metrics.update(self._discriminator_opt(discrimiator_loss, self.discriminator.parameters()))
+        # diffusion_steps = getattr(self._config, 'diffusion_update_steps', 5)
+        # for _ in range(diffusion_steps):
+        #     with torch.amp.autocast('cuda', enabled=self._use_amp):
+        #         # We put .detach() to ensure gradients don't leak into the actor
+        #         diff_loss = self._compute_diffusion_loss(imag_action.detach(), imag_feat.detach())
+        #     diff_metrics = self._diffusion_opt(diff_loss, self.diffusion_model.parameters())
+        # metrics.update(diff_metrics) #
+        metrics.update(self._diffusion_opt(diffusion_loss, self.diffusion_model.parameters()))
 
     return imag_feat, imag_state, imag_action, weights, metrics
 
@@ -580,19 +599,37 @@ class ImagBehavior(nn.Module):
         future_cost = torch.sum(cost.detach(), dim = 0)
         threshold_mask = future_cost < self._config.cost_threshold_train
 
-    #behavior cloning loss
-
-    if self._config.behavior_cloning == 'discriminator':
-      behavior_loss = -self.discriminator(inp[:-1], safe_imag_action[:-1])
-      scaled_behavior_loss = self._config.behavior_clone_scale  * behavior_loss
-      safe_actor_target += scaled_behavior_loss
-
-    elif self._config.behavior_cloning == 'discriminator_log':
-      discriminator_predictions = self.discriminator(inp[:-1], safe_imag_action[:-1])
-      output_shape = (safe_imag_action.shape[0]-1, safe_imag_action.shape[1], 1)
-      control_labels = torch.ones(output_shape, device=self._config.device)
-      behavior_loss = -F.binary_cross_entropy_with_logits(discriminator_predictions, control_labels)
-      scaled_behavior_loss = self._config.behavior_clone_scale  * behavior_loss
+    # Score-based behavior cloning guidance via Diffusion Model (Action Chunking)
+    if self._config.behavior_cloning in ['discriminator', 'discriminator_log']:
+      # Detach states since we're only updating actor wrt action
+      # Dreamer features are [Horizon, Batch, Dim], swap to [Batch, Horizon, Dim] for Conv1D
+      states_for_guidance = inp[:-1].detach().transpose(0, 1)
+      actions_from_safe_actor = safe_imag_action[:-1].transpose(0, 1)
+      
+      # Evaluate diffusion score at a small selected timestep (e.g. step 5 / 100)
+      t_guidance = 5
+      t_tensor = torch.full((actions_from_safe_actor.shape[0],), 
+                            t_guidance, device=inp.device, dtype=torch.float32)
+      
+      # Add tiny noise over the sequence
+      noise = torch.randn_like(actions_from_safe_actor)
+      alpha_cum = self.diffusion_alphas_cumprod[t_guidance]
+      noisy_actions = torch.sqrt(alpha_cum) * actions_from_safe_actor + torch.sqrt(1 - alpha_cum) * noise
+      
+      # Predict noise over the sequence chunk
+      with torch.no_grad():
+          pred_noise = self.diffusion_model(states_for_guidance, noisy_actions, t_tensor)
+          
+      # Use raw noise as score gradient directly preventing pessimistic collapse
+      score = -pred_noise
+      
+      # Swap chunk back to [Horizon, Batch, Dim]
+      score = score.transpose(0, 1)
+      actions_safe_orig = actions_from_safe_actor.transpose(0, 1)
+      
+      behavior_loss = -torch.sum(score.detach() * actions_safe_orig, dim=-1, keepdim=True)
+      
+      scaled_behavior_loss = self._config.behavior_clone_scale * behavior_loss
       safe_actor_target += scaled_behavior_loss
 
     if self._config.alpha1 != 0.0:
@@ -756,31 +793,24 @@ class ImagBehavior(nn.Module):
       metrics["cost_limit"] = self.cost_limit
     return metrics
 
-  def _compute_discrimiator_loss(self, safe_actions, states_under_safe_policy,\
-                                  control_action, states_under_control_policy ):
-    statesGenerated_under_safe_policy = states_under_safe_policy.detach()
-    safe_actions = safe_actions.detach()
-    statesGenerated_under_control_policy = states_under_control_policy.detach()
-    control_action = control_action.detach()
-
-    safe_actions_under_GenratedControl_states =  self.safe_actor(statesGenerated_under_control_policy).sample().detach()
-
-    control_actions_under_GenratedSafe_states =  self.actor(statesGenerated_under_safe_policy).sample().detach()
-
-    pred_safe1 = self.discriminator(statesGenerated_under_safe_policy, safe_actions)
-    pred_safe2 = self.discriminator(statesGenerated_under_control_policy, safe_actions_under_GenratedControl_states)
-
-    pred_control1 = self.discriminator(statesGenerated_under_control_policy, control_action)
-    pred_control2 = self.discriminator(statesGenerated_under_safe_policy, control_actions_under_GenratedSafe_states)
-
-    output_shape = (safe_actions.shape[0], safe_actions.shape[1], 1)
-    control_labels = torch.ones(output_shape, device=self._config.device)
-    safe_labels = torch.zeros(output_shape, device=self._config.device)
-
-    control_loss_pred = F.binary_cross_entropy_with_logits(pred_control1, control_labels) + F.binary_cross_entropy_with_logits(pred_control2, control_labels) 
-    safe_loss_pred = F.binary_cross_entropy_with_logits(pred_safe1, safe_labels ) + F.binary_cross_entropy_with_logits(pred_safe2, safe_labels )
-
-    loss = (control_loss_pred + safe_loss_pred)/4
+  def _compute_diffusion_loss(self, control_action, states_under_control_policy):
+    # Action Chunking Denoising diffusion loss
+    # Original states/actions are [Horizon, Batch, Dim], transform to [Batch, Horizon, Dim]
+    states = states_under_control_policy.detach().transpose(0, 1)
+    actions = control_action.detach().transpose(0, 1)
+    
+    # Sample random timesteps per batch item
+    t = torch.randint(0, self.diffusion_steps, (actions.shape[0],), device=actions.device).long()
+    
+    # Add noise to action sequences
+    noise = torch.randn_like(actions)
+    alpha_cum = self.diffusion_alphas_cumprod[t].unsqueeze(-1).unsqueeze(-1) # [B, 1, 1]
+    noisy_actions = torch.sqrt(alpha_cum) * actions + torch.sqrt(1 - alpha_cum) * noise
+    
+    # Predict noise for whole chunks
+    pred_noise = self.diffusion_model(states, noisy_actions, t.float())
+    
+    loss = self.diffusion_criterion(pred_noise, noise)
     return loss
 
   def _declare_lagrnagian(self):

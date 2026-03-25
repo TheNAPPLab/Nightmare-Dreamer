@@ -236,7 +236,7 @@ sgym:
 
   #discrimiator parameters
   discriminator_layers: 2
-  discriminator_units: 200
+  discriminator_units: 256
   discrimiator_lr: 1e-3
   discriminator_grad_clip: 100
   learn_discriminator: True

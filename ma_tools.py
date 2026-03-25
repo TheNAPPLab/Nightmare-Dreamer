@@ -172,7 +172,8 @@ class Logger:
     with (self._logdir / 'metrics.jsonl').open('a') as f:
       f.write(json.dumps({'step': self.step, ** dict(scalars)}) + '\n')
     if sys.platform == 'linux': 
-      wandb.log(self._scalars, step = self.step)
+      wandb_scalars = {k.replace('_', '/', 1): v for k, v in self._scalars.items()}
+      wandb.log(wandb_scalars, step = self.step)
 
 
     # for name, value in scalars:
